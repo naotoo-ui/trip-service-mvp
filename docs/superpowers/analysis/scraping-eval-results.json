@@ -1,0 +1,114 @@
+[
+  {
+    "url": "https://www.jalan.net/travel-journal/000026149/",
+    "category": "じゃらん",
+    "desc": "北海道3泊4日",
+    "status": "success",
+    "issues": [],
+    "durationMs": 13231,
+    "scrapeTextLength": 2826,
+    "title": "ub045762さんの北海道～茨城県の旅行記",
+    "destination": "北海道",
+    "duration_days": 4,
+    "dayCount": 4,
+    "totalSpots": 32,
+    "hasTimeInfo": true
+  },
+  {
+    "url": "https://plus.rurubu.jp/article/lw2q65yu6",
+    "category": "るるぶ",
+    "desc": "沖縄2泊3日モデルコース",
+    "status": "success",
+    "issues": [],
+    "durationMs": 10980,
+    "scrapeTextLength": 2317,
+    "title": "沖縄ドライブ旅！定番から穴場まで満喫3日間",
+    "destination": "沖縄県",
+    "duration_days": 3,
+    "dayCount": 3,
+    "totalSpots": 15,
+    "hasTimeInfo": true
+  },
+  {
+    "url": "https://hitorijikan-nico2.hatenablog.com/entry/trip/kyoto-nara-matome-202304",
+    "category": "はてな",
+    "desc": "京都・奈良2泊3日",
+    "status": "scrape_failed",
+    "issues": [
+      "テキストが短すぎる(0文字)"
+    ],
+    "durationMs": 300,
+    "scrapeTextLength": 0
+  },
+  {
+    "url": "https://4travel.jp/travelogue/11916960",
+    "category": "フォートラベル",
+    "desc": "沖縄旅行記",
+    "status": "success",
+    "issues": [],
+    "durationMs": 27482,
+    "scrapeTextLength": 1857,
+    "title": "沖縄グルメ＆リゾート満喫旅",
+    "destination": "沖縄",
+    "duration_days": 3,
+    "dayCount": 3,
+    "totalSpots": 16,
+    "hasTimeInfo": true
+  },
+  {
+    "url": "https://note.com/ymstekc/n/n12bdf8be63a6",
+    "category": "note",
+    "desc": "東京ノープラン旅",
+    "status": "success",
+    "issues": [],
+    "durationMs": 8655,
+    "scrapeTextLength": 3675,
+    "title": "青春18きっぷからの東京3日間ノープラン一人旅",
+    "destination": "東京都",
+    "duration_days": 3,
+    "dayCount": 3,
+    "totalSpots": 24,
+    "hasTimeInfo": true
+  },
+  {
+    "url": "https://ameblo.jp/tabiakari/entry-12961531031.html",
+    "category": "アメブロ国内",
+    "desc": "沖縄2泊3日",
+    "status": "success",
+    "issues": [],
+    "durationMs": 11569,
+    "scrapeTextLength": 6602,
+    "title": "2泊3日沖縄本島 王道モデルコース",
+    "destination": "沖縄県",
+    "duration_days": 3,
+    "dayCount": 3,
+    "totalSpots": 18,
+    "hasTimeInfo": true
+  },
+  {
+    "url": "https://ameblo.jp/riona0777/entry-12913602540.html",
+    "category": "アメブロ海外",
+    "desc": "韓国2泊3日",
+    "status": "success",
+    "issues": [],
+    "durationMs": 25840,
+    "scrapeTextLength": 6465,
+    "title": "2泊3日韓国旅行記",
+    "destination": "韓国",
+    "duration_days": 3,
+    "dayCount": 3,
+    "totalSpots": 14,
+    "hasTimeInfo": true
+  },
+  {
+    "url": "https://nt-kaokatsu.hatenablog.com/entry/2024/03/24/181815",
+    "category": "はてな",
+    "desc": "九州一周5泊6日",
+    "status": "scrape_failed",
+    "issues": [
+      "テキストが短すぎる(0文字)"
+    ],
+    "durationMs": 150,
+    "scrapeTextLength": 0
+  }
+]

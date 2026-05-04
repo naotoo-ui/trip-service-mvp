@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import { getTripByShareId } from '@/lib/db/trips'
-import ItineraryView from '@/components/trips/ItineraryView'
+import ItineraryEditor from '@/components/trips/ItineraryEditor'
 import ShareButton from '@/components/trips/ShareButton'
 
 export default async function TripPage({ params }: { params: Promise<{ id: string }> }) {
@@ -13,7 +13,7 @@ export default async function TripPage({ params }: { params: Promise<{ id: strin
 
     return (
         <main className="max-w-xl mx-auto px-4 py-10">
-            <ItineraryView trip={trip} />
+            <ItineraryEditor trip={trip} />
             <div className="mt-8">
                 <ShareButton shareId={trip.share_id} />
             </div>
