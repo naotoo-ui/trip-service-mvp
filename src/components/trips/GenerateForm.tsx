@@ -1,0 +1,84 @@
+'use client'
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+
+export default function GenerateForm() {
+    const router = useRouter()
+    const [destination, setDestination] = useState('')
+    const [durationDays, setDurationDays] = useState(2)
+    const [wishes, setWishes] = useState('')
+    const [loading, setLoading] = useState(false)
+    const [error, setError] = useState('')
+
+    async function handleSubmit(e: React.FormEvent) {
+        e.preventDefault()
+        setLoading(true)
+        setError('')
+        try {
+            const res = await fetch('/api/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    destination,
+                    duration_days: durationDays,
+                    wishes,
+                }),
+            })
+            const data = await res.json()
+            if (!res.ok) throw new Error(data.error)
+            router.push(`/trips/${data.share_id}`)
+        } catch (err) {
+            setError(err instanceof Error ? err.message : '旅程の生成に失敗しました')
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    return (
+        <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+                <label className="block text-sm font-medium mb-1">行き先</label>
+                <input
+                    type="text"
+                    value={destination}
+                    onChange={(e) => setDestination(e.target.value)}
+                    placeholder="例：沖縄"
+                    required
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+            </div>
+            <div>
+                <label className="block text-sm font-medium mb-1">日数</label>
+                <select
+                    value={durationDays}
+                    onChange={(e) => setDurationDays(Number(e.target.value))}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                    {[1, 2, 3, 4, 5, 6, 7].map((n) => (
+                        <option key={n} value={n}>{n}日間</option>
+                    ))}
+                </select>
+            </div>
+            <div>
+                <label className="block text-sm font-medium mb-1">
+                    やりたいこと <span className="text-gray-400 text-xs">（任意）</span>
+                </label>
+                <textarea
+                    value={wishes}
+                    onChange={(e) => setWishes(e.target.value)}
+                    placeholder="例：海と食事を楽しみたい、温泉に入りたい"
+                    rows={3}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+            </div>
+            {error && <p className="text-red-500 text-sm">{error}</p>}
+            <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-blue-600 text-white rounded-lg py-3 font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-blue-700 transition-colors"
+            >
+                {loading ? '生成中...' : '旅程を生成する'}
+            </button>
+        </form>
+    )
+}
