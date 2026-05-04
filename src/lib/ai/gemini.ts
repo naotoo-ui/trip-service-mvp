@@ -79,7 +79,7 @@ export function parseTripJson(raw: string): {
 export async function generateTripFromInput(
     input: GenerateInput
 ): Promise<{ title: string; itinerary: Itinerary }> {
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' })
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-lite' })
     const result = await model.generateContent(buildGeneratePrompt(input))
     const { title, itinerary } = parseTripJson(result.response.text())
     return { title, itinerary }
@@ -91,7 +91,7 @@ export async function generateTripFromArticle(articleText: string): Promise<{
     duration_days: number
     itinerary: Itinerary
 }> {
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' })
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-lite' })
     const result = await model.generateContent(buildScrapePrompt(articleText))
     const { title, destination, duration_days, itinerary } = parseTripJson(
         result.response.text()
