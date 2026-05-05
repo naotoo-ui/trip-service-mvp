@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState, useCallback, useEffect, useMemo } from 'react'
+import { useRef, useState, useCallback, useEffect } from 'react'
 import type { ItineraryDay, Spot } from '@/types'
 
 // ────────── 定数 ──────────
@@ -11,8 +11,7 @@ const MIN_DUR    = 20
 const TIME_COL   = 56
 const ACCENT     = 4
 const HANDLE     = 8
-const ZOOM_MAX   = 3.0
-const ZOOM_STEP  = 0.2
+const BASE_PPM   = 1.0   // pixels per minute at zoom=1.0
 
 // GRID_END も含めて 24:00 ラベルを表示するため +1
 const HOURS        = Array.from({ length: GRID_END - GRID_START + 1 }, (_, i) => GRID_START + i)
@@ -31,7 +30,7 @@ function toTime(mins: number): string {
 function snap(v: number) { return Math.round(v / SNAP) * SNAP }
 function getDur(s: Spot)  { return Math.max(MIN_DUR, s.duration_minutes || 60) }
 
-// ────────── コンテンツ時間帯 ──────────
+// ────────── コンテンツ時間帯（初期スクロール用）──────────
 function calcContentRange(days: ItineraryDay[]): { start: number; end: number } {
     let minH = 9, maxH = 20, found = false
     for (const day of days) {
@@ -62,8 +61,7 @@ function resolveNoOverlap(spots: Spot[]): Spot[] {
     return result
 }
 
-// 【同一日 move】移動したブロックのみ新位置へ。他ブロックはその場を保持。
-// 重なりが生じる場合のみ cascade push で後ろへ押し出す。
+// 【同一日 move】移動したブロックのみ新位置へ。重なりが生じる場合のみ cascade push。
 function applyMoveSameDay(spots: Spot[], dragIdx: number, newSpot: Spot): Spot[] {
     const others = spots.filter((_, i) => i !== dragIdx)
     return resolveNoOverlap([...others, newSpot])
@@ -90,16 +88,53 @@ function insertWithCompress(spots: Spot[], newSpot: Spot): Spot[] {
         if (se <= ns || st >= ne) return s   // 重なりなし
 
         if (st < ns) {
-            // A の前から始まるブロック: 末尾を A の開始時刻に合わせて削減
             return { ...s, duration_minutes: Math.max(MIN_DUR, ns - st) }
         } else {
-            // A の範囲内で始まるブロック: A 終了後に移動し、重なった分 duration を削減
             const overlap = ne - st
             return { ...s, time: toTime(ne), duration_minutes: Math.max(MIN_DUR, dur - overlap) }
         }
     })
 
     return resolveNoOverlap([...compressed, newSpot])
+}
+
+// 【リサイズ】上端拡張→前ブロックを後ろに押し出し、下端拡張→後ブロックを前に押し出し、縮小→cascade なし
+function applyResize(spots: Spot[], resizedIdx: number, newSpot: Spot): Spot[] {
+    const orig    = spots[resizedIdx]
+    const origStart = toMins(orig.time)
+    const origEnd   = origStart + getDur(orig)
+    const newStart  = toMins(newSpot.time)
+    const newEnd    = newStart + getDur(newSpot)
+
+    const updated = spots.map((s, i) => i === resizedIdx ? newSpot : s)
+    const sorted  = [...updated].sort((a, b) => toMins(a.time) - toMins(b.time))
+    const idx     = sorted.findIndex(s => s === newSpot)
+
+    if (newStart < origStart) {
+        // 上端を拡張: 前のブロックを上方向へ押し出し
+        let boundary = newStart
+        for (let i = idx - 1; i >= 0; i--) {
+            const end = toMins(sorted[i].time) + getDur(sorted[i])
+            if (end > boundary) {
+                const dur = getDur(sorted[i])
+                sorted[i] = { ...sorted[i], time: toTime(boundary - dur) }
+                boundary -= dur
+            } else break
+        }
+    } else if (newEnd > origEnd) {
+        // 下端を拡張: 後ろのブロックを下方向へ押し出し
+        let boundary = newEnd
+        for (let i = idx + 1; i < sorted.length; i++) {
+            const start = toMins(sorted[i].time)
+            if (start < boundary) {
+                sorted[i] = { ...sorted[i], time: toTime(boundary) }
+                boundary += getDur(sorted[i])
+            } else break
+        }
+    }
+    // 縮小時: cascade なし（gap のみ）
+
+    return sorted.sort((a, b) => toMins(a.time) - toMins(b.time))
 }
 
 // ────────── ブロックスタイル ──────────
@@ -122,57 +157,45 @@ interface Temp { dayIdx: number; start: number; dur: number }
 interface Props {
     days: ItineraryDay[]
     startDate?: Date
+    zoom: number
     onUpdateDays: (updated: ItineraryDay[]) => void
 }
 
 // ────────── コンポーネント ──────────
-export default function CalendarView({ days, startDate, onUpdateDays }: Props) {
+export default function CalendarView({ days, startDate, zoom, onUpdateDays }: Props) {
     const containerRef = useRef<HTMLDivElement>(null)
-    const headerRef    = useRef<HTMLDivElement>(null)
-    const fitPpmSetRef = useRef(false)
 
-    const [colW, setColW]     = useState(160)
-    const [fitPpm, setFitPpm] = useState(0.7)
-    const [zoom, setZoom]     = useState(1.0)
-    const ppm                 = fitPpm * zoom
+    const [colW, setColW] = useState(160)
+    const ppm             = BASE_PPM * zoom
 
     const [drag, setDrag]       = useState<Drag | null>(null)
     const [temp, setTemp]       = useState<Temp | null>(null)
     const [nowMins, setNowMins] = useState(() => { const n = new Date(); return n.getHours() * 60 + n.getMinutes() })
 
-    // GRID_H に余裕を持たせて 24:00 ラベルが確実にスクロールで到達できるようにする
-    const GRID_H       = (GRID_END - GRID_START) * 60 * ppm + 48
-    const contentRange = useMemo(() => calcContentRange(days), [days])
+    const GRID_H = (GRID_END - GRID_START) * 60 * ppm + 48
 
     useEffect(() => {
         const t = setInterval(() => { const n = new Date(); setNowMins(n.getHours() * 60 + n.getMinutes()) }, 60000)
         return () => clearInterval(t)
     }, [])
 
-    // コンテナ高さからコンテンツ範囲に合わせた fitPpm を計算
+    // コンテンツ開始時刻へ初期スクロール（マウント時のみ）
+    useEffect(() => {
+        if (!containerRef.current) return
+        const range = calcContentRange(days)
+        containerRef.current.scrollTop = (range.start - GRID_START * 60) * BASE_PPM
+    }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+    // 列幅計算
     useEffect(() => {
         const doCalc = () => {
             if (!containerRef.current) return
-            const cH = containerRef.current.clientHeight
-            const hH = headerRef.current?.clientHeight ?? 56
-            const gridArea = cH - hH
-            const contentMins = contentRange.end - contentRange.start
-            if (gridArea > 50 && contentMins > 0) {
-                setFitPpm(gridArea / contentMins)
-                fitPpmSetRef.current = true
-            }
             setColW(Math.max(110, (containerRef.current.clientWidth - TIME_COL) / days.length))
         }
         const id = requestAnimationFrame(doCalc)
         window.addEventListener('resize', doCalc)
         return () => { cancelAnimationFrame(id); window.removeEventListener('resize', doCalc) }
-    }, [days.length, contentRange])
-
-    // fitPpm 確定後: コンテンツ開始時刻へスクロール
-    useEffect(() => {
-        if (!containerRef.current || !fitPpmSetRef.current) return
-        containerRef.current.scrollTop = (contentRange.start - GRID_START * 60) * fitPpm
-    }, [fitPpm, contentRange])
+    }, [days.length])
 
     const xToDayIdx = useCallback((clientX: number) => {
         if (!containerRef.current) return 0
@@ -204,18 +227,15 @@ export default function CalendarView({ days, startDate, onUpdateDays }: Props) {
         let newDays: ItineraryDay[]
 
         if (drag.mode !== 'move') {
-            // リサイズ: sweep/compress なし、その場で更新
-            newDays = days.map((d, i) =>
-                i === drag.srcDay
-                    ? { ...d, spots: d.spots.map((s, j) => j === drag.srcSpot ? newSpot : s) }
-                    : d
-            )
+            // リサイズ: cascade push で重なりを解消
+            const newSpots = applyResize(days[drag.srcDay].spots, drag.srcSpot, newSpot)
+            newDays = days.map((d, i) => i === drag.srcDay ? { ...d, spots: newSpots } : d)
         } else if (temp.dayIdx === drag.srcDay) {
-            // 同一日 move: gap を閉じて挿入
+            // 同一日 move
             const newSpots = applyMoveSameDay(days[drag.srcDay].spots, drag.srcSpot, newSpot)
             newDays = days.map((d, i) => i === drag.srcDay ? { ...d, spots: newSpots } : d)
         } else {
-            // 他日 move: 移動元の gap を閉じ、移動先は duration を削減して挿入
+            // 他日 move
             const srcSpots  = removeFromDay(days[drag.srcDay].spots, drag.srcSpot)
             const destSpots = insertWithCompress(days[temp.dayIdx].spots, newSpot)
             newDays = days.map((d, i) =>
@@ -248,15 +268,6 @@ export default function CalendarView({ days, startDate, onUpdateDays }: Props) {
         setTemp({ dayIdx: srcDay, start: initStart, dur: initDur })
     }
 
-    function handleZoomReset() {
-        setZoom(1.0)
-        requestAnimationFrame(() => {
-            if (containerRef.current) {
-                containerRef.current.scrollTop = (contentRange.start - GRID_START * 60) * fitPpm
-            }
-        })
-    }
-
     const minW     = TIME_COL + colW * days.length
     const nowTop   = (nowMins - GRID_START * 60) * ppm
     const showNow  = nowMins >= GRID_START * 60 && nowMins <= GRID_END * 60
@@ -282,44 +293,17 @@ export default function CalendarView({ days, startDate, onUpdateDays }: Props) {
     }
 
     return (
-        <div className="rounded-2xl border border-gray-200 bg-white shadow-sm" style={{ overflow: 'hidden' }}>
-
-            {/* ── ズームコントロール ── */}
-            <div className="flex items-center justify-end gap-2 px-4 py-2 border-b border-gray-100 bg-gray-50 flex-nowrap">
-                <span className="text-xs text-gray-400 whitespace-nowrap">縦軸時間幅</span>
-                <button
-                    onClick={() => setZoom(z => Math.max(1.0, +(z - ZOOM_STEP).toFixed(1)))}
-                    disabled={zoom <= 1.0}
-                    className="w-7 h-7 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed text-sm font-bold flex items-center justify-center flex-shrink-0"
-                >−</button>
-                <div className="w-16 h-1.5 bg-gray-200 rounded-full relative flex-shrink-0">
-                    <div
-                        className="h-1.5 bg-blue-400 rounded-full transition-all"
-                        style={{ width: `${Math.min(100, ((zoom - 1.0) / (ZOOM_MAX - 1.0)) * 100)}%` }}
-                    />
-                </div>
-                <button
-                    onClick={() => setZoom(z => Math.min(ZOOM_MAX, +(z + ZOOM_STEP).toFixed(1)))}
-                    className="w-7 h-7 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-100 text-sm font-bold flex items-center justify-center flex-shrink-0"
-                >＋</button>
-                {zoom > 1.0 && (
-                    <button onClick={handleZoomReset} className="text-xs text-blue-500 hover:text-blue-700 whitespace-nowrap flex-shrink-0">
-                        リセット
-                    </button>
-                )}
-            </div>
-
-            {/* ── カレンダー本体（内部スクロールコンテナ）── */}
+        <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+            {/* カレンダー本体（内部スクロールコンテナ）*/}
             <div
                 ref={containerRef}
                 className="overflow-auto select-none"
-                style={{ height: 'calc(100dvh - 60px)' }}
+                style={{ height: 'max(350px, calc(100dvh - 280px))' }}
             >
                 <div style={{ minWidth: minW }}>
 
                     {/* 列ヘッダー（sticky） */}
                     <div
-                        ref={headerRef}
                         className="sticky top-0 z-30 bg-white border-b-2 border-gray-200"
                         style={{ display: 'flex', minWidth: minW }}
                     >
