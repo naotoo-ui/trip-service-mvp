@@ -14,7 +14,8 @@ const HANDLE     = 8
 const ZOOM_MAX   = 3.0
 const ZOOM_STEP  = 0.2
 
-const HOURS        = Array.from({ length: GRID_END - GRID_START }, (_, i) => GRID_START + i)
+// GRID_END も含めて 24:00 ラベルを表示するため +1
+const HOURS        = Array.from({ length: GRID_END - GRID_START + 1 }, (_, i) => GRID_START + i)
 const WEEKDAYS     = ['日', '月', '火', '水', '木', '金', '土']
 const WEEKDAY_COLORS = ['#ef4444', '#374151', '#374151', '#374151', '#374151', '#374151', '#3b82f6']
 
@@ -61,35 +62,17 @@ function resolveNoOverlap(spots: Spot[]): Spot[] {
     return result
 }
 
-// 【同一日 move】A を除去して後続ブロックを gap 分詰め、新位置に A を挿入
+// 【同一日 move】移動したブロックのみ新位置へ。他ブロックはその場を保持。
+// 重なりが生じる場合のみ cascade push で後ろへ押し出す。
 function applyMoveSameDay(spots: Spot[], dragIdx: number, newSpot: Spot): Spot[] {
-    const orig    = spots[dragIdx]
-    const origEnd = toMins(orig.time) + getDur(orig)
-    const origDur = getDur(orig)
-
-    const shifted = spots
-        .filter((_, i) => i !== dragIdx)
-        .map(s => {
-            const st = toMins(s.time)
-            // A より後ろにあったブロックは origDur 分前に詰める
-            return st >= origEnd ? { ...s, time: toTime(st - origDur) } : s
-        })
-
-    return resolveNoOverlap([...shifted, newSpot])
+    const others = spots.filter((_, i) => i !== dragIdx)
+    return resolveNoOverlap([...others, newSpot])
 }
 
-// 【他日 move - 移動元】A を除去して後続を詰める
+// 【他日 move - 移動元】A を除去するだけ。他ブロックはその場を保持。
 function removeFromDay(spots: Spot[], dragIdx: number): Spot[] {
-    const orig    = spots[dragIdx]
-    const origEnd = toMins(orig.time) + getDur(orig)
-    const origDur = getDur(orig)
-
     return spots
         .filter((_, i) => i !== dragIdx)
-        .map(s => {
-            const st = toMins(s.time)
-            return st >= origEnd ? { ...s, time: toTime(st - origDur) } : s
-        })
         .sort((a, b) => toMins(a.time) - toMins(b.time))
 }
 
@@ -157,7 +140,8 @@ export default function CalendarView({ days, startDate, onUpdateDays }: Props) {
     const [temp, setTemp]       = useState<Temp | null>(null)
     const [nowMins, setNowMins] = useState(() => { const n = new Date(); return n.getHours() * 60 + n.getMinutes() })
 
-    const GRID_H       = (GRID_END - GRID_START) * 60 * ppm
+    // GRID_H に余裕を持たせて 24:00 ラベルが確実にスクロールで到達できるようにする
+    const GRID_H       = (GRID_END - GRID_START) * 60 * ppm + 48
     const contentRange = useMemo(() => calcContentRange(days), [days])
 
     useEffect(() => {

@@ -12,8 +12,7 @@ export default function GenerateForm() {
     const [loading, setLoading]           = useState(false)
     const [error, setError]               = useState('')
 
-    async function handleSubmit(e: React.FormEvent) {
-        e.preventDefault()
+    async function handleSubmit() {
         setLoading(true)
         setError('')
         try {
@@ -40,7 +39,7 @@ export default function GenerateForm() {
     }
 
     return (
-        <form onSubmit={handleSubmit} className="space-y-3">
+        <form onSubmit={e => e.preventDefault()} className="space-y-3">
             <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1">行き先</label>
                 <input
@@ -91,7 +90,8 @@ export default function GenerateForm() {
             {error && <p className="text-red-500 text-xs">{error}</p>}
 
             <button
-                type="submit"
+                type="button"
+                onClick={handleSubmit}
                 disabled={loading}
                 className="w-full bg-blue-600 text-white rounded-xl py-2.5 text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed hover:bg-blue-700 active:scale-95 transition-all"
             >
