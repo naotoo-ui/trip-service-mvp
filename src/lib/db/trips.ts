@@ -35,3 +35,21 @@ export async function getTripByShareId(share_id: string): Promise<Trip | null> {
     if (error) return null
     return data as Trip
 }
+
+export async function getRecentTrips(limit = 20): Promise<Trip[]> {
+    const { data, error } = await supabase
+        .from('trips')
+        .select('id, share_id, title, destination, duration_days, created_at')
+        .order('created_at', { ascending: false })
+        .limit(limit)
+    if (error) return []
+    return data as Trip[]
+}
+
+export async function updateTripItinerary(share_id: string, itinerary: Itinerary): Promise<void> {
+    const { error } = await supabase
+        .from('trips')
+        .update({ itinerary })
+        .eq('share_id', share_id)
+    if (error) throw new Error(error.message)
+}

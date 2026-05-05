@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import {
     DndContext, closestCenter, KeyboardSensor, PointerSensor,
     useSensor, useSensors, DragEndEvent,
@@ -26,31 +26,62 @@ function findNextSpotIndex(spots: Spot[], isToday: boolean): number {
 function isTodayDay(dayIndex: number, createdAt: string): boolean {
     const base = new Date(createdAt)
     base.setDate(base.getDate() + dayIndex)
-    const now = new Date()
-    return base.toDateString() === now.toDateString()
+    return base.toDateString() === new Date().toDateString()
 }
 
 const destinationEmoji: Record<string, string> = {
     沖縄: '🌺', 京都: '⛩️', 北海道: '🐻', 東京: '🗼', 大阪: '🍜',
     韓国: '🇰🇷', ハワイ: '🌺', 台湾: '🇹🇼', パリ: '🗼', ニューヨーク: '🗽',
 }
-
-function getDestinationEmoji(destination: string): string {
-    for (const [key, emoji] of Object.entries(destinationEmoji)) {
-        if (destination.includes(key)) return emoji
+function getEmoji(dest: string) {
+    for (const [k, v] of Object.entries(destinationEmoji)) {
+        if (dest.includes(k)) return v
     }
     return '✈️'
+}
+
+const DEFAULT_SPOT: Spot = {
+    time: '09:00', name: '', description: '', duration_minutes: 60, type: '観光'
 }
 
 export default function ItineraryEditor({ trip }: { trip: Trip }) {
     const [activeDay, setActiveDay] = useState(1)
     const [days, setDays] = useState<ItineraryDay[]>(trip.itinerary.days)
     const [now, setNow] = useState(new Date())
+    const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved')
+    const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
     useEffect(() => {
         const t = setInterval(() => setNow(new Date()), 60000)
         return () => clearInterval(t)
     }, [])
+
+    // 変更を検知して自動保存（1.5秒デバウンス）
+    const saveToDb = useCallback(async (updatedDays: ItineraryDay[]) => {
+        setSaveStatus('saving')
+        try {
+            const res = await fetch(`/api/trips/${trip.share_id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ itinerary: { days: updatedDays } }),
+            })
+            if (res.ok) setSaveStatus('saved')
+            else setSaveStatus('unsaved')
+        } catch {
+            setSaveStatus('unsaved')
+        }
+    }, [trip.share_id])
+
+    function triggerSave(updatedDays: ItineraryDay[]) {
+        setSaveStatus('unsaved')
+        if (saveTimer.current) clearTimeout(saveTimer.current)
+        saveTimer.current = setTimeout(() => saveToDb(updatedDays), 1500)
+    }
+
+    function updateDays(updatedDays: ItineraryDay[]) {
+        setDays(updatedDays)
+        triggerSave(updatedDays)
+    }
 
     const sensors = useSensors(
         useSensor(PointerSensor),
@@ -68,16 +99,42 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
         const oldIdx = currentDay.spots.findIndex((_, i) => `spot-${i}` === active.id)
         const newIdx = currentDay.spots.findIndex((_, i) => `spot-${i}` === over.id)
         if (oldIdx < 0 || newIdx < 0) return
-        setDays(prev => prev.map(d =>
+        const newDays = days.map(d =>
             d.day === activeDay ? { ...d, spots: arrayMove(d.spots, oldIdx, newIdx) } : d
-        ))
+        )
+        updateDays(newDays)
     }
 
-    const emoji = getDestinationEmoji(trip.destination)
+    function handleSpotUpdate(spotIndex: number, updated: Spot) {
+        const newDays = days.map(d =>
+            d.day === activeDay
+                ? { ...d, spots: d.spots.map((s, i) => i === spotIndex ? updated : s) }
+                : d
+        )
+        updateDays(newDays)
+    }
+
+    function handleSpotDelete(spotIndex: number) {
+        const newDays = days.map(d =>
+            d.day === activeDay
+                ? { ...d, spots: d.spots.filter((_, i) => i !== spotIndex) }
+                : d
+        )
+        updateDays(newDays)
+    }
+
+    function handleSpotAdd() {
+        const newDays = days.map(d =>
+            d.day === activeDay
+                ? { ...d, spots: [...d.spots, { ...DEFAULT_SPOT }] }
+                : d
+        )
+        updateDays(newDays)
+    }
 
     return (
         <div className="space-y-6">
-            {/* しおり表紙風ヘッダー */}
+            {/* しおり表紙 */}
             <div className="bg-gradient-to-br from-blue-600 to-indigo-700 text-white rounded-3xl p-6 shadow-lg">
                 <div className="flex items-start justify-between">
                     <div className="flex-1">
@@ -89,39 +146,45 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
                             <span>🗓️ {trip.duration_days}日間</span>
                         </div>
                     </div>
-                    <div className="text-5xl ml-4">{emoji}</div>
+                    <div className="text-5xl ml-4">{getEmoji(trip.destination)}</div>
                 </div>
                 {trip.source_url && (
-                    <a
-                        href={trip.source_url}
-                        className="mt-4 inline-flex items-center gap-1 text-xs text-blue-200 hover:text-white underline underline-offset-2"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                    >
+                    <a href={trip.source_url} className="mt-4 inline-flex items-center gap-1 text-xs text-blue-200 hover:text-white underline underline-offset-2" target="_blank" rel="noopener noreferrer">
                         📰 参照元記事を見る
                     </a>
                 )}
             </div>
 
-            {/* DAY タブ */}
-            <DayTabs
-                days={days.map(d => ({ day: d.day, label: d.label }))}
-                activeDay={activeDay}
-                onSelect={setActiveDay}
-            />
+            {/* DAY タブ + 保存状態 */}
+            <div className="flex items-center justify-between gap-4">
+                <DayTabs
+                    days={days.map(d => ({ day: d.day, label: d.label }))}
+                    activeDay={activeDay}
+                    onSelect={setActiveDay}
+                />
+                <span className={`text-xs shrink-0 ${
+                    saveStatus === 'saved' ? 'text-emerald-500'
+                    : saveStatus === 'saving' ? 'text-blue-400'
+                    : 'text-gray-400'
+                }`}>
+                    {saveStatus === 'saved' ? '✓ 保存済み'
+                    : saveStatus === 'saving' ? '保存中...'
+                    : '未保存'}
+                </span>
+            </div>
 
             {/* 現在地インジケーター */}
             {isToday && nextIdx >= 0 && (
                 <div className="flex items-center gap-3 bg-blue-50 border border-blue-100 rounded-2xl px-4 py-3">
                     <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-                    <div className="text-sm">
+                    <p className="text-sm">
                         <span className="text-blue-500 font-medium">
                             現在 {now.getHours()}:{String(now.getMinutes()).padStart(2, '0')}
                         </span>
                         <span className="text-gray-500 ml-2">
                             次の予定: <strong className="text-gray-800">{currentDay!.spots[nextIdx].name}</strong>
                         </span>
-                    </div>
+                    </p>
                 </div>
             )}
 
@@ -140,6 +203,8 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
                                     spot={spot}
                                     isNext={isToday && i === nextIdx}
                                     isPast={isToday && nextIdx >= 0 && i < nextIdx}
+                                    onUpdate={updated => handleSpotUpdate(i, updated)}
+                                    onDelete={() => handleSpotDelete(i)}
                                 />
                             ))}
                         </div>
@@ -147,8 +212,16 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
                 </DndContext>
             )}
 
-            <p className="text-center text-xs text-gray-400 pb-2">
-                ↕ スポットをドラッグして並び替えられます
+            {/* スポット追加ボタン */}
+            <button
+                onClick={handleSpotAdd}
+                className="w-full border-2 border-dashed border-gray-200 rounded-2xl py-3 text-sm text-gray-400 hover:border-blue-300 hover:text-blue-500 transition-colors"
+            >
+                + スポットを追加
+            </button>
+
+            <p className="text-center text-xs text-gray-400">
+                ↕ ドラッグして並び替え · クリックして編集 · 変更は自動保存されます
             </p>
         </div>
     )

@@ -21,7 +21,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                             <span className="text-lg tracking-tight">旅程ジェネレーター</span>
                         </Link>
                         <nav className="flex items-center gap-4 text-sm text-gray-500">
-                            <Link href="/" className="hover:text-gray-900 transition-colors">新しい旅程</Link>
+                            <Link href="/trips" className="hover:text-gray-900 transition-colors">旅程一覧</Link>
+                            <Link href="/" className="bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors text-xs font-medium">
+                                新しく作成
+                            </Link>
                         </nav>
                     </div>
                 </header>
