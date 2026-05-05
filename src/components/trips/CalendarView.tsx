@@ -14,8 +14,8 @@ const HANDLE     = 8
 const ZOOM_MAX   = 3.0
 const ZOOM_STEP  = 0.2
 
-const HOURS      = Array.from({ length: GRID_END - GRID_START }, (_, i) => GRID_START + i)
-const WEEKDAYS   = ['日', '月', '火', '水', '木', '金', '土']
+const HOURS        = Array.from({ length: GRID_END - GRID_START }, (_, i) => GRID_START + i)
+const WEEKDAYS     = ['日', '月', '火', '水', '木', '金', '土']
 const WEEKDAY_COLORS = ['#ef4444', '#374151', '#374151', '#374151', '#374151', '#374151', '#3b82f6']
 
 // ────────── ユーティリティ ──────────
@@ -28,17 +28,15 @@ function toTime(mins: number): string {
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
 }
 function snap(v: number) { return Math.round(v / SNAP) * SNAP }
+function getDur(s: Spot)  { return Math.max(MIN_DUR, s.duration_minutes || 60) }
 
-// 全スポットの実際の時間帯を計算して 1時間バッファーを付与
+// ────────── コンテンツ時間帯 ──────────
 function calcContentRange(days: ItineraryDay[]): { start: number; end: number } {
-    let minH = 9, maxH = 20
-    let found = false
+    let minH = 9, maxH = 20, found = false
     for (const day of days) {
         for (const spot of day.spots) {
-            const s = toMins(spot.time)
-            const e = s + Math.max(MIN_DUR, spot.duration_minutes || 60)
-            const sH = Math.floor(s / 60)
-            const eH = Math.ceil(e / 60)
+            const sH = Math.floor(toMins(spot.time) / 60)
+            const eH = Math.ceil((toMins(spot.time) + getDur(spot)) / 60)
             if (!found) { minH = sH; maxH = eH; found = true }
             else { minH = Math.min(minH, sH); maxH = Math.max(maxH, eH) }
         }
@@ -47,6 +45,78 @@ function calcContentRange(days: ItineraryDay[]): { start: number; end: number } 
         start: Math.max(GRID_START, minH - 1) * 60,
         end:   Math.min(GRID_END,   maxH + 1) * 60,
     }
+}
+
+// ────────── ドラッグ後の配置ロジック ──────────
+
+// 重なりがなくなるよう時刻の早い順に cascade push
+function resolveNoOverlap(spots: Spot[]): Spot[] {
+    const result = [...spots].sort((a, b) => toMins(a.time) - toMins(b.time))
+    for (let i = 1; i < result.length; i++) {
+        const prevEnd = toMins(result[i - 1].time) + getDur(result[i - 1])
+        if (toMins(result[i].time) < prevEnd) {
+            result[i] = { ...result[i], time: toTime(prevEnd) }
+        }
+    }
+    return result
+}
+
+// 【同一日 move】A を除去して後続ブロックを gap 分詰め、新位置に A を挿入
+function applyMoveSameDay(spots: Spot[], dragIdx: number, newSpot: Spot): Spot[] {
+    const orig    = spots[dragIdx]
+    const origEnd = toMins(orig.time) + getDur(orig)
+    const origDur = getDur(orig)
+
+    const shifted = spots
+        .filter((_, i) => i !== dragIdx)
+        .map(s => {
+            const st = toMins(s.time)
+            // A より後ろにあったブロックは origDur 分前に詰める
+            return st >= origEnd ? { ...s, time: toTime(st - origDur) } : s
+        })
+
+    return resolveNoOverlap([...shifted, newSpot])
+}
+
+// 【他日 move - 移動元】A を除去して後続を詰める
+function removeFromDay(spots: Spot[], dragIdx: number): Spot[] {
+    const orig    = spots[dragIdx]
+    const origEnd = toMins(orig.time) + getDur(orig)
+    const origDur = getDur(orig)
+
+    return spots
+        .filter((_, i) => i !== dragIdx)
+        .map(s => {
+            const st = toMins(s.time)
+            return st >= origEnd ? { ...s, time: toTime(st - origDur) } : s
+        })
+        .sort((a, b) => toMins(a.time) - toMins(b.time))
+}
+
+// 【他日 move - 移動先】重なるブロックの duration を削減して A を挿入
+function insertWithCompress(spots: Spot[], newSpot: Spot): Spot[] {
+    const ns = toMins(newSpot.time)
+    const nd = getDur(newSpot)
+    const ne = ns + nd
+
+    const compressed = spots.map(s => {
+        const st  = toMins(s.time)
+        const dur = getDur(s)
+        const se  = st + dur
+
+        if (se <= ns || st >= ne) return s   // 重なりなし
+
+        if (st < ns) {
+            // A の前から始まるブロック: 末尾を A の開始時刻に合わせて削減
+            return { ...s, duration_minutes: Math.max(MIN_DUR, ns - st) }
+        } else {
+            // A の範囲内で始まるブロック: A 終了後に移動し、重なった分 duration を削減
+            const overlap = ne - st
+            return { ...s, time: toTime(ne), duration_minutes: Math.max(MIN_DUR, dur - overlap) }
+        }
+    })
+
+    return resolveNoOverlap([...compressed, newSpot])
 }
 
 // ────────── ブロックスタイル ──────────
@@ -74,34 +144,28 @@ interface Props {
 
 // ────────── コンポーネント ──────────
 export default function CalendarView({ days, startDate, onUpdateDays }: Props) {
-    const containerRef  = useRef<HTMLDivElement>(null)
-    const headerRef     = useRef<HTMLDivElement>(null)
-    const fitPpmSetRef  = useRef(false)
+    const containerRef = useRef<HTMLDivElement>(null)
+    const headerRef    = useRef<HTMLDivElement>(null)
+    const fitPpmSetRef = useRef(false)
 
-    const [colW, setColW]       = useState(160)
-    // fitPpm: コンテンツ時間帯がちょうど収まる px/分
-    const [fitPpm, setFitPpm]   = useState(0.7)
-    // zoom: 1.0=コンテンツフィット, >1=ズームイン（スクロール可）
-    const [zoom, setZoom]       = useState(1.0)
-    const ppm                   = fitPpm * zoom
+    const [colW, setColW]     = useState(160)
+    const [fitPpm, setFitPpm] = useState(0.7)
+    const [zoom, setZoom]     = useState(1.0)
+    const ppm                 = fitPpm * zoom
 
     const [drag, setDrag]       = useState<Drag | null>(null)
     const [temp, setTemp]       = useState<Temp | null>(null)
     const [nowMins, setNowMins] = useState(() => { const n = new Date(); return n.getHours() * 60 + n.getMinutes() })
 
-    // グリッドは常に GRID_START〜GRID_END の全時間帯（6〜24時）
-    const GRID_H = (GRID_END - GRID_START) * 60 * ppm
-
-    // スポットから実際のコンテンツ時間帯を計算（1h バッファー付き）
+    const GRID_H       = (GRID_END - GRID_START) * 60 * ppm
     const contentRange = useMemo(() => calcContentRange(days), [days])
 
-    // 現在時刻を毎分更新
     useEffect(() => {
         const t = setInterval(() => { const n = new Date(); setNowMins(n.getHours() * 60 + n.getMinutes()) }, 60000)
         return () => clearInterval(t)
     }, [])
 
-    // コンテナ高さからfitPpm計算 + 列幅計算
+    // コンテナ高さからコンテンツ範囲に合わせた fitPpm を計算
     useEffect(() => {
         const doCalc = () => {
             if (!containerRef.current) return
@@ -110,8 +174,7 @@ export default function CalendarView({ days, startDate, onUpdateDays }: Props) {
             const gridArea = cH - hH
             const contentMins = contentRange.end - contentRange.start
             if (gridArea > 50 && contentMins > 0) {
-                const newPpm = gridArea / contentMins
-                setFitPpm(newPpm)
+                setFitPpm(gridArea / contentMins)
                 fitPpmSetRef.current = true
             }
             setColW(Math.max(110, (containerRef.current.clientWidth - TIME_COL) / days.length))
@@ -121,7 +184,7 @@ export default function CalendarView({ days, startDate, onUpdateDays }: Props) {
         return () => { cancelAnimationFrame(id); window.removeEventListener('resize', doCalc) }
     }, [days.length, contentRange])
 
-    // fitPpm確定後 or コンテンツ変更後: コンテンツ開始時刻にスクロール
+    // fitPpm 確定後: コンテンツ開始時刻へスクロール
     useEffect(() => {
         if (!containerRef.current || !fitPpmSetRef.current) return
         containerRef.current.scrollTop = (contentRange.start - GRID_START * 60) * fitPpm
@@ -153,15 +216,30 @@ export default function CalendarView({ days, startDate, onUpdateDays }: Props) {
         const srcSpot = days[drag.srcDay]?.spots[drag.srcSpot]
         if (!srcSpot) { setDrag(null); setTemp(null); return }
 
-        const updated: Spot = { ...srcSpot, time: toTime(temp.start), duration_minutes: temp.dur }
+        const newSpot: Spot = { ...srcSpot, time: toTime(temp.start), duration_minutes: temp.dur }
         let newDays: ItineraryDay[]
-        if (temp.dayIdx === drag.srcDay) {
-            newDays = days.map((d, i) => i === drag.srcDay ? { ...d, spots: d.spots.map((s, j) => j === drag.srcSpot ? updated : s) } : d)
+
+        if (drag.mode !== 'move') {
+            // リサイズ: sweep/compress なし、その場で更新
+            newDays = days.map((d, i) =>
+                i === drag.srcDay
+                    ? { ...d, spots: d.spots.map((s, j) => j === drag.srcSpot ? newSpot : s) }
+                    : d
+            )
+        } else if (temp.dayIdx === drag.srcDay) {
+            // 同一日 move: gap を閉じて挿入
+            const newSpots = applyMoveSameDay(days[drag.srcDay].spots, drag.srcSpot, newSpot)
+            newDays = days.map((d, i) => i === drag.srcDay ? { ...d, spots: newSpots } : d)
         } else {
-            const srcSpots  = days[drag.srcDay].spots.filter((_, j) => j !== drag.srcSpot)
-            const destSpots = [...days[temp.dayIdx].spots, updated].sort((a, b) => toMins(a.time) - toMins(b.time))
-            newDays = days.map((d, i) => i === drag.srcDay ? { ...d, spots: srcSpots } : i === temp.dayIdx ? { ...d, spots: destSpots } : d)
+            // 他日 move: 移動元の gap を閉じ、移動先は duration を削減して挿入
+            const srcSpots  = removeFromDay(days[drag.srcDay].spots, drag.srcSpot)
+            const destSpots = insertWithCompress(days[temp.dayIdx].spots, newSpot)
+            newDays = days.map((d, i) =>
+                i === drag.srcDay ? { ...d, spots: srcSpots  } :
+                i === temp.dayIdx ? { ...d, spots: destSpots } : d
+            )
         }
+
         onUpdateDays(newDays)
         setDrag(null); setTemp(null)
     }, [drag, temp, days, onUpdateDays])
@@ -186,7 +264,6 @@ export default function CalendarView({ days, startDate, onUpdateDays }: Props) {
         setTemp({ dayIdx: srcDay, start: initStart, dur: initDur })
     }
 
-    // ズームリセット: zoom=1.0 に戻してコンテンツ開始位置へスクロール
     function handleZoomReset() {
         setZoom(1.0)
         requestAnimationFrame(() => {
@@ -196,10 +273,10 @@ export default function CalendarView({ days, startDate, onUpdateDays }: Props) {
         })
     }
 
-    const minW       = TIME_COL + colW * days.length
-    const nowTop     = (nowMins - GRID_START * 60) * ppm
-    const showNow    = nowMins >= GRID_START * 60 && nowMins <= GRID_END * 60
-    const todayIdx   = startDate
+    const minW     = TIME_COL + colW * days.length
+    const nowTop   = (nowMins - GRID_START * 60) * ppm
+    const showNow  = nowMins >= GRID_START * 60 && nowMins <= GRID_END * 60
+    const todayIdx = startDate
         ? days.findIndex((_, i) => {
             const d = new Date(startDate); d.setDate(d.getDate() + i)
             return d.toDateString() === new Date().toDateString()
@@ -242,17 +319,13 @@ export default function CalendarView({ days, startDate, onUpdateDays }: Props) {
                     className="w-7 h-7 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-100 text-sm font-bold flex items-center justify-center flex-shrink-0"
                 >＋</button>
                 {zoom > 1.0 && (
-                    <button
-                        onClick={handleZoomReset}
-                        className="text-xs text-blue-500 hover:text-blue-700 whitespace-nowrap flex-shrink-0"
-                    >リセット</button>
+                    <button onClick={handleZoomReset} className="text-xs text-blue-500 hover:text-blue-700 whitespace-nowrap flex-shrink-0">
+                        リセット
+                    </button>
                 )}
             </div>
 
-            {/* ── カレンダー本体（内部スクロールコンテナ）──
-                height: calc(100dvh - 60px) でカレンダーがビューポートを占め、
-                グリッドは常に 6〜24 時の全域。コンテンツ範囲が初期スクロール位置。
-                ズームイン時はグリッドがコンテナより高くなり、内部スクロールで 24 時まで到達できる。 */}
+            {/* ── カレンダー本体（内部スクロールコンテナ）── */}
             <div
                 ref={containerRef}
                 className="overflow-auto select-none"
@@ -260,53 +333,38 @@ export default function CalendarView({ days, startDate, onUpdateDays }: Props) {
             >
                 <div style={{ minWidth: minW }}>
 
-                    {/* ── 列ヘッダー（sticky）── */}
+                    {/* 列ヘッダー（sticky） */}
                     <div
                         ref={headerRef}
                         className="sticky top-0 z-30 bg-white border-b-2 border-gray-200"
                         style={{ display: 'flex', minWidth: minW }}
                     >
                         <div style={{ width: TIME_COL, flexShrink: 0, borderRight: '1px solid #e2e8f0' }} />
-
                         {days.map((_, i) => {
                             const h = colHeader(i)
                             return (
-                                <div
-                                    key={i}
-                                    style={{
-                                        width: colW, flexShrink: 0,
-                                        borderRight: i < days.length - 1 ? '1px solid #f1f5f9' : 'none',
-                                        backgroundColor: h.isToday ? '#eff6ff' : 'transparent',
-                                        padding: '8px 4px',
-                                        textAlign: 'center',
-                                    }}
-                                >
+                                <div key={i} style={{
+                                    width: colW, flexShrink: 0,
+                                    borderRight: i < days.length - 1 ? '1px solid #f1f5f9' : 'none',
+                                    backgroundColor: h.isToday ? '#eff6ff' : 'transparent',
+                                    padding: '8px 4px', textAlign: 'center',
+                                }}>
                                     {startDate ? (
                                         <>
-                                            <p style={{ fontSize: 11, color: WEEKDAY_COLORS[h.weekday] ?? '#374151', fontWeight: 600, margin: 0 }}>
-                                                {h.bottom}
-                                            </p>
-                                            <p style={{ fontSize: 18, fontWeight: 700, color: h.isToday ? '#2563eb' : '#111827', lineHeight: 1.2, margin: '2px 0' }}>
-                                                {h.top}
-                                            </p>
-                                            <p style={{ fontSize: 10, color: '#94a3b8', margin: 0 }}>
-                                                {'sub' in h ? h.sub : ''}
-                                            </p>
+                                            <p style={{ fontSize: 11, color: WEEKDAY_COLORS[h.weekday] ?? '#374151', fontWeight: 600, margin: 0 }}>{h.bottom}</p>
+                                            <p style={{ fontSize: 18, fontWeight: 700, color: h.isToday ? '#2563eb' : '#111827', lineHeight: 1.2, margin: '2px 0' }}>{h.top}</p>
+                                            <p style={{ fontSize: 10, color: '#94a3b8', margin: 0 }}>{'sub' in h ? h.sub : ''}</p>
                                         </>
                                     ) : (
-                                        <p style={{ fontSize: 14, fontWeight: 700, color: '#374151', margin: 0, lineHeight: '40px' }}>
-                                            {h.top}
-                                        </p>
+                                        <p style={{ fontSize: 14, fontWeight: 700, color: '#374151', margin: 0, lineHeight: '40px' }}>{h.top}</p>
                                     )}
-                                    {h.isToday && (
-                                        <div style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#2563eb', margin: '0 auto' }} />
-                                    )}
+                                    {h.isToday && <div style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#2563eb', margin: '0 auto' }} />}
                                 </div>
                             )
                         })}
                     </div>
 
-                    {/* ── グリッド本体（6〜24 時の全域）── */}
+                    {/* グリッド本体（6〜24 時の全域） */}
                     <div style={{ position: 'relative', height: GRID_H }}>
 
                         {HOURS.map(h => {
@@ -325,19 +383,12 @@ export default function CalendarView({ days, startDate, onUpdateDays }: Props) {
                         })}
 
                         <div style={{ position: 'absolute', top: 0, bottom: 0, left: TIME_COL, width: 1, backgroundColor: '#e2e8f0' }} />
-
                         {days.slice(0, -1).map((_, i) => (
                             <div key={i} style={{ position: 'absolute', top: 0, bottom: 0, left: TIME_COL + (i + 1) * colW, width: 1, backgroundColor: '#f1f5f9' }} />
                         ))}
 
                         {todayIdx >= 0 && (
-                            <div style={{
-                                position: 'absolute', top: 0, bottom: 0,
-                                left: TIME_COL + todayIdx * colW,
-                                width: colW,
-                                backgroundColor: 'rgba(37, 99, 235, 0.02)',
-                                pointerEvents: 'none',
-                            }} />
+                            <div style={{ position: 'absolute', top: 0, bottom: 0, left: TIME_COL + todayIdx * colW, width: colW, backgroundColor: 'rgba(37,99,235,0.02)', pointerEvents: 'none' }} />
                         )}
 
                         {showNow && (
@@ -351,13 +402,13 @@ export default function CalendarView({ days, startDate, onUpdateDays }: Props) {
                             </div>
                         )}
 
-                        {/* ── イベントブロック ── */}
+                        {/* イベントブロック */}
                         {days.map((day, dayIdx) =>
                             day.spots.map((spot, spotIdx) => {
                                 const isDragging = drag?.srcDay === dayIdx && drag?.srcSpot === spotIdx
                                 const vDay   = (isDragging && temp) ? temp.dayIdx : dayIdx
                                 const vStart = (isDragging && temp) ? temp.start  : toMins(spot.time)
-                                const vDur   = (isDragging && temp) ? temp.dur    : Math.max(MIN_DUR, spot.duration_minutes || 60)
+                                const vDur   = (isDragging && temp) ? temp.dur    : getDur(spot)
 
                                 const top    = (vStart - GRID_START * 60) * ppm
                                 const height = Math.max(MIN_DUR * ppm, vDur * ppm)
@@ -372,8 +423,7 @@ export default function CalendarView({ days, startDate, onUpdateDays }: Props) {
                                             position: 'absolute', top, left, width, height,
                                             zIndex: isDragging ? 200 : st.light ? 5 : 10,
                                             opacity: st.light ? 0.72 : 1,
-                                            borderRadius: 6,
-                                            overflow: 'hidden',
+                                            borderRadius: 6, overflow: 'hidden',
                                             backgroundColor: st.bg,
                                             border: `1px solid ${st.border}`,
                                             boxShadow: isDragging
@@ -387,12 +437,12 @@ export default function CalendarView({ days, startDate, onUpdateDays }: Props) {
                                         <div
                                             style={{ position: 'absolute', top: 0, left: 0, right: 0, height: HANDLE, cursor: 'n-resize', zIndex: 3 }}
                                             className="hover:bg-black/10"
-                                            onMouseDown={e => startDrag(e, 'resize-top', dayIdx, spotIdx, toMins(spot.time), Math.max(MIN_DUR, spot.duration_minutes || 60))}
+                                            onMouseDown={e => startDrag(e, 'resize-top', dayIdx, spotIdx, toMins(spot.time), getDur(spot))}
                                         />
 
                                         <div
                                             style={{ position: 'absolute', top: HANDLE, bottom: HANDLE, left: ACCENT + 6, right: 4, cursor: 'grab', overflow: 'hidden' }}
-                                            onMouseDown={e => startDrag(e, 'move', dayIdx, spotIdx, toMins(spot.time), Math.max(MIN_DUR, spot.duration_minutes || 60))}
+                                            onMouseDown={e => startDrag(e, 'move', dayIdx, spotIdx, toMins(spot.time), getDur(spot))}
                                         >
                                             <p style={{
                                                 fontSize: 12, fontWeight: st.light ? 400 : 600,
@@ -414,7 +464,7 @@ export default function CalendarView({ days, startDate, onUpdateDays }: Props) {
                                         <div
                                             style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: HANDLE, cursor: 's-resize', zIndex: 3 }}
                                             className="hover:bg-black/10"
-                                            onMouseDown={e => startDrag(e, 'resize-bottom', dayIdx, spotIdx, toMins(spot.time), Math.max(MIN_DUR, spot.duration_minutes || 60))}
+                                            onMouseDown={e => startDrag(e, 'resize-bottom', dayIdx, spotIdx, toMins(spot.time), getDur(spot))}
                                         />
                                     </div>
                                 )
