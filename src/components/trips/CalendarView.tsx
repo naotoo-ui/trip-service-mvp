@@ -4,16 +4,16 @@ import { useRef, useState, useCallback, useEffect } from 'react'
 import type { ItineraryDay, Spot } from '@/types'
 
 // ────────── 定数 ──────────
-const GRID_START = 6
-const GRID_END   = 24
-const SNAP       = 10
-const MIN_DUR    = 20
-const TIME_COL   = 56    // 時刻ラベル列幅(px)
-const ACCENT     = 4     // 左アクセントバー幅(px)
-const HANDLE     = 8     // リサイズハンドル高さ(px)
-const ZOOM_MIN   = 0.7
-const ZOOM_MAX   = 2.5
-const ZOOM_DEF   = 1.2   // デフォルト: 72px/時
+const GRID_START      = 6
+const GRID_END        = 24
+const GRID_TOTAL_MINS = (GRID_END - GRID_START) * 60   // 1080
+const SNAP            = 10
+const MIN_DUR         = 20
+const TIME_COL        = 56    // 時刻ラベル列幅(px)
+const ACCENT          = 4     // 左アクセントバー幅(px)
+const HANDLE          = 8     // リサイズハンドル高さ(px)
+const ZOOM_MAX        = 3.0
+const ZOOM_STEP       = 0.2
 
 const HOURS      = Array.from({ length: GRID_END - GRID_START }, (_, i) => GRID_START + i)
 const WEEKDAYS   = ['日', '月', '火', '水', '木', '金', '土']
@@ -49,20 +49,27 @@ interface Temp { dayIdx: number; start: number; dur: number }
 
 interface Props {
     days: ItineraryDay[]
-    startDate?: Date        // 設定されていれば各列に実際の日付を表示
+    startDate?: Date
     onUpdateDays: (updated: ItineraryDay[]) => void
 }
 
 // ────────── コンポーネント ──────────
 export default function CalendarView({ days, startDate, onUpdateDays }: Props) {
     const containerRef = useRef<HTMLDivElement>(null)
+    const headerRef    = useRef<HTMLDivElement>(null)
+
     const [colW, setColW]       = useState(160)
-    const [ppm, setPpm]         = useState(ZOOM_DEF)    // pixels per minute
+    // fitPpm: 6-24時がちょうどコンテナ内に収まるpx/分
+    const [fitPpm, setFitPpm]   = useState(0.55)
+    // zoom: 1.0=フィット, >1=ズームイン（スクロール発生）
+    const [zoom, setZoom]       = useState(1.0)
+    const ppm                   = fitPpm * zoom
+
     const [drag, setDrag]       = useState<Drag | null>(null)
     const [temp, setTemp]       = useState<Temp | null>(null)
     const [nowMins, setNowMins] = useState(() => { const n = new Date(); return n.getHours() * 60 + n.getMinutes() })
 
-    const GRID_H = (GRID_END - GRID_START) * 60 * ppm
+    const GRID_H = GRID_TOTAL_MINS * ppm
 
     // 現在時刻を毎分更新
     useEffect(() => {
@@ -70,26 +77,27 @@ export default function CalendarView({ days, startDate, onUpdateDays }: Props) {
         return () => clearInterval(t)
     }, [])
 
-    // 列幅を動的計算
+    // コンテナ高さから fitPpm を計算 ＋ 列幅を動的計算
     useEffect(() => {
         const calc = () => {
-            if (containerRef.current) {
-                const avail = containerRef.current.clientWidth - TIME_COL
-                setColW(Math.max(110, avail / days.length))
+            if (!containerRef.current) return
+            const cH = containerRef.current.clientHeight
+            const hH = headerRef.current?.clientHeight ?? 56
+            const gridArea = cH - hH
+            if (gridArea > 100) {
+                setFitPpm(gridArea / GRID_TOTAL_MINS)
             }
+            const avail = containerRef.current.clientWidth - TIME_COL
+            setColW(Math.max(110, avail / days.length))
         }
-        calc()
+        // 初回計算はレイアウト確定後に行う
+        const id = requestAnimationFrame(calc)
         window.addEventListener('resize', calc)
-        return () => window.removeEventListener('resize', calc)
-    }, [days.length])
-
-    // 8時へ初期スクロール
-    useEffect(() => {
-        if (containerRef.current) {
-            containerRef.current.scrollTop = (8 - GRID_START) * 60 * ppm
+        return () => {
+            cancelAnimationFrame(id)
+            window.removeEventListener('resize', calc)
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [])
+    }, [days.length])
 
     const xToDayIdx = useCallback((clientX: number) => {
         if (!containerRef.current) return 0
@@ -150,6 +158,14 @@ export default function CalendarView({ days, startDate, onUpdateDays }: Props) {
         setTemp({ dayIdx: srcDay, start: initStart, dur: initDur })
     }
 
+    // ズームイン時は8時付近へスクロール
+    useEffect(() => {
+        if (zoom > 1.05 && containerRef.current) {
+            containerRef.current.scrollTop = (8 - GRID_START) * 60 * ppm
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [zoom])
+
     const minW       = TIME_COL + colW * days.length
     const nowTop     = (nowMins - GRID_START * 60) * ppm
     const showNow    = nowMins >= GRID_START * 60 && nowMins <= GRID_END * 60
@@ -160,7 +176,6 @@ export default function CalendarView({ days, startDate, onUpdateDays }: Props) {
           })
         : -1
 
-    // 列ヘッダーの日付情報を計算
     function colHeader(i: number) {
         if (!startDate) return { top: days[i]?.label ?? `${i + 1}日目`, bottom: null, isToday: false, weekday: -1 }
         const d = new Date(startDate)
@@ -180,40 +195,48 @@ export default function CalendarView({ days, startDate, onUpdateDays }: Props) {
 
             {/* ── ズームコントロール ── */}
             <div className="flex items-center justify-end gap-2 px-4 py-2 border-b border-gray-100 bg-gray-50">
-                <span className="text-xs text-gray-400">表示サイズ</span>
+                <span className="text-xs text-gray-400">縦軸時間幅</span>
                 <button
-                    onClick={() => setPpm(p => Math.max(ZOOM_MIN, +(p - 0.2).toFixed(1)))}
-                    className="w-7 h-7 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-100 text-sm font-bold flex items-center justify-center"
+                    onClick={() => setZoom(z => Math.max(1.0, +(z - ZOOM_STEP).toFixed(1)))}
+                    disabled={zoom <= 1.0}
+                    className="w-7 h-7 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed text-sm font-bold flex items-center justify-center"
                 >−</button>
                 <div className="w-20 h-1.5 bg-gray-200 rounded-full relative">
                     <div
                         className="h-1.5 bg-blue-400 rounded-full transition-all"
-                        style={{ width: `${((ppm - ZOOM_MIN) / (ZOOM_MAX - ZOOM_MIN)) * 100}%` }}
+                        style={{ width: `${Math.min(100, ((zoom - 1.0) / (ZOOM_MAX - 1.0)) * 100)}%` }}
                     />
                 </div>
                 <button
-                    onClick={() => setPpm(p => Math.min(ZOOM_MAX, +(p + 0.2).toFixed(1)))}
+                    onClick={() => setZoom(z => Math.min(ZOOM_MAX, +(z + ZOOM_STEP).toFixed(1)))}
                     className="w-7 h-7 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-100 text-sm font-bold flex items-center justify-center"
                 >＋</button>
+                {zoom > 1.0 && (
+                    <button
+                        onClick={() => setZoom(1.0)}
+                        className="text-xs text-blue-500 hover:text-blue-700 px-2"
+                    >リセット</button>
+                )}
             </div>
 
             {/* ── カレンダー本体（単一スクロールコンテナ）── */}
+            {/* height を calc(100dvh - 60px) にすることで、
+                カレンダーが画面に入ったとき 6-24時が内部スクロールなしで全て見える */}
             <div
                 ref={containerRef}
                 className="overflow-auto select-none"
-                style={{ maxHeight: '62vh' }}
+                style={{ height: 'calc(100dvh - 60px)' }}
             >
                 <div style={{ minWidth: minW }}>
 
                     {/* ── 列ヘッダー（sticky）── */}
                     <div
+                        ref={headerRef}
                         className="sticky top-0 z-30 bg-white border-b-2 border-gray-200"
                         style={{ display: 'flex', minWidth: minW }}
                     >
-                        {/* 時刻列の上部スペース */}
                         <div style={{ width: TIME_COL, flexShrink: 0, borderRight: '1px solid #e2e8f0' }} />
 
-                        {/* 各日の列ヘッダー */}
                         {days.map((_, i) => {
                             const h = colHeader(i)
                             return (
@@ -255,7 +278,6 @@ export default function CalendarView({ days, startDate, onUpdateDays }: Props) {
                     {/* ── グリッド本体 ── */}
                     <div style={{ position: 'relative', height: GRID_H }}>
 
-                        {/* 時刻ラベル + 水平線 */}
                         {HOURS.map(h => {
                             const top = (h - GRID_START) * 60 * ppm
                             return (
@@ -265,23 +287,18 @@ export default function CalendarView({ days, startDate, onUpdateDays }: Props) {
                                             {String(h).padStart(2, '0')}:00
                                         </span>
                                     </div>
-                                    {/* 正時ライン */}
                                     <div style={{ position: 'absolute', top, left: 0, right: 0, height: 1, backgroundColor: '#e2e8f0' }} />
-                                    {/* 30分ライン */}
                                     <div style={{ position: 'absolute', top: top + 30 * ppm, left: TIME_COL, right: 0, height: 1, backgroundColor: '#f1f5f9' }} />
                                 </div>
                             )
                         })}
 
-                        {/* 時刻列の右ボーダー */}
                         <div style={{ position: 'absolute', top: 0, bottom: 0, left: TIME_COL, width: 1, backgroundColor: '#e2e8f0' }} />
 
-                        {/* 列区切り */}
                         {days.slice(0, -1).map((_, i) => (
                             <div key={i} style={{ position: 'absolute', top: 0, bottom: 0, left: TIME_COL + (i + 1) * colW, width: 1, backgroundColor: '#f1f5f9' }} />
                         ))}
 
-                        {/* 今日の列ハイライト */}
                         {todayIdx >= 0 && (
                             <div style={{
                                 position: 'absolute', top: 0, bottom: 0,
@@ -292,7 +309,6 @@ export default function CalendarView({ days, startDate, onUpdateDays }: Props) {
                             }} />
                         )}
 
-                        {/* 現在時刻ライン（赤） */}
                         {showNow && (
                             <div style={{ position: 'absolute', top: nowTop, left: 0, right: 0, zIndex: 25, pointerEvents: 'none' }}>
                                 <div style={{ display: 'flex', alignItems: 'center' }}>
@@ -335,17 +351,14 @@ export default function CalendarView({ days, startDate, onUpdateDays }: Props) {
                                             transition: isDragging ? 'none' : 'box-shadow 0.15s',
                                         }}
                                     >
-                                        {/* 左アクセントバー */}
                                         <div style={{ position: 'absolute', top: 0, left: 0, width: ACCENT, height: '100%', backgroundColor: st.accent }} />
 
-                                        {/* 上端リサイズハンドル */}
                                         <div
                                             style={{ position: 'absolute', top: 0, left: 0, right: 0, height: HANDLE, cursor: 'n-resize', zIndex: 3 }}
                                             className="hover:bg-black/10"
                                             onMouseDown={e => startDrag(e, 'resize-top', dayIdx, spotIdx, toMins(spot.time), Math.max(MIN_DUR, spot.duration_minutes || 60))}
                                         />
 
-                                        {/* コンテンツ */}
                                         <div
                                             style={{ position: 'absolute', top: HANDLE, bottom: HANDLE, left: ACCENT + 6, right: 4, cursor: 'grab', overflow: 'hidden' }}
                                             onMouseDown={e => startDrag(e, 'move', dayIdx, spotIdx, toMins(spot.time), Math.max(MIN_DUR, spot.duration_minutes || 60))}
@@ -367,7 +380,6 @@ export default function CalendarView({ days, startDate, onUpdateDays }: Props) {
                                             )}
                                         </div>
 
-                                        {/* 下端リサイズハンドル */}
                                         <div
                                             style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: HANDLE, cursor: 's-resize', zIndex: 3 }}
                                             className="hover:bg-black/10"
