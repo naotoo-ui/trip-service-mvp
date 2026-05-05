@@ -14,9 +14,17 @@ export default function ShareButton({ shareId }: { shareId: string }) {
     return (
         <button
             onClick={handleCopy}
-            className="w-full border border-blue-600 text-blue-600 rounded-lg py-3 font-medium hover:bg-blue-50 transition-colors"
+            className={`w-full flex items-center justify-center gap-2 rounded-2xl py-3.5 text-sm font-semibold transition-all ${
+                copied
+                    ? 'bg-emerald-500 text-white'
+                    : 'border-2 border-dashed border-gray-300 text-gray-500 hover:border-blue-400 hover:text-blue-600 bg-white'
+            }`}
         >
-            {copied ? '✓ コピーしました！' : 'このURLをシェアする'}
+            {copied ? (
+                <>✓ URLをコピーしました！</>
+            ) : (
+                <>🔗 この旅程をシェアする</>
+            )}
         </button>
     )
 }

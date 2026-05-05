@@ -6,17 +6,12 @@ import ShareButton from '@/components/trips/ShareButton'
 export default async function TripPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = await params
     const trip = await getTripByShareId(id)
-
-    if (!trip) {
-        notFound()
-    }
+    if (!trip) notFound()
 
     return (
-        <main className="max-w-xl mx-auto px-4 py-10">
+        <div className="max-w-3xl mx-auto px-4 py-8 space-y-4">
             <ItineraryEditor trip={trip} />
-            <div className="mt-8">
-                <ShareButton shareId={trip.share_id} />
-            </div>
-        </main>
+            <ShareButton shareId={trip.share_id} />
+        </div>
     )
 }

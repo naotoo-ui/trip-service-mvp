@@ -29,25 +29,26 @@ export default function UrlForm() {
     }
 
     return (
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-3">
             <div>
-                <label className="block text-sm font-medium mb-1">旅行ブログのURL</label>
+                <label className="block text-xs font-medium text-gray-500 mb-1">旅行ブログのURL</label>
                 <input
                     type="url"
                     value={url}
                     onChange={(e) => setUrl(e.target.value)}
-                    placeholder="例：https://travel-blog.example.com/okinawa"
+                    placeholder="https://..."
                     required
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50"
                 />
+                <p className="text-xs text-gray-400 mt-1">じゃらん・るるぶ・アメブロ等に対応</p>
             </div>
-            {error && <p className="text-red-500 text-sm">{error}</p>}
+            {error && <p className="text-red-500 text-xs">{error}</p>}
             <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-blue-600 text-white rounded-lg py-3 font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-blue-700 transition-colors"
+                className="w-full bg-gray-900 text-white rounded-xl py-2.5 text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-700 active:scale-95 transition-all"
             >
-                {loading ? '取得中...' : 'URLから旅程を作成する'}
+                {loading ? '記事を解析中...' : 'URLから旅程を作成する →'}
             </button>
         </form>
     )
