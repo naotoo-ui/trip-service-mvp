@@ -27,8 +27,10 @@ export default function GenerateForm() {
                     start_date: startDate?.toISOString().split('T')[0],
                 }),
             })
-            const data = await res.json()
-            if (!res.ok) throw new Error(data.error)
+            const text = await res.text()
+            let data: { share_id?: string; error?: string }
+            try { data = JSON.parse(text) } catch { throw new Error(`サーバーエラー（タイムアウトの可能性）: ${text.slice(0, 120)}`) }
+            if (!res.ok) throw new Error(data.error ?? '生成失敗')
             router.push(`/trips/${data.share_id}`)
         } catch (err) {
             setError(err instanceof Error ? err.message : '旅程の生成に失敗しました')

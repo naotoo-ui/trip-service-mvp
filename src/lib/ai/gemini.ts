@@ -4,7 +4,10 @@ import type { GenerateInput, Itinerary, TripStyle } from '@/types'
 function getModel() {
     const key = process.env.GEMINI_API_KEY
     if (!key) throw new Error('GEMINI_API_KEY が設定されていません')
-    return new GoogleGenerativeAI(key).getGenerativeModel({ model: 'gemini-2.5-flash' })
+    return new GoogleGenerativeAI(key).getGenerativeModel({
+        model: 'gemini-2.5-flash-lite',
+        generationConfig: { maxOutputTokens: 4096 },
+    })
 }
 
 // 行き先から旅行スタイルを推定するヒント
@@ -35,122 +38,38 @@ function getTripStyleHint(destination: string, wishes?: string): string {
 export function buildGeneratePrompt(input: GenerateInput): string {
     const styleHint = getTripStyleHint(input.destination, input.wishes)
 
-    return `あなたは旅行プランニングの専門家です。以下の条件でリアルな旅行プランを作成してください。
+    return `旅行プランニングの専門家として、以下の条件でJSON形式のみで旅程を出力してください。説明文・コードブロック不要。
 
-行き先: ${input.destination}
-日数: ${input.duration_days}日間
-やりたいこと・希望: ${input.wishes ?? 'なし'}
+行き先: ${input.destination} / ${input.duration_days}日間 / 希望: ${input.wishes ?? 'なし'}
+交通手段ヒント: ${styleHint}
 
-【交通手段の判断】
-${styleHint}
-旅行全体を通じて一貫した交通手段を使うよう計画してください。
+ルール:
+- 各日に観光・グルメスポット3〜4件（移動スポット含まず）
+- 隣接スポット間には必ず移動スポット（"A → B" 形式）を挿入
+- 移動スポットのtransport_optionsは推奨1件＋代替1件の計2件
+- 8〜9時スタート、実在する店名・スポット名を使用
+- trip_styleは一貫させる
 
-【ルール】
-- 各日に4〜7件の観光・グルメスポットを入れる（移動スポットは別途）
-- 連続するスポット間に必ず「移動」スポットを入れる
-- 移動スポットでは出発地→目的地を "A → B" の形式で name に書く
-- 移動スポットには現実的な所要時間・距離を考慮した transport_options を2〜3個用意する
-- 同じエリア内の近いスポットをまとめ、無駄な移動を避ける
-- 時間は朝8〜9時スタートで現実的に設定する
-- 実在するスポット・飲食店名を使う
+出力フォーマット:
+{"title":"...","trip_style":"rental_car","trip_style_reason":"...","days":[{"day":1,"label":"1日目","spots":[{"time":"09:00","name":"...","description":"...","duration_minutes":60,"type":"観光","transport_options":[]},{"time":"10:30","name":"A → B","description":"...","duration_minutes":30,"type":"移動","transport_options":[{"mode":"レンタカー","duration_minutes":30,"note":"...","recommended":true},{"mode":"タクシー","duration_minutes":35,"note":"..."}]}]}]}
 
-以下のJSON形式のみで返してください（コードブロック・説明文は不要）：
-{
-  "title": "旅行タイトル",
-  "trip_style": "rental_car",
-  "trip_style_reason": "沖縄は公共交通が少なくレンタカーが最適",
-  "days": [
-    {
-      "day": 1,
-      "label": "1日目",
-      "spots": [
-        {
-          "time": "09:00",
-          "name": "那覇空港",
-          "description": "到着・レンタカーピックアップ",
-          "duration_minutes": 60,
-          "type": "移動",
-          "transport_options": [
-            { "mode": "レンタカー", "duration_minutes": 0, "note": "空港内カウンターで手続き", "recommended": true }
-          ]
-        },
-        {
-          "time": "10:30",
-          "name": "那覇空港 → 国際通り",
-          "description": "空港から那覇市内へ移動",
-          "duration_minutes": 25,
-          "type": "移動",
-          "transport_options": [
-            { "mode": "レンタカー", "duration_minutes": 25, "note": "国道58号経由 / 約10km", "recommended": true },
-            { "mode": "ゆいレール", "duration_minutes": 15, "note": "空港駅→県庁前駅 / 約370円" },
-            { "mode": "タクシー", "duration_minutes": 20, "note": "約1,500〜2,000円" }
-          ]
-        },
-        {
-          "time": "11:00",
-          "name": "国際通り",
-          "description": "お土産と地元グルメを楽しむ那覇のメインストリート",
-          "duration_minutes": 90,
-          "type": "観光",
-          "transport_options": []
-        }
-      ]
-    }
-  ]
-}
-
-typeは「観光」「グルメ」「移動」「宿泊」「その他」のいずれか。
-transport_optionsは移動スポット以外は空配列でOK。`
+typeは「観光」「グルメ」「移動」「宿泊」「その他」のいずれか。`
 }
 
 export function buildScrapePrompt(articleText: string): string {
-    return `以下のブログ記事を読み、旅程情報を抽出して構造化してください。
+    return `以下のブログ記事から旅程をJSON形式のみで抽出してください。説明文・コードブロック不要。
 
-【ブログ記事】
-${articleText.slice(0, 10000)}
+【記事】
+${articleText.slice(0, 6000)}
 
-【抽出ルール】
-- 記事に書かれている実際の訪問スポット・飲食店・宿泊先を忠実に抽出する
-- 記事の交通手段（レンタカー/電車/バス等）を読み取りtrip_styleに反映する
-- 連続スポット間には必ず移動スポットを入れ、記事の内容から交通手段を読み取る
-- 移動スポットのtransport_optionsは記事記載の手段を1番目に、代替案を追加する
-- 時間が記事に書かれていれば優先して使い、なければ前後から推測する
-- 記事に書かれていない日は作らない
+ルール:
+- 記事のスポット・飲食店・宿泊先を忠実に抽出
+- 記事の交通手段をtrip_styleに反映
+- 隣接スポット間に移動スポット（"A → B"形式）を挿入
+- transport_optionsは推奨1件＋代替1件
 
-以下のJSON形式のみで返してください（コードブロック・説明文は不要）：
-{
-  "title": "記事の旅行タイトル",
-  "destination": "主な行き先",
-  "duration_days": 3,
-  "trip_style": "rental_car",
-  "trip_style_reason": "記事でレンタカーを使用していたため",
-  "days": [
-    {
-      "day": 1,
-      "label": "1日目",
-      "spots": [
-        {
-          "time": "09:00",
-          "name": "A → B",
-          "description": "移動の説明",
-          "duration_minutes": 30,
-          "type": "移動",
-          "transport_options": [
-            { "mode": "レンタカー", "duration_minutes": 30, "note": "記事の交通手段", "recommended": true }
-          ]
-        },
-        {
-          "time": "09:30",
-          "name": "スポット名",
-          "description": "記事の内容を反映した一言",
-          "duration_minutes": 60,
-          "type": "観光",
-          "transport_options": []
-        }
-      ]
-    }
-  ]
-}
+出力フォーマット:
+{"title":"...","destination":"...","duration_days":3,"trip_style":"rental_car","trip_style_reason":"...","days":[{"day":1,"label":"1日目","spots":[{"time":"09:00","name":"...","description":"...","duration_minutes":60,"type":"観光","transport_options":[]},{"time":"10:00","name":"A → B","description":"...","duration_minutes":30,"type":"移動","transport_options":[{"mode":"レンタカー","duration_minutes":30,"note":"...","recommended":true},{"mode":"タクシー","duration_minutes":35,"note":"..."}]}]}]}
 
 typeは「観光」「グルメ」「移動」「宿泊」「その他」のいずれか。`
 }
