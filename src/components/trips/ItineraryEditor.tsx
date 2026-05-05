@@ -2,7 +2,6 @@
 import { useState, useCallback } from 'react'
 import type { Trip, ItineraryDay } from '@/types'
 import CalendarView from './CalendarView'
-import DatePicker from './DatePicker'
 
 const destinationEmoji: Record<string, string> = {
     沖縄: '🌺', 京都: '⛩️', 北海道: '🐻', 東京: '🗼', 大阪: '🍜',
@@ -22,8 +21,8 @@ function parseStartDate(raw?: string): Date | undefined {
 }
 
 export default function ItineraryEditor({ trip }: { trip: Trip }) {
-    const [days, setDays]           = useState<ItineraryDay[]>(trip.itinerary.days)
-    const [startDate, setStartDate] = useState<Date | undefined>(parseStartDate(trip.itinerary.start_date))
+    const [days, setDays]             = useState<ItineraryDay[]>(trip.itinerary.days)
+    const [startDate]                 = useState<Date | undefined>(parseStartDate(trip.itinerary.start_date))
     const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved')
 
     const saveToDb = useCallback(async () => {
@@ -33,7 +32,7 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
                 days,
                 trip_style: trip.itinerary.trip_style,
                 trip_style_reason: trip.itinerary.trip_style_reason,
-                start_date: startDate?.toISOString().split('T')[0],
+                start_date: trip.itinerary.start_date,
             }
             const res = await fetch(`/api/trips/${trip.share_id}`, {
                 method: 'PATCH',
@@ -44,21 +43,16 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
         } catch {
             setSaveStatus('unsaved')
         }
-    }, [trip.share_id, trip.itinerary, days, startDate])
+    }, [trip.share_id, trip.itinerary, days])
 
     function handleUpdateDays(updated: ItineraryDay[]) {
         setDays(updated)
         setSaveStatus('unsaved')
     }
 
-    function handleDateChange(date: Date) {
-        setStartDate(date)
-        setSaveStatus('unsaved')
-    }
-
     return (
         <div className="space-y-5">
-            {/* ── しおり表紙 ── */}
+            {/* しおり表紙 */}
             <div className="bg-gradient-to-br from-blue-600 to-indigo-700 text-white rounded-3xl p-6 shadow-lg">
                 <div className="flex items-start justify-between">
                     <div className="flex-1">
@@ -68,6 +62,12 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
                             <span>📍 {trip.destination}</span>
                             <span>·</span>
                             <span>🗓️ {trip.duration_days}日間</span>
+                            {startDate && (
+                                <>
+                                    <span>·</span>
+                                    <span>{startDate.getMonth() + 1}/{startDate.getDate()}〜</span>
+                                </>
+                            )}
                         </div>
                     </div>
                     <div className="text-5xl ml-4">{getEmoji(trip.destination)}</div>
@@ -79,34 +79,27 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
                 )}
             </div>
 
-            {/* ── 日程設定 + 保存ボタン ── */}
-            <div className="flex items-center justify-between gap-4 flex-wrap">
-                <DatePicker
-                    value={startDate}
-                    duration={trip.duration_days}
-                    onChange={handleDateChange}
-                />
-                <div className="flex items-center gap-3">
-                    <span className={`text-xs ${
-                        saveStatus === 'saved'   ? 'text-emerald-500'
-                        : saveStatus === 'saving' ? 'text-blue-400'
-                        : 'text-amber-500'
-                    }`}>
-                        {saveStatus === 'saved'   ? '✓ 保存済み'
-                        : saveStatus === 'saving' ? '保存中...'
-                        : '未保存の変更あり'}
-                    </span>
-                    <button
-                        onClick={saveToDb}
-                        disabled={saveStatus === 'saved' || saveStatus === 'saving'}
-                        className="text-xs px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-medium"
-                    >
-                        保存
-                    </button>
-                </div>
+            {/* 保存ステータス + 保存ボタン */}
+            <div className="flex items-center justify-end gap-3">
+                <span className={`text-xs ${
+                    saveStatus === 'saved'   ? 'text-emerald-500'
+                    : saveStatus === 'saving' ? 'text-blue-400'
+                    : 'text-amber-500'
+                }`}>
+                    {saveStatus === 'saved'   ? '✓ 保存済み'
+                    : saveStatus === 'saving' ? '保存中...'
+                    : '未保存の変更あり'}
+                </span>
+                <button
+                    onClick={saveToDb}
+                    disabled={saveStatus === 'saved' || saveStatus === 'saving'}
+                    className="text-xs px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-medium"
+                >
+                    保存
+                </button>
             </div>
 
-            {/* ── カレンダービュー ── */}
+            {/* カレンダービュー */}
             <CalendarView
                 days={days}
                 startDate={startDate}

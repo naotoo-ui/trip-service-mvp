@@ -4,7 +4,7 @@ import type { GenerateInput, Itinerary, TripStyle } from '@/types'
 function getModel() {
     const key = process.env.GEMINI_API_KEY
     if (!key) throw new Error('GEMINI_API_KEY が設定されていません')
-    return new GoogleGenerativeAI(key).getGenerativeModel({ model: 'gemini-2.5-flash-lite' })
+    return new GoogleGenerativeAI(key).getGenerativeModel({ model: 'gemini-2.5-flash' })
 }
 
 // 行き先から旅行スタイルを推定するヒント
