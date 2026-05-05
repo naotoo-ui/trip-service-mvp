@@ -11,6 +11,7 @@ import {
 import type { Trip, ItineraryDay, Spot } from '@/types'
 import DayTabs from './DayTabs'
 import SpotCard from './SpotCard'
+import CalendarView from './CalendarView'
 
 function findNextSpotIndex(spots: Spot[], isToday: boolean): number {
     if (!isToday) return -1
@@ -45,6 +46,7 @@ const DEFAULT_SPOT: Spot = {
 }
 
 export default function ItineraryEditor({ trip }: { trip: Trip }) {
+    const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list')
     const [activeDay, setActiveDay] = useState(1)
     const [days, setDays] = useState<ItineraryDay[]>(trip.itinerary.days)
     const [now, setNow] = useState(new Date())
@@ -155,13 +157,30 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
                 )}
             </div>
 
-            {/* DAY タブ + 保存状態 */}
+            {/* ビュー切り替え + 保存状態 */}
             <div className="flex items-center justify-between gap-4">
-                <DayTabs
-                    days={days.map(d => ({ day: d.day, label: d.label }))}
-                    activeDay={activeDay}
-                    onSelect={setActiveDay}
-                />
+                <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
+                    <button
+                        onClick={() => setViewMode('list')}
+                        className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
+                            viewMode === 'list'
+                                ? 'bg-white text-gray-800 shadow-sm'
+                                : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                    >
+                        📋 リスト
+                    </button>
+                    <button
+                        onClick={() => setViewMode('calendar')}
+                        className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
+                            viewMode === 'calendar'
+                                ? 'bg-white text-gray-800 shadow-sm'
+                                : 'text-gray-500 hover:text-gray-700'
+                        }`}
+                    >
+                        📅 カレンダー
+                    </button>
+                </div>
                 <span className={`text-xs shrink-0 ${
                     saveStatus === 'saved' ? 'text-emerald-500'
                     : saveStatus === 'saving' ? 'text-blue-400'
@@ -172,6 +191,15 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
                     : '未保存'}
                 </span>
             </div>
+
+            {/* リストビュー時のみ DAY タブを表示 */}
+            {viewMode === 'list' && (
+                <DayTabs
+                    days={days.map(d => ({ day: d.day, label: d.label }))}
+                    activeDay={activeDay}
+                    onSelect={setActiveDay}
+                />
+            )}
 
             {/* 現在地インジケーター */}
             {isToday && nextIdx >= 0 && (
@@ -188,41 +216,54 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
                 </div>
             )}
 
-            {/* スポットリスト */}
-            {currentDay && (
-                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                    <SortableContext
-                        items={currentDay.spots.map((_, i) => `spot-${i}`)}
-                        strategy={verticalListSortingStrategy}
-                    >
-                        <div className="space-y-2">
-                            {currentDay.spots.map((spot, i) => (
-                                <SpotCard
-                                    key={`spot-${i}`}
-                                    id={`spot-${i}`}
-                                    spot={spot}
-                                    isNext={isToday && i === nextIdx}
-                                    isPast={isToday && nextIdx >= 0 && i < nextIdx}
-                                    onUpdate={updated => handleSpotUpdate(i, updated)}
-                                    onDelete={() => handleSpotDelete(i)}
-                                />
-                            ))}
-                        </div>
-                    </SortableContext>
-                </DndContext>
+            {/* カレンダービュー */}
+            {viewMode === 'calendar' && (
+                <>
+                    <CalendarView days={days} onUpdateDays={updateDays} />
+                    <p className="text-center text-xs text-gray-400">
+                        ブロック上端/下端をドラッグで時刻変更 · 本体ドラッグで日をまたいで移動 · 変更は自動保存
+                    </p>
+                </>
             )}
 
-            {/* スポット追加ボタン */}
-            <button
-                onClick={handleSpotAdd}
-                className="w-full border-2 border-dashed border-gray-200 rounded-2xl py-3 text-sm text-gray-400 hover:border-blue-300 hover:text-blue-500 transition-colors"
-            >
-                + スポットを追加
-            </button>
+            {/* リストビュー */}
+            {viewMode === 'list' && (
+                <>
+                    {currentDay && (
+                        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                            <SortableContext
+                                items={currentDay.spots.map((_, i) => `spot-${i}`)}
+                                strategy={verticalListSortingStrategy}
+                            >
+                                <div className="space-y-2">
+                                    {currentDay.spots.map((spot, i) => (
+                                        <SpotCard
+                                            key={`spot-${i}`}
+                                            id={`spot-${i}`}
+                                            spot={spot}
+                                            isNext={isToday && i === nextIdx}
+                                            isPast={isToday && nextIdx >= 0 && i < nextIdx}
+                                            onUpdate={updated => handleSpotUpdate(i, updated)}
+                                            onDelete={() => handleSpotDelete(i)}
+                                        />
+                                    ))}
+                                </div>
+                            </SortableContext>
+                        </DndContext>
+                    )}
 
-            <p className="text-center text-xs text-gray-400">
-                ↕ ドラッグして並び替え · クリックして編集 · 変更は自動保存されます
-            </p>
+                    <button
+                        onClick={handleSpotAdd}
+                        className="w-full border-2 border-dashed border-gray-200 rounded-2xl py-3 text-sm text-gray-400 hover:border-blue-300 hover:text-blue-500 transition-colors"
+                    >
+                        + スポットを追加
+                    </button>
+
+                    <p className="text-center text-xs text-gray-400">
+                        ↕ ドラッグして並び替え · クリックして編集 · 変更は自動保存されます
+                    </p>
+                </>
+            )}
         </div>
     )
 }
