@@ -6,7 +6,7 @@ function getModel() {
     if (!key) throw new Error('GEMINI_API_KEY が設定されていません')
     return new GoogleGenerativeAI(key).getGenerativeModel({
         model: 'gemini-2.5-flash-lite',
-        generationConfig: { maxOutputTokens: 4096 },
+        generationConfig: { maxOutputTokens: 8192 },
     })
 }
 
