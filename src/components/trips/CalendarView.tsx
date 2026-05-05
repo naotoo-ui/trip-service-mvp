@@ -294,11 +294,11 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays }: Pr
 
     return (
         <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-            {/* カレンダー本体（内部スクロールコンテナ）*/}
+            {/* カレンダー本体（内部スクロールコンテナ・固定高）*/}
             <div
                 ref={containerRef}
                 className="overflow-auto select-none"
-                style={{ height: 'max(350px, calc(100dvh - 280px))' }}
+                style={{ height: 'max(400px, min(660px, calc(100vh - 320px)))' }}
             >
                 <div style={{ minWidth: minW }}>
 

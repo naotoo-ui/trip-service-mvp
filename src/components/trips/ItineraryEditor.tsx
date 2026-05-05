@@ -2,6 +2,7 @@
 import { useState, useCallback } from 'react'
 import type { Trip, ItineraryDay } from '@/types'
 import CalendarView from './CalendarView'
+import ShareButton from './ShareButton'
 
 const ZOOM_MAX  = 3.0
 const ZOOM_STEP = 0.2
@@ -64,82 +65,150 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
         setSaveStatus('unsaved')
     }
 
+    const saveColor = saveStatus === 'saved' ? '#10b981' : saveStatus === 'saving' ? '#60a5fa' : '#f59e0b'
+    const saveText  = saveStatus === 'saved' ? '✓ 保存済み' : saveStatus === 'saving' ? '保存中...' : '● 未保存'
+    const zoomPct   = Math.min(100, ((zoom - 1.0) / (ZOOM_MAX - 1.0)) * 100)
+
     return (
-        <div className="space-y-4">
-            {/* しおり表紙 */}
-            <div className="bg-gradient-to-br from-blue-600 to-indigo-700 text-white rounded-3xl p-6 shadow-lg">
-                <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                        <p className="text-blue-200 text-xs font-medium tracking-widest uppercase mb-2">Travel Itinerary</p>
-                        <h1 className="text-2xl font-bold leading-snug">{trip.title}</h1>
-                        <div className="flex items-center gap-3 mt-3 text-blue-100 text-sm">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+            {/* ── しおり表紙 ── */}
+            <div style={{
+                background: 'linear-gradient(135deg, #2563eb 0%, #4338ca 100%)',
+                color: 'white',
+                borderRadius: 20,
+                padding: '20px 24px',
+                boxShadow: '0 4px 20px rgba(37,99,235,0.3)',
+            }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                    <div style={{ flex: 1 }}>
+                        <p style={{ fontSize: 10, color: '#bfdbfe', fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', margin: '0 0 6px' }}>
+                            Travel Itinerary
+                        </p>
+                        <h1 style={{ fontSize: 22, fontWeight: 700, lineHeight: 1.3, margin: '0 0 10px' }}>
+                            {trip.title}
+                        </h1>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 13, color: '#bfdbfe' }}>
                             <span>📍 {trip.destination}</span>
-                            <span>·</span>
+                            <span style={{ opacity: 0.5 }}>·</span>
                             <span>🗓️ {trip.duration_days}日間</span>
                             {startDate && (
                                 <>
-                                    <span>·</span>
+                                    <span style={{ opacity: 0.5 }}>·</span>
                                     <span>{startDate.getMonth() + 1}/{startDate.getDate()}〜</span>
                                 </>
                             )}
                         </div>
                     </div>
-                    <div className="text-5xl ml-4">{getEmoji(trip.destination)}</div>
+                    <div style={{ fontSize: 44, marginLeft: 16, lineHeight: 1 }}>{getEmoji(trip.destination)}</div>
                 </div>
                 {trip.source_url && (
-                    <a href={trip.source_url} className="mt-4 inline-flex items-center gap-1 text-xs text-blue-200 hover:text-white underline underline-offset-2" target="_blank" rel="noopener noreferrer">
+                    <a
+                        href={trip.source_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 12, fontSize: 11, color: '#bfdbfe', textDecoration: 'underline', textUnderlineOffset: 2 }}
+                    >
                         📰 参照元記事を見る
                     </a>
                 )}
             </div>
 
-            {/* 統合ツールバー */}
-            <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 border border-gray-200 rounded-2xl">
+            {/* ── 統合ツールバー（inline style で確実に横一列）── */}
+            <div style={{
+                display: 'flex',
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 8,
+                padding: '8px 12px',
+                backgroundColor: '#f9fafb',
+                border: '1px solid #e5e7eb',
+                borderRadius: 12,
+                flexWrap: 'nowrap',
+            }}>
                 {/* 戻るボタン */}
                 <button
                     type="button"
                     onClick={undo}
                     disabled={history.length === 0}
-                    title="一つ前に戻す"
-                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+                    title="一つ前の状態に戻す"
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 4,
+                        padding: '5px 10px',
+                        border: '1px solid #e5e7eb',
+                        backgroundColor: 'white',
+                        borderRadius: 8,
+                        fontSize: 12,
+                        fontWeight: 500,
+                        color: '#4b5563',
+                        cursor: history.length === 0 ? 'not-allowed' : 'pointer',
+                        opacity: history.length === 0 ? 0.35 : 1,
+                        whiteSpace: 'nowrap',
+                        flexShrink: 0,
+                    }}
                 >
                     ↩ 戻す
                 </button>
 
-                <div className="w-px h-5 bg-gray-300 flex-shrink-0" />
+                {/* 区切り線 */}
+                <div style={{ width: 1, height: 18, backgroundColor: '#d1d5db', flexShrink: 0 }} />
 
                 {/* ズームコントロール */}
-                <span className="text-xs text-gray-400 whitespace-nowrap">縦軸</span>
+                <span style={{ fontSize: 11, color: '#9ca3af', whiteSpace: 'nowrap', flexShrink: 0 }}>縦軸</span>
+
                 <button
                     type="button"
                     onClick={() => setZoom(z => Math.max(1.0, +(z - ZOOM_STEP).toFixed(1)))}
                     disabled={zoom <= 1.0}
-                    className="w-7 h-7 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed text-sm font-bold flex items-center justify-center flex-shrink-0"
+                    style={{
+                        width: 26, height: 26,
+                        border: '1px solid #e5e7eb',
+                        backgroundColor: 'white',
+                        borderRadius: 7,
+                        fontSize: 14,
+                        fontWeight: 700,
+                        color: '#6b7280',
+                        cursor: zoom <= 1.0 ? 'not-allowed' : 'pointer',
+                        opacity: zoom <= 1.0 ? 0.3 : 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                    }}
                 >−</button>
-                <div className="w-14 h-1.5 bg-gray-200 rounded-full relative flex-shrink-0">
-                    <div
-                        className="h-1.5 bg-blue-400 rounded-full transition-all"
-                        style={{ width: `${Math.min(100, ((zoom - 1.0) / (ZOOM_MAX - 1.0)) * 100)}%` }}
-                    />
+
+                {/* ズームバー */}
+                <div style={{ width: 48, height: 4, backgroundColor: '#e5e7eb', borderRadius: 99, flexShrink: 0, position: 'relative' }}>
+                    <div style={{ width: `${zoomPct}%`, height: 4, backgroundColor: '#93c5fd', borderRadius: 99, transition: 'width 0.15s' }} />
                 </div>
+
                 <button
                     type="button"
                     onClick={() => setZoom(z => Math.min(ZOOM_MAX, +(z + ZOOM_STEP).toFixed(1)))}
-                    className="w-7 h-7 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-100 text-sm font-bold flex items-center justify-center flex-shrink-0"
+                    style={{
+                        width: 26, height: 26,
+                        border: '1px solid #e5e7eb',
+                        backgroundColor: 'white',
+                        borderRadius: 7,
+                        fontSize: 14,
+                        fontWeight: 700,
+                        color: '#6b7280',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                    }}
                 >＋</button>
 
                 {/* スペーサー */}
-                <div className="flex-1" />
+                <div style={{ flex: 1 }} />
 
                 {/* 保存ステータス */}
-                <span className={`text-xs whitespace-nowrap ${
-                    saveStatus === 'saved'   ? 'text-emerald-500'
-                    : saveStatus === 'saving' ? 'text-blue-400'
-                    : 'text-amber-500'
-                }`}>
-                    {saveStatus === 'saved'   ? '✓ 保存済み'
-                    : saveStatus === 'saving' ? '保存中...'
-                    : '● 未保存'}
+                <span style={{ fontSize: 12, color: saveColor, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                    {saveText}
                 </span>
 
                 {/* 保存ボタン */}
@@ -147,19 +216,35 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
                     type="button"
                     onClick={saveToDb}
                     disabled={saveStatus === 'saved' || saveStatus === 'saving'}
-                    className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-medium whitespace-nowrap"
+                    style={{
+                        padding: '5px 12px',
+                        backgroundColor: saveStatus === 'saved' || saveStatus === 'saving' ? '#d1d5db' : '#2563eb',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: 8,
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor: saveStatus === 'saved' || saveStatus === 'saving' ? 'not-allowed' : 'pointer',
+                        whiteSpace: 'nowrap',
+                        flexShrink: 0,
+                        transition: 'background-color 0.15s',
+                    }}
                 >
                     保存
                 </button>
             </div>
 
-            {/* カレンダービュー */}
+            {/* ── カレンダービュー（固定高・内部スクロール）── */}
             <CalendarView
                 days={days}
                 startDate={startDate}
                 zoom={zoom}
                 onUpdateDays={handleUpdateDays}
             />
+
+            {/* ── シェアボタン ── */}
+            <ShareButton shareId={trip.share_id} />
+
         </div>
     )
 }
