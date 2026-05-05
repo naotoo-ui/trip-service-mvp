@@ -32,6 +32,7 @@ export interface Itinerary {
     days: ItineraryDay[]
     trip_style?: TripStyle
     trip_style_reason?: string
+    start_date?: string   // ISO date string e.g. "2026-05-05"
 }
 
 export interface Trip {
