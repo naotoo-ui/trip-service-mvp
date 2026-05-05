@@ -1,7 +1,7 @@
 'use client'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import type { Spot, SpotType } from '@/types'
+import type { Spot, SpotType, TransportMode } from '@/types'
 
 const typeConfig: Record<string, { bg: string; text: string; icon: string }> = {
     観光: { bg: 'bg-sky-50', text: 'text-sky-600', icon: '🏛️' },
@@ -12,6 +12,20 @@ const typeConfig: Record<string, { bg: string; text: string; icon: string }> = {
 }
 
 const SPOT_TYPES: SpotType[] = ['観光', 'グルメ', '移動', '宿泊', 'その他']
+
+const transportIcon: Record<TransportMode, string> = {
+    '電車': '🚃',
+    '新幹線': '🚄',
+    '地下鉄': '🚇',
+    'バス': '🚌',
+    'レンタカー': '🚗',
+    'タクシー': '🚕',
+    '徒歩': '🚶',
+    '飛行機': '✈️',
+    '船': '🚢',
+    'バイク': '🏍️',
+    'ライドシェア': '🚖',
+}
 
 interface Props {
     id: string
@@ -94,6 +108,30 @@ export default function SpotCard({ id, spot, isNext, isPast, onUpdate, onDelete 
                         分
                     </span>
                 </div>
+
+                {/* 移動スポット: 交通手段オプション */}
+                {spot.type === '移動' && spot.transport_options && spot.transport_options.length > 0 && (
+                    <div className="mt-2 space-y-1">
+                        {spot.transport_options.map((opt, i) => (
+                            <div
+                                key={i}
+                                className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs ${
+                                    opt.recommended
+                                        ? 'bg-blue-50 border border-blue-200 text-blue-800'
+                                        : 'bg-gray-50 border border-gray-100 text-gray-600'
+                                }`}
+                            >
+                                <span className="text-sm shrink-0">{transportIcon[opt.mode] ?? '🚌'}</span>
+                                <span className="font-medium shrink-0">{opt.mode}</span>
+                                <span className="shrink-0">{opt.duration_minutes}分</span>
+                                <span className="truncate text-xs opacity-75">{opt.note}</span>
+                                {opt.recommended && (
+                                    <span className="ml-auto shrink-0 text-xs bg-blue-600 text-white px-1.5 py-0.5 rounded-full font-bold">推奨</span>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
 
             {/* 右側ボタン群 */}
