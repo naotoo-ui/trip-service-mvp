@@ -293,12 +293,19 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays }: Pr
     }
 
     return (
-        <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-            {/* カレンダー本体（内部スクロールコンテナ・固定高）*/}
+        <div
+            className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden"
+            style={{ isolation: 'isolate' }}
+        >
+            {/* カレンダー本体（内部スクロールコンテナ・固定高）
+                overscrollBehavior: contain → スクロールがカレンダー外に伝播しない（内部スクロール分離） */}
             <div
                 ref={containerRef}
                 className="overflow-auto select-none"
-                style={{ height: 'max(400px, min(660px, calc(100vh - 320px)))' }}
+                style={{
+                    height: 'clamp(380px, calc(100vh - 480px), 500px)',
+                    overscrollBehavior: 'contain',
+                }}
             >
                 <div style={{ minWidth: minW }}>
 
