@@ -52,3 +52,17 @@ export interface GenerateInput {
     duration_days: number
     wishes?: string
 }
+
+export type GroupType = 'friends' | 'family' | 'couple' | 'other'
+
+export interface PlanInput {
+    destinations: string[]   // 必須・複数可
+    duration_days: number    // 必須
+    start_date?: string
+    origin?: string
+    adults?: number
+    children?: number
+    group_type?: GroupType
+    wishes?: string
+    urls?: string[]          // 最大5つ
+}

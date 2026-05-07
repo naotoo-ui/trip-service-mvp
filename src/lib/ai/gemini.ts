@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
-import type { GenerateInput, Itinerary, TripStyle } from '@/types'
+import type { GenerateInput, Itinerary, PlanInput, TripStyle } from '@/types'
 
 function getModel() {
     const key = process.env.GEMINI_API_KEY
@@ -99,6 +99,54 @@ export async function generateTripFromInput(
     input: GenerateInput
 ): Promise<{ title: string; itinerary: Itinerary }> {
     const result = await getModel().generateContent(buildGeneratePrompt(input))
+    const { title, itinerary } = parseTripJson(result.response.text())
+    return { title, itinerary }
+}
+
+export function buildPlanPrompt(input: PlanInput, articleTexts: string[]): string {
+    const destination = input.destinations.join('・')
+    const styleHint = getTripStyleHint(destination, input.wishes)
+
+    const groupLabels: Record<string, string> = {
+        friends: '友人旅行', family: '家族旅行', couple: 'カップル旅行', other: 'グループ旅行',
+    }
+    const metaLines = [
+        input.origin          ? `出発地: ${input.origin}` : '',
+        input.adults          ? `大人${input.adults}人${input.children ? `・子供${input.children}人` : ''}` : '',
+        input.group_type      ? `旅行スタイル: ${groupLabels[input.group_type]}` : '',
+    ].filter(Boolean).join(' / ')
+
+    const articleSection = articleTexts.length > 0
+        ? `\n参考記事（優先的に活用してください）:\n${articleTexts.map((t, i) => `[記事${i + 1}] ${t.slice(0, 2000)}`).join('\n---\n')}`
+        : ''
+
+    return `旅行プランニングの専門家として、以下の条件でJSON形式のみで旅程を出力してください。説明文・コードブロック不要。
+
+目的地: ${destination} / ${input.duration_days}日間
+${metaLines ? `補足: ${metaLines}` : ''}
+希望: ${input.wishes ?? 'なし'}
+交通手段ヒント: ${styleHint}
+${articleSection}
+
+ルール:
+- 各日に観光・グルメスポット3〜4件（移動スポット含まず）
+- 隣接スポット間には必ず移動スポット（"A → B" 形式）を挿入
+- 移動スポットのtransport_optionsは推奨1件＋代替1件の計2件
+- 8〜9時スタート、実在する店名・スポット名を使用
+- trip_styleは一貫させる
+- 参考記事がある場合、記事に記載されたスポットを積極的に活用
+
+出力フォーマット:
+{"title":"...","trip_style":"rental_car","trip_style_reason":"...","days":[{"day":1,"label":"1日目","spots":[{"time":"09:00","name":"...","description":"...","duration_minutes":60,"type":"観光","transport_options":[]},{"time":"10:30","name":"A → B","description":"...","duration_minutes":30,"type":"移動","transport_options":[{"mode":"レンタカー","duration_minutes":30,"note":"...","recommended":true},{"mode":"タクシー","duration_minutes":35,"note":"..."}]}]}]}
+
+typeは「観光」「グルメ」「移動」「宿泊」「その他」のいずれか。`
+}
+
+export async function generateTripFromPlan(
+    input: PlanInput,
+    articleTexts: string[]
+): Promise<{ title: string; itinerary: Itinerary }> {
+    const result = await getModel().generateContent(buildPlanPrompt(input, articleTexts))
     const { title, itinerary } = parseTripJson(result.response.text())
     return { title, itinerary }
 }
