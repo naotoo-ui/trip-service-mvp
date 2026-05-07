@@ -4,6 +4,7 @@ import type { Trip, ItineraryDay, Spot, SidebarSpot, SpotType } from '@/types'
 import CalendarView from './CalendarView'
 import SuggestedSpotsPanel from './SuggestedSpotsPanel'
 import FreeBlocksPanel from './FreeBlocksPanel'
+import SpotDetailModal from './SpotDetailModal'
 import ShareButton from './ShareButton'
 
 function toMins(time: string) { const [h, m] = time.split(':').map(Number); return h * 60 + (m || 0) }
@@ -50,6 +51,7 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
     const [sidebarSpots, setSidebarSpots] = useState<SidebarSpot[]>(trip.itinerary.sidebar_spots ?? [])
     const [pendingFreeDrop, setPendingFreeDrop] = useState<{ dayIdx: number; time: string; type: SpotType } | null>(null)
     const [receivingSidebar, setReceivingSidebar] = useState(false)
+    const [editingSpot, setEditingSpot] = useState<{ spot: Spot; dayIdx: number; spotIdx: number } | null>(null)
 
     const saveToDb = useCallback(async () => {
         setSaveStatus('saving')
@@ -95,6 +97,21 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
         setDays(next)
         setRedoStack(r => r.slice(0, -1))
         setSaveStatus('unsaved')
+    }
+
+    function handleDoubleClickSpot(spot: Spot, dayIdx: number, spotIdx: number) {
+        setEditingSpot({ spot, dayIdx, spotIdx })
+    }
+
+    function handleSpotDetailSave(updated: Spot) {
+        if (!editingSpot) return
+        const newDays = days.map((d, di) =>
+            di === editingSpot.dayIdx
+                ? { ...d, spots: d.spots.map((s, si) => si === editingSpot.spotIdx ? updated : s) }
+                : d
+        )
+        handleUpdateDays(newDays)
+        setEditingSpot(null)
     }
 
     function handleMoveToSidebar(spot: Spot, dayIdx: number, spotIdx: number) {
@@ -337,6 +354,7 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
                         onDropFreeBlock={handleDropFreeBlock}
                         onMoveToSidebar={handleMoveToSidebar}
                         onDraggingToSidebarChange={setReceivingSidebar}
+                        onDoubleClickSpot={handleDoubleClickSpot}
                     />
                 </div>
                 <SuggestedSpotsPanel
@@ -355,6 +373,15 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
 
             {/* ── シェアボタン ── */}
             <ShareButton shareId={trip.share_id} />
+
+            {/* ── スポット詳細モーダル（ダブルクリックで表示）── */}
+            {editingSpot && (
+                <SpotDetailModal
+                    spot={editingSpot.spot}
+                    onSave={handleSpotDetailSave}
+                    onCancel={() => setEditingSpot(null)}
+                />
+            )}
 
         </div>
     )

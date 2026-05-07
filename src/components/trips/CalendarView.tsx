@@ -163,10 +163,11 @@ interface Props {
     onDropFreeBlock?: (dayIdx: number, time: string, type: SpotType) => void
     onMoveToSidebar?: (spot: Spot, dayIdx: number, spotIdx: number) => void
     onDraggingToSidebarChange?: (v: boolean) => void
+    onDoubleClickSpot?: (spot: Spot, dayIdx: number, spotIdx: number) => void
 }
 
 // ────────── コンポーネント ──────────
-export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDropSuggestedSpot, onDropFreeBlock, onMoveToSidebar, onDraggingToSidebarChange }: Props) {
+export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDropSuggestedSpot, onDropFreeBlock, onMoveToSidebar, onDraggingToSidebarChange, onDoubleClickSpot }: Props) {
     const containerRef = useRef<HTMLDivElement>(null)
     const gridBodyRef  = useRef<HTMLDivElement>(null)
 
@@ -546,6 +547,11 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDr
                                         <div
                                             style={{ position: 'absolute', top: HANDLE, bottom: HANDLE, left: ACCENT + 6, right: 4, cursor: 'grab', overflow: 'hidden' }}
                                             onMouseDown={e => startDrag(e, 'move', dayIdx, spotIdx, toMins(spot.time), getDur(spot))}
+                                            onDoubleClick={e => {
+                                                e.stopPropagation()
+                                                setDrag(null); setTemp(null)
+                                                onDoubleClickSpot?.(spot, dayIdx, spotIdx)
+                                            }}
                                         >
                                             <p style={{
                                                 fontSize: 12, fontWeight: st.light ? 400 : 600,
@@ -563,6 +569,15 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDr
                                                 </p>
                                             )}
                                         </div>
+
+                                        {/* 予約状態ドット */}
+                                        {spot.needs_booking && (
+                                            <div style={{
+                                                position: 'absolute', bottom: HANDLE + 3, right: 4,
+                                                width: 7, height: 7, borderRadius: '50%', zIndex: 4,
+                                                backgroundColor: spot.booking_confirmed ? '#10b981' : '#f59e0b',
+                                            }} />
+                                        )}
 
                                         <div
                                             style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: HANDLE, cursor: 's-resize', zIndex: 3 }}

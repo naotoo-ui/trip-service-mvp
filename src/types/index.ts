@@ -20,6 +20,10 @@ export interface Spot {
     duration_minutes: number
     type: SpotType
     transport_options?: TransportOption[]  // 移動スポットのみ
+    needs_booking?: boolean       // AI判定: 予約が必要か
+    booking_confirmed?: boolean   // ユーザー設定: 予約済みか
+    memo?: string                 // ユーザーメモ
+    user_links?: string[]         // ユーザー追加リンク（最大5件）
 }
 
 export interface ItineraryDay {
