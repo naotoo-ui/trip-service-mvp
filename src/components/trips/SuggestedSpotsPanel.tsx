@@ -21,12 +21,14 @@ function Stars({ n }: { n?: number }) {
 interface Props {
     spots: SidebarSpot[]
     height: string
+    isReceiving?: boolean
+    onDelete?: (index: number) => void
 }
 
-export default function SuggestedSpotsPanel({ spots, height }: Props) {
+export default function SuggestedSpotsPanel({ spots, height, isReceiving, onDelete }: Props) {
     return (
         <div style={{
-            width: 112,
+            width: 168,
             flexShrink: 0,
             height,
             overflowY: 'auto',
@@ -35,6 +37,10 @@ export default function SuggestedSpotsPanel({ spots, height }: Props) {
             flexDirection: 'column',
             gap: 6,
             paddingRight: 2,
+            borderRadius: 12,
+            border: isReceiving ? '2px dashed #2563eb' : '2px solid transparent',
+            transition: 'border-color 0.15s',
+            padding: isReceiving ? '6px' : '0 2px 0 0',
         }}>
             <p style={{ fontSize: 10, fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.08em', margin: 0, whiteSpace: 'nowrap' }}>
                 おすすめスポット
@@ -42,7 +48,7 @@ export default function SuggestedSpotsPanel({ spots, height }: Props) {
 
             {spots.length === 0 ? (
                 <p style={{ fontSize: 10, color: '#d1d5db', margin: 0, lineHeight: 1.5 }}>
-                    旅程生成時に<br />ここに表示されます
+                    旅程生成時または<br />カレンダーから<br />ドラッグで追加
                 </p>
             ) : (
                 <>
@@ -67,14 +73,31 @@ export default function SuggestedSpotsPanel({ spots, height }: Props) {
                                     display: 'flex',
                                     gap: 5,
                                     alignItems: 'flex-start',
+                                    position: 'relative',
                                 }}
                             >
                                 <div style={{ width: 3, minHeight: 28, borderRadius: 2, backgroundColor: st.accent, flexShrink: 0, marginTop: 1 }} />
-                                <div style={{ minWidth: 0 }}>
-                                    <p style={{ fontSize: 11, fontWeight: 600, color: st.text, margin: 0, lineHeight: 1.3, wordBreak: 'break-all' }}>{spot.name}</p>
+                                <div style={{ minWidth: 0, flex: 1 }}>
+                                    <p style={{ fontSize: 11, fontWeight: 600, color: st.text, margin: 0, lineHeight: 1.3, wordBreak: 'break-all', paddingRight: 14 }}>{spot.name}</p>
                                     <Stars n={spot.popularity} />
                                     <p style={{ fontSize: 10, color: '#9ca3af', margin: '2px 0 0' }}>{spot.duration_minutes}分</p>
                                 </div>
+                                {onDelete && (
+                                    <button
+                                        type="button"
+                                        onClick={e => { e.stopPropagation(); onDelete(i) }}
+                                        style={{
+                                            position: 'absolute', top: 4, right: 4,
+                                            width: 14, height: 14,
+                                            border: 'none', borderRadius: 3,
+                                            background: 'rgba(0,0,0,0.15)',
+                                            color: '#6b7280', fontSize: 10,
+                                            cursor: 'pointer', lineHeight: 1,
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            padding: 0,
+                                        }}
+                                    >×</button>
+                                )}
                             </div>
                         )
                     })}

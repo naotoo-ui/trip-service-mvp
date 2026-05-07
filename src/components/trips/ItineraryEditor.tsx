@@ -49,6 +49,7 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
     const [zoom, setZoom]             = useState(1.0)
     const [sidebarSpots, setSidebarSpots] = useState<SidebarSpot[]>(trip.itinerary.sidebar_spots ?? [])
     const [pendingFreeDrop, setPendingFreeDrop] = useState<{ dayIdx: number; time: string; type: SpotType } | null>(null)
+    const [receivingSidebar, setReceivingSidebar] = useState(false)
 
     const saveToDb = useCallback(async () => {
         setSaveStatus('saving')
@@ -94,6 +95,20 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
         setDays(next)
         setRedoStack(r => r.slice(0, -1))
         setSaveStatus('unsaved')
+    }
+
+    function handleMoveToSidebar(spot: Spot, dayIdx: number, spotIdx: number) {
+        const sidebarSpot: SidebarSpot = {
+            name: spot.name,
+            description: spot.description,
+            type: spot.type,
+            duration_minutes: spot.duration_minutes,
+        }
+        const newDays = days.map((d, i) =>
+            i === dayIdx ? { ...d, spots: d.spots.filter((_, si) => si !== spotIdx) } : d
+        )
+        handleUpdateDays(newDays)
+        setSidebarSpots(prev => [...prev, sidebarSpot])
     }
 
     function handleDropSuggestedSpot(dayIdx: number, time: string, spot: SidebarSpot) {
@@ -320,11 +335,15 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
                         onUpdateDays={handleUpdateDays}
                         onDropSuggestedSpot={handleDropSuggestedSpot}
                         onDropFreeBlock={handleDropFreeBlock}
+                        onMoveToSidebar={handleMoveToSidebar}
+                        onDraggingToSidebarChange={setReceivingSidebar}
                     />
                 </div>
                 <SuggestedSpotsPanel
                     spots={sidebarSpots}
                     height="clamp(320px, calc(100vh - 540px), 440px)"
+                    isReceiving={receivingSidebar}
+                    onDelete={idx => setSidebarSpots(prev => prev.filter((_, i) => i !== idx))}
                 />
                 <FreeBlocksPanel
                     pending={pendingFreeDrop}

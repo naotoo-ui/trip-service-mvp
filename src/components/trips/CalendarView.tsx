@@ -161,19 +161,29 @@ interface Props {
     onUpdateDays: (updated: ItineraryDay[]) => void
     onDropSuggestedSpot?: (dayIdx: number, time: string, spot: SidebarSpot) => void
     onDropFreeBlock?: (dayIdx: number, time: string, type: SpotType) => void
+    onMoveToSidebar?: (spot: Spot, dayIdx: number, spotIdx: number) => void
+    onDraggingToSidebarChange?: (v: boolean) => void
 }
 
 // ────────── コンポーネント ──────────
-export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDropSuggestedSpot, onDropFreeBlock }: Props) {
+export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDropSuggestedSpot, onDropFreeBlock, onMoveToSidebar, onDraggingToSidebarChange }: Props) {
     const containerRef = useRef<HTMLDivElement>(null)
     const gridBodyRef  = useRef<HTMLDivElement>(null)
+
+    // コールバック ref（useCallback の deps に含めずに最新値を参照するため）
+    const onMoveToSidebarRef            = useRef(onMoveToSidebar)
+    const onDraggingToSidebarChangeRef  = useRef(onDraggingToSidebarChange)
+    onMoveToSidebarRef.current           = onMoveToSidebar
+    onDraggingToSidebarChangeRef.current = onDraggingToSidebarChange
 
     const [colW, setColW] = useState(160)
     const ppm             = BASE_PPM * zoom
 
-    const [drag, setDrag]       = useState<Drag | null>(null)
-    const [temp, setTemp]       = useState<Temp | null>(null)
-    const [dragOver, setDragOver] = useState<{ dayIdx: number; start: number } | null>(null)
+    const [drag, setDrag]                   = useState<Drag | null>(null)
+    const [temp, setTemp]                   = useState<Temp | null>(null)
+    const [dragOver, setDragOver]           = useState<{ dayIdx: number; start: number } | null>(null)
+    const [isDraggingToSidebar, setIsDraggingToSidebar] = useState(false)
+    const isDraggingToSidebarRef            = useRef(false)
     const [nowMins, setNowMins] = useState(() => { const n = new Date(); return n.getHours() * 60 + n.getMinutes() })
 
     const GRID_H = (GRID_END - GRID_START) * 60 * ppm + 48
@@ -212,6 +222,14 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDr
         if (!drag) return
         const dMins = (e.clientY - drag.mouseY0) / ppm
         if (drag.mode === 'move') {
+            // カレンダー右端を越えたらサイドバーへのドラッグとして扱う
+            const rect = containerRef.current?.getBoundingClientRect()
+            const toSidebar = !!rect && e.clientX > rect.right + 4
+            if (toSidebar !== isDraggingToSidebarRef.current) {
+                isDraggingToSidebarRef.current = toSidebar
+                setIsDraggingToSidebar(toSidebar)
+                onDraggingToSidebarChangeRef.current?.(toSidebar)
+            }
             const s = snap(drag.initStart + dMins)
             setTemp({ dayIdx: xToDayIdx(e.clientX), start: Math.max(GRID_START * 60, Math.min(GRID_END * 60 - drag.initDur, s)), dur: drag.initDur })
         } else if (drag.mode === 'resize-bottom') {
@@ -222,8 +240,32 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDr
         }
     }, [drag, ppm, xToDayIdx])
 
+    function resetSidebarDrag() {
+        if (isDraggingToSidebarRef.current) {
+            isDraggingToSidebarRef.current = false
+            setIsDraggingToSidebar(false)
+            onDraggingToSidebarChangeRef.current?.(false)
+        }
+    }
+
     const onMouseUp = useCallback(() => {
         if (!drag || !temp) { setDrag(null); setTemp(null); return }
+
+        // サイドバーへのドラッグ完了
+        if (isDraggingToSidebarRef.current && drag.mode === 'move') {
+            const srcSpot = days[drag.srcDay]?.spots[drag.srcSpot]
+            if (srcSpot) {
+                onMoveToSidebarRef.current?.(srcSpot, drag.srcDay, drag.srcSpot)
+            }
+            isDraggingToSidebarRef.current = false
+            setIsDraggingToSidebar(false)
+            onDraggingToSidebarChangeRef.current?.(false)
+            setDrag(null); setTemp(null)
+            return
+        }
+        isDraggingToSidebarRef.current = false
+        setIsDraggingToSidebar(false)
+
         const srcSpot = days[drag.srcDay]?.spots[drag.srcSpot]
         if (!srcSpot) { setDrag(null); setTemp(null); return }
 
@@ -263,8 +305,9 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDr
             window.removeEventListener('mouseup', onMouseUp)
             document.body.style.userSelect = ''
             document.body.style.cursor = ''
+            resetSidebarDrag()
         }
-    }, [drag, onMouseMove, onMouseUp])
+    }, [drag, onMouseMove, onMouseUp]) // eslint-disable-line react-hooks/exhaustive-deps
 
     function startDrag(e: React.MouseEvent, mode: Drag['mode'], srcDay: number, srcSpot: number, initStart: number, initDur: number) {
         e.preventDefault(); e.stopPropagation()
@@ -310,8 +353,19 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDr
     return (
         <div
             className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden"
-            style={{ isolation: 'isolate' }}
+            style={{ isolation: 'isolate', position: 'relative' }}
         >
+            {/* サイドバーへドラッグ中インジケーター */}
+            {isDraggingToSidebar && (
+                <div style={{
+                    position: 'absolute', inset: 0, zIndex: 300, pointerEvents: 'none',
+                    border: '2px dashed #2563eb', borderRadius: 16,
+                    display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
+                    paddingRight: 16,
+                }}>
+                    <span style={{ background: '#2563eb', color: 'white', fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 8 }}>→ 保管</span>
+                </div>
+            )}
             {/* カレンダー本体（内部スクロールコンテナ・固定高）
                 overscrollBehavior: contain → スクロールがカレンダー外に伝播しない（内部スクロール分離） */}
             <div
@@ -468,6 +522,26 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDr
                                             className="hover:bg-black/10"
                                             onMouseDown={e => startDrag(e, 'resize-top', dayIdx, spotIdx, toMins(spot.time), getDur(spot))}
                                         />
+                                        {/* 削除ボタン */}
+                                        <button
+                                            type="button"
+                                            onMouseDown={e => e.stopPropagation()}
+                                            onClick={e => {
+                                                e.stopPropagation()
+                                                const newSpots = day.spots.filter((_, si) => si !== spotIdx)
+                                                onUpdateDays(days.map((d, di) => di === dayIdx ? { ...d, spots: newSpots } : d))
+                                            }}
+                                            style={{
+                                                position: 'absolute', top: 2, right: 2,
+                                                width: 14, height: 14, zIndex: 5,
+                                                border: 'none', borderRadius: 3,
+                                                background: 'rgba(0,0,0,0.18)',
+                                                color: 'white', fontSize: 10,
+                                                cursor: 'pointer', lineHeight: 1,
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                padding: 0,
+                                            }}
+                                        >×</button>
 
                                         <div
                                             style={{ position: 'absolute', top: HANDLE, bottom: HANDLE, left: ACCENT + 6, right: 4, cursor: 'grab', overflow: 'hidden' }}
