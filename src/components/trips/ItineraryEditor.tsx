@@ -27,6 +27,7 @@ function parseStartDate(raw?: string): Date | undefined {
 export default function ItineraryEditor({ trip }: { trip: Trip }) {
     const [days, setDays]             = useState<ItineraryDay[]>(trip.itinerary.days)
     const [history, setHistory]       = useState<ItineraryDay[][]>([])
+    const [redoStack, setRedoStack]   = useState<ItineraryDay[][]>([])
     const [startDate]                 = useState<Date | undefined>(parseStartDate(trip.itinerary.start_date))
     const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved')
     const [zoom, setZoom]             = useState(1.0)
@@ -53,6 +54,7 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
 
     function handleUpdateDays(updated: ItineraryDay[]) {
         setHistory(h => [...h, days])
+        setRedoStack([])  // 新しい操作でredoスタッククリア
         setDays(updated)
         setSaveStatus('unsaved')
     }
@@ -60,8 +62,18 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
     function undo() {
         if (history.length === 0) return
         const prev = history[history.length - 1]
+        setRedoStack(r => [...r, days])
         setDays(prev)
         setHistory(h => h.slice(0, -1))
+        setSaveStatus('unsaved')
+    }
+
+    function redo() {
+        if (redoStack.length === 0) return
+        const next = redoStack[redoStack.length - 1]
+        setHistory(h => [...h, days])
+        setDays(next)
+        setRedoStack(r => r.slice(0, -1))
         setSaveStatus('unsaved')
     }
 
@@ -150,6 +162,32 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
                     }}
                 >
                     ↩ 戻す
+                </button>
+
+                {/* 進むボタン */}
+                <button
+                    type="button"
+                    onClick={redo}
+                    disabled={redoStack.length === 0}
+                    title="一つ先の状態に進む"
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 4,
+                        padding: '5px 10px',
+                        border: '1px solid #e5e7eb',
+                        backgroundColor: 'white',
+                        borderRadius: 8,
+                        fontSize: 12,
+                        fontWeight: 500,
+                        color: '#4b5563',
+                        cursor: redoStack.length === 0 ? 'not-allowed' : 'pointer',
+                        opacity: redoStack.length === 0 ? 0.35 : 1,
+                        whiteSpace: 'nowrap',
+                        flexShrink: 0,
+                    }}
+                >
+                    ↪ 進む
                 </button>
 
                 {/* 区切り線 */}

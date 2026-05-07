@@ -303,7 +303,7 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays }: Pr
                 ref={containerRef}
                 className="overflow-auto select-none"
                 style={{
-                    height: 'clamp(380px, calc(100vh - 480px), 500px)',
+                    height: 'clamp(320px, calc(100vh - 540px), 440px)',
                     overscrollBehavior: 'contain',
                 }}
             >

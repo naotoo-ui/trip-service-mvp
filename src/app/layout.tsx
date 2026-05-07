@@ -31,11 +31,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <main className="flex-1">
                     {children}
                 </main>
-                <footer className="border-t border-gray-200 bg-white mt-16">
-                    <div className="max-w-3xl mx-auto px-4 py-6 text-center text-xs text-gray-400">
-                        © 2026 旅程ジェネレーター · AIが旅行プランを自動作成
-                    </div>
-                </footer>
             </body>
         </html>
     )
