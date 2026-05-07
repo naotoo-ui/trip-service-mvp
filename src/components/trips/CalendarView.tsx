@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState, useCallback, useEffect } from 'react'
-import type { ItineraryDay, Spot } from '@/types'
+import type { ItineraryDay, Spot, SidebarSpot, SpotType } from '@/types'
 
 // ────────── 定数 ──────────
 const GRID_START = 6
@@ -159,17 +159,21 @@ interface Props {
     startDate?: Date
     zoom: number
     onUpdateDays: (updated: ItineraryDay[]) => void
+    onDropSuggestedSpot?: (dayIdx: number, time: string, spot: SidebarSpot) => void
+    onDropFreeBlock?: (dayIdx: number, time: string, type: SpotType) => void
 }
 
 // ────────── コンポーネント ──────────
-export default function CalendarView({ days, startDate, zoom, onUpdateDays }: Props) {
+export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDropSuggestedSpot, onDropFreeBlock }: Props) {
     const containerRef = useRef<HTMLDivElement>(null)
+    const gridBodyRef  = useRef<HTMLDivElement>(null)
 
     const [colW, setColW] = useState(160)
     const ppm             = BASE_PPM * zoom
 
     const [drag, setDrag]       = useState<Drag | null>(null)
     const [temp, setTemp]       = useState<Temp | null>(null)
+    const [dragOver, setDragOver] = useState<{ dayIdx: number; start: number } | null>(null)
     const [nowMins, setNowMins] = useState(() => { const n = new Date(); return n.getHours() * 60 + n.getMinutes() })
 
     const GRID_H = (GRID_END - GRID_START) * 60 * ppm + 48
@@ -268,6 +272,17 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays }: Pr
         setTemp({ dayIdx: srcDay, start: initStart, dur: initDur })
     }
 
+    function calcDropPos(e: React.DragEvent): { dayIdx: number; time: string } | null {
+        if (!containerRef.current || !gridBodyRef.current) return null
+        const cr = containerRef.current.getBoundingClientRect()
+        const gridOffsetTop = gridBodyRef.current.offsetTop
+        const relY = e.clientY - cr.top + containerRef.current.scrollTop - gridOffsetTop
+        const relX = e.clientX - cr.left - TIME_COL
+        const timeMins = snap(Math.max(GRID_START * 60, Math.min(GRID_END * 60 - MIN_DUR, GRID_START * 60 + relY / ppm)))
+        const dayIdx = Math.max(0, Math.min(days.length - 1, Math.floor(relX / colW)))
+        return { dayIdx, time: toTime(timeMins) }
+    }
+
     const minW     = TIME_COL + colW * days.length
     const nowTop   = (nowMins - GRID_START * 60) * ppm
     const showNow  = nowMins >= GRID_START * 60 && nowMins <= GRID_END * 60
@@ -340,7 +355,30 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays }: Pr
                     </div>
 
                     {/* グリッド本体（6〜24 時の全域） */}
-                    <div style={{ position: 'relative', height: GRID_H }}>
+                    <div
+                        ref={gridBodyRef}
+                        style={{ position: 'relative', height: GRID_H }}
+                        onDragOver={e => {
+                            e.preventDefault()
+                            const pos = calcDropPos(e)
+                            if (pos) setDragOver({ dayIdx: pos.dayIdx, start: toMins(pos.time) })
+                        }}
+                        onDragLeave={() => setDragOver(null)}
+                        onDrop={e => {
+                            e.preventDefault()
+                            setDragOver(null)
+                            const pos = calcDropPos(e)
+                            if (!pos) return
+                            try {
+                                const data = JSON.parse(e.dataTransfer.getData('application/json'))
+                                if (data.source === 'suggested') {
+                                    onDropSuggestedSpot?.(pos.dayIdx, pos.time, data.spot as SidebarSpot)
+                                } else if (data.source === 'free') {
+                                    onDropFreeBlock?.(pos.dayIdx, pos.time, data.type as SpotType)
+                                }
+                            } catch { /* 無視 */ }
+                        }}
+                    >
 
                         {HOURS.map(h => {
                             const top = (h - GRID_START) * 60 * ppm
@@ -375,6 +413,22 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays }: Pr
                                     <div style={{ flex: 1, height: 2, backgroundColor: '#ef4444', opacity: 0.8 }} />
                                 </div>
                             </div>
+                        )}
+
+                        {/* ドロップ位置インジケーター */}
+                        {dragOver && (
+                            <div style={{
+                                position: 'absolute',
+                                top: (dragOver.start - GRID_START * 60) * ppm - 1,
+                                left: TIME_COL + dragOver.dayIdx * colW + 2,
+                                width: colW - 4,
+                                height: 3,
+                                backgroundColor: '#2563eb',
+                                borderRadius: 2,
+                                opacity: 0.7,
+                                pointerEvents: 'none',
+                                zIndex: 50,
+                            }} />
                         )}
 
                         {/* イベントブロック */}

@@ -77,10 +77,16 @@ const sectionStyle: React.CSSProperties = {
 }
 
 const GROUP_TYPES: { value: GroupType; label: string }[] = [
-    { value: 'friends', label: '👫 友人' },
-    { value: 'family',  label: '👨‍👩‍👧 家族' },
-    { value: 'couple',  label: '💑 カップル' },
-    { value: 'other',   label: '👥 その他' },
+    { value: 'friends',   label: '👫 友人旅行' },
+    { value: 'couple',    label: '💑 カップル旅行' },
+    { value: 'married',   label: '💍 夫婦旅行' },
+    { value: 'honeymoon', label: '🥂 新婚旅行' },
+    { value: 'family',    label: '👨‍👩‍👧 家族旅行' },
+    { value: 'three_gen', label: '👴👨👧 三世代旅行' },
+    { value: 'girls',     label: '👩‍👩‍👧 女子旅' },
+    { value: 'club',      label: '🎓 ゼミ・サークル旅行' },
+    { value: 'corporate', label: '🏢 社員旅行' },
+    { value: 'other',     label: '👥 その他' },
 ]
 
 // ────────── メインコンポーネント ──────────
@@ -207,8 +213,8 @@ export default function PlanForm() {
                             style={{ width: 24, height: 24, border: '1px solid #e5e7eb', borderRadius: 6, background: 'white', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                             −
                         </button>
-                        <span style={{ fontWeight: 700, fontSize: 15, minWidth: 52, textAlign: 'center', whiteSpace: 'nowrap' }}>
-                            {durationDays}日間
+                        <span style={{ fontWeight: 700, fontSize: 15, minWidth: 64, textAlign: 'center', whiteSpace: 'nowrap' }}>
+                            {durationDays === 1 ? '日帰り' : `${durationDays - 1}泊${durationDays}日`}
                         </span>
                         <button type="button" onClick={() => setDurationDays(d => Math.min(14, d + 1))}
                             style={{ width: 24, height: 24, border: '1px solid #e5e7eb', borderRadius: 6, background: 'white', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

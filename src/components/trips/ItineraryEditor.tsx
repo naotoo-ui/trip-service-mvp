@@ -1,8 +1,24 @@
 'use client'
 import { useState, useCallback } from 'react'
-import type { Trip, ItineraryDay } from '@/types'
+import type { Trip, ItineraryDay, Spot, SidebarSpot, SpotType } from '@/types'
 import CalendarView from './CalendarView'
+import SuggestedSpotsPanel from './SuggestedSpotsPanel'
+import FreeBlocksPanel from './FreeBlocksPanel'
 import ShareButton from './ShareButton'
+
+function toMins(time: string) { const [h, m] = time.split(':').map(Number); return h * 60 + (m || 0) }
+function toTime(mins: number) { return `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}` }
+
+function insertSpot(daySpots: Spot[], newSpot: Spot): Spot[] {
+    const all = [...daySpots, newSpot].sort((a, b) => toMins(a.time) - toMins(b.time))
+    for (let i = 1; i < all.length; i++) {
+        const prevEnd = toMins(all[i - 1].time) + (all[i - 1].duration_minutes || 60)
+        if (toMins(all[i].time) < prevEnd) {
+            all[i] = { ...all[i], time: toTime(prevEnd) }
+        }
+    }
+    return all
+}
 
 const ZOOM_MAX  = 3.0
 const ZOOM_STEP = 0.2
@@ -31,6 +47,8 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
     const [startDate]                 = useState<Date | undefined>(parseStartDate(trip.itinerary.start_date))
     const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved')
     const [zoom, setZoom]             = useState(1.0)
+    const [sidebarSpots, setSidebarSpots] = useState<SidebarSpot[]>(trip.itinerary.sidebar_spots ?? [])
+    const [pendingFreeDrop, setPendingFreeDrop] = useState<{ dayIdx: number; time: string; type: SpotType } | null>(null)
 
     const saveToDb = useCallback(async () => {
         setSaveStatus('saving')
@@ -40,6 +58,7 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
                 trip_style: trip.itinerary.trip_style,
                 trip_style_reason: trip.itinerary.trip_style_reason,
                 start_date: trip.itinerary.start_date,
+                sidebar_spots: sidebarSpots,
             }
             const res = await fetch(`/api/trips/${trip.share_id}`, {
                 method: 'PATCH',
@@ -50,7 +69,7 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
         } catch {
             setSaveStatus('unsaved')
         }
-    }, [trip.share_id, trip.itinerary, days])
+    }, [trip.share_id, trip.itinerary, days, sidebarSpots])
 
     function handleUpdateDays(updated: ItineraryDay[]) {
         setHistory(h => [...h, days])
@@ -75,6 +94,25 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
         setDays(next)
         setRedoStack(r => r.slice(0, -1))
         setSaveStatus('unsaved')
+    }
+
+    function handleDropSuggestedSpot(dayIdx: number, time: string, spot: SidebarSpot) {
+        const newSpot: Spot = { time, name: spot.name, description: spot.description, type: spot.type, duration_minutes: spot.duration_minutes }
+        const newDays = days.map((d, i) => i === dayIdx ? { ...d, spots: insertSpot(d.spots, newSpot) } : d)
+        handleUpdateDays(newDays)
+        setSidebarSpots(prev => prev.filter(s => s.name !== spot.name))
+    }
+
+    function handleDropFreeBlock(dayIdx: number, time: string, type: SpotType) {
+        setPendingFreeDrop({ dayIdx, time, type })
+    }
+
+    function handleConfirmFreeDrop(name: string, type: SpotType, duration: number) {
+        if (!pendingFreeDrop) return
+        const newSpot: Spot = { time: pendingFreeDrop.time, name, description: '', type, duration_minutes: duration }
+        const newDays = days.map((d, i) => i === pendingFreeDrop.dayIdx ? { ...d, spots: insertSpot(d.spots, newSpot) } : d)
+        handleUpdateDays(newDays)
+        setPendingFreeDrop(null)
     }
 
     const saveColor = saveStatus === 'saved' ? '#10b981' : saveStatus === 'saving' ? '#60a5fa' : '#f59e0b'
@@ -272,13 +310,29 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
                 </button>
             </div>
 
-            {/* ── カレンダービュー（固定高・内部スクロール）── */}
-            <CalendarView
-                days={days}
-                startDate={startDate}
-                zoom={zoom}
-                onUpdateDays={handleUpdateDays}
-            />
+            {/* ── カレンダービュー + サイドパネル（3カラム）── */}
+            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                <div style={{ flex: 6, minWidth: 0 }}>
+                    <CalendarView
+                        days={days}
+                        startDate={startDate}
+                        zoom={zoom}
+                        onUpdateDays={handleUpdateDays}
+                        onDropSuggestedSpot={handleDropSuggestedSpot}
+                        onDropFreeBlock={handleDropFreeBlock}
+                    />
+                </div>
+                <SuggestedSpotsPanel
+                    spots={sidebarSpots}
+                    height="clamp(320px, calc(100vh - 540px), 440px)"
+                />
+                <FreeBlocksPanel
+                    pending={pendingFreeDrop}
+                    onConfirm={handleConfirmFreeDrop}
+                    onCancel={() => setPendingFreeDrop(null)}
+                    height="clamp(320px, calc(100vh - 540px), 440px)"
+                />
+            </div>
 
             {/* ── シェアボタン ── */}
             <ShareButton shareId={trip.share_id} />

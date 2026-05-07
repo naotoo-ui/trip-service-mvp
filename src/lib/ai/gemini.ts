@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
-import type { GenerateInput, Itinerary, PlanInput, TripStyle } from '@/types'
+import type { GenerateInput, Itinerary, PlanInput, SidebarSpot, TripStyle } from '@/types'
 
 function getModel() {
     const key = process.env.GEMINI_API_KEY
@@ -82,7 +82,7 @@ export function parseTripJson(raw: string): {
 } {
     const cleaned = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
     const parsed = JSON.parse(cleaned)
-    const { title, destination, duration_days, days, trip_style, trip_style_reason } = parsed
+    const { title, destination, duration_days, days, trip_style, trip_style_reason, sidebar_spots } = parsed
     return {
         title,
         destination,
@@ -91,6 +91,7 @@ export function parseTripJson(raw: string): {
             days: days ?? [],
             trip_style: trip_style as TripStyle | undefined,
             trip_style_reason,
+            sidebar_spots: (sidebar_spots as SidebarSpot[] | undefined) ?? [],
         },
     }
 }
@@ -108,7 +109,9 @@ export function buildPlanPrompt(input: PlanInput, articleTexts: string[]): strin
     const styleHint = getTripStyleHint(destination, input.wishes)
 
     const groupLabels: Record<string, string> = {
-        friends: '友人旅行', family: '家族旅行', couple: 'カップル旅行', other: 'グループ旅行',
+        friends: '友人旅行', couple: 'カップル旅行', married: '夫婦旅行', honeymoon: '新婚旅行',
+        family: '家族旅行', three_gen: '三世代旅行', girls: '女子旅',
+        club: 'ゼミ・サークル旅行', corporate: '社員旅行', other: 'グループ旅行',
     }
     const metaLines = [
         input.origin          ? `出発地: ${input.origin}` : '',
@@ -135,9 +138,11 @@ ${articleSection}
 - 8〜9時スタート、実在する店名・スポット名を使用
 - trip_styleは一貫させる
 - 参考記事がある場合、記事に記載されたスポットを積極的に活用
+- 人気度4-5のスポットは時系列がなくても移動時間を考慮して旅程に自動配置
+- 旅程に組み込めなかったスポット（混雑・時間不足・記事掲載の未採用スポット）はsidebar_spotsに追加（最大10件、popularity 1-5）
 
 出力フォーマット:
-{"title":"...","trip_style":"rental_car","trip_style_reason":"...","days":[{"day":1,"label":"1日目","spots":[{"time":"09:00","name":"...","description":"...","duration_minutes":60,"type":"観光","transport_options":[]},{"time":"10:30","name":"A → B","description":"...","duration_minutes":30,"type":"移動","transport_options":[{"mode":"レンタカー","duration_minutes":30,"note":"...","recommended":true},{"mode":"タクシー","duration_minutes":35,"note":"..."}]}]}]}
+{"title":"...","trip_style":"rental_car","trip_style_reason":"...","days":[{"day":1,"label":"1日目","spots":[{"time":"09:00","name":"...","description":"...","duration_minutes":60,"type":"観光","transport_options":[]},{"time":"10:30","name":"A → B","description":"...","duration_minutes":30,"type":"移動","transport_options":[{"mode":"レンタカー","duration_minutes":30,"note":"...","recommended":true},{"mode":"タクシー","duration_minutes":35,"note":"..."}]}]}],"sidebar_spots":[{"name":"...","description":"...","type":"観光","duration_minutes":90,"popularity":4}]}
 
 typeは「観光」「グルメ」「移動」「宿泊」「その他」のいずれか。`
 }

@@ -28,11 +28,20 @@ export interface ItineraryDay {
     spots: Spot[]
 }
 
+export interface SidebarSpot {
+    name: string
+    description: string
+    type: SpotType
+    duration_minutes: number
+    popularity?: number  // 1-5
+}
+
 export interface Itinerary {
     days: ItineraryDay[]
     trip_style?: TripStyle
     trip_style_reason?: string
     start_date?: string   // ISO date string e.g. "2026-05-05"
+    sidebar_spots?: SidebarSpot[]
 }
 
 export interface Trip {
@@ -53,7 +62,9 @@ export interface GenerateInput {
     wishes?: string
 }
 
-export type GroupType = 'friends' | 'family' | 'couple' | 'other'
+export type GroupType =
+    | 'friends' | 'family' | 'couple' | 'other'
+    | 'married' | 'three_gen' | 'corporate' | 'club' | 'girls' | 'honeymoon'
 
 export interface PlanInput {
     destinations: string[]   // 必須・複数可
