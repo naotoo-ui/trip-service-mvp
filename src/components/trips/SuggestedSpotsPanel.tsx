@@ -1,4 +1,5 @@
 'use client'
+import React from 'react'
 import type { SidebarSpot, SpotType } from '@/types'
 
 const SPOT_STYLES: Record<SpotType, { accent: string; bg: string; border: string; text: string }> = {
@@ -21,10 +22,15 @@ function Stars({ n }: { n?: number }) {
 interface Props {
     spots: SidebarSpot[]
     isReceiving?: boolean
+    insertHint?: number | null
     onDelete?: (index: number) => void
 }
 
-export default function SuggestedSpotsPanel({ spots, isReceiving, onDelete }: Props) {
+const InsertLine = () => (
+    <div style={{ height: 3, backgroundColor: '#2563eb', borderRadius: 2, margin: '0 4px', flexShrink: 0 }} />
+)
+
+export default function SuggestedSpotsPanel({ spots, isReceiving, insertHint, onDelete }: Props) {
     return (
         <div style={{
             width: 168,
@@ -51,8 +57,9 @@ export default function SuggestedSpotsPanel({ spots, isReceiving, onDelete }: Pr
                     {spots.map((spot, i) => {
                         const st = SPOT_STYLES[spot.type] ?? SPOT_STYLES['その他']
                         return (
+                            <React.Fragment key={i}>
+                            {insertHint != null && insertHint === i && <InsertLine />}
                             <div
-                                key={i}
                                 data-spot-idx={i}
                                 draggable
                                 onDragStart={e => {
@@ -95,8 +102,11 @@ export default function SuggestedSpotsPanel({ spots, isReceiving, onDelete }: Pr
                                     >×</button>
                                 )}
                             </div>
+                            </React.Fragment>
                         )
                     })}
+                    {/* リストの末尾への挿入インジケーター */}
+                    {insertHint != null && insertHint === spots.length && <InsertLine />}
                 </>
             )}
         </div>

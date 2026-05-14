@@ -52,6 +52,7 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
     const [zoom, setZoom]             = useState(1.0)
     const [sidebarSpots, setSidebarSpots] = useState<SidebarSpot[]>(trip.itinerary.sidebar_spots ?? [])
     const [receivingSidebar, setReceivingSidebar] = useState(false)
+    const [sidebarInsertHint, setSidebarInsertHint] = useState<number | null>(null)
     const [editingSpot, setEditingSpot] = useState<{ spot: Spot; dayIdx: number; spotIdx: number } | null>(null)
     const sidebarPanelRef = useRef<HTMLDivElement>(null)
 
@@ -387,7 +388,11 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
                         onDropSuggestedSpot={handleDropSuggestedSpot}
                         onDropFreeBlock={handleDropFreeBlock}
                         onMoveToSidebar={handleMoveToSidebar}
-                        onDraggingToSidebarChange={setReceivingSidebar}
+                        onDraggingToSidebarChange={v => {
+                            setReceivingSidebar(v)
+                            if (!v) setSidebarInsertHint(null)
+                        }}
+                        onSidebarDragMove={mouseY => setSidebarInsertHint(getInsertIndex(mouseY))}
                         onDoubleClickSpot={handleDoubleClickSpot}
                         sidebarRef={sidebarPanelRef}
                     />
@@ -397,6 +402,7 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
                     <SuggestedSpotsPanel
                         spots={sidebarSpots}
                         isReceiving={receivingSidebar}
+                        insertHint={sidebarInsertHint}
                         onDelete={idx => handleUpdateBoth(days, sidebarSpots.filter((_, i) => i !== idx))}
                     />
                 </div>

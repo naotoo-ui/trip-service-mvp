@@ -163,25 +163,26 @@ interface Props {
     onDropFreeBlock?: (dayIdx: number, time: string, type: SpotType) => void
     onMoveToSidebar?: (spot: Spot, dayIdx: number, spotIdx: number, mouseX: number, mouseY: number) => void
     onDraggingToSidebarChange?: (v: boolean) => void
+    onSidebarDragMove?: (mouseY: number) => void
     onDoubleClickSpot?: (spot: Spot, dayIdx: number, spotIdx: number) => void
     sidebarRef?: React.RefObject<HTMLDivElement | null>
 }
 
 // ────────── コンポーネント ──────────
-export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDropSuggestedSpot, onDropFreeBlock, onMoveToSidebar, onDraggingToSidebarChange, onDoubleClickSpot, sidebarRef }: Props) {
+export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDropSuggestedSpot, onDropFreeBlock, onMoveToSidebar, onDraggingToSidebarChange, onSidebarDragMove, onDoubleClickSpot, sidebarRef }: Props) {
     const containerRef = useRef<HTMLDivElement>(null)
     const gridBodyRef  = useRef<HTMLDivElement>(null)
 
     // コールバック ref（useCallback の deps に含めずに最新値を参照するため）
     const onMoveToSidebarRef            = useRef(onMoveToSidebar)
     const onDraggingToSidebarChangeRef  = useRef(onDraggingToSidebarChange)
+    const onSidebarDragMoveRef          = useRef(onSidebarDragMove)
     onMoveToSidebarRef.current           = onMoveToSidebar
     onDraggingToSidebarChangeRef.current = onDraggingToSidebarChange
+    onSidebarDragMoveRef.current         = onSidebarDragMove
     // sidebarRef もコールバック ref パターンで保持
     const sidebarRefRef = useRef(sidebarRef)
     sidebarRefRef.current = sidebarRef
-    // マウス位置を onMouseUp から参照するため ref で追跡
-    const lastMousePosRef = useRef({ x: 0, y: 0 })
 
     const [colW, setColW] = useState(160)
     const ppm             = BASE_PPM * zoom
@@ -229,7 +230,6 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDr
 
     const onMouseMove = useCallback((e: MouseEvent) => {
         if (!drag) return
-        lastMousePosRef.current = { x: e.clientX, y: e.clientY }
         const dMins = (e.clientY - drag.mouseY0) / ppm
         if (drag.mode === 'move') {
             // sidebarRef の実際の境界でサイドバーへのドラッグを判定
@@ -244,6 +244,10 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDr
                 isDraggingToSidebarRef.current = toSidebar
                 setIsDraggingToSidebar(toSidebar)
                 onDraggingToSidebarChangeRef.current?.(toSidebar)
+            }
+            // サイドバー上にいる間は挿入位置ヒントを通知
+            if (toSidebar) {
+                onSidebarDragMoveRef.current?.(e.clientY)
             }
             const s = snap(drag.initStart + dMins)
             setTemp({ dayIdx: xToDayIdx(e.clientX), start: Math.max(GRID_START * 60, Math.min(GRID_END * 60 - drag.initDur, s)), dur: drag.initDur })
@@ -263,17 +267,27 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDr
         }
     }
 
-    const onMouseUp = useCallback(() => {
-        // temp は ref 経由で参照（temp を deps に入れると onMouseUp が毎フレーム再生成され
-        // useEffect クリーンアップが走り resetSidebarDrag() がリセットされ続けるバグを防ぐ）
+    const onMouseUp = useCallback((e: MouseEvent) => {
+        // temp は ref 経由で参照（deps から外すことで毎フレーム再生成を防ぐ）
         const t = tempRef.current
         if (!drag || !t) { setDrag(null); setTemp(null); return }
 
+        // mouseUp 時点でもサイドバー境界を直接確認（mousemove が間に合わない場合の保険）
+        let releaseInSidebar = isDraggingToSidebarRef.current
+        if (!releaseInSidebar && drag.mode === 'move') {
+            const sidebarEl = sidebarRefRef.current?.current
+            if (sidebarEl) {
+                const sr = sidebarEl.getBoundingClientRect()
+                releaseInSidebar = e.clientX >= sr.left && e.clientX <= sr.right
+                                && e.clientY >= sr.top  && e.clientY <= sr.bottom
+            }
+        }
+
         // サイドバーへのドラッグ完了
-        if (isDraggingToSidebarRef.current && drag.mode === 'move') {
+        if (releaseInSidebar && drag.mode === 'move') {
             const srcSpot = days[drag.srcDay]?.spots[drag.srcSpot]
             if (srcSpot) {
-                onMoveToSidebarRef.current?.(srcSpot, drag.srcDay, drag.srcSpot, lastMousePosRef.current.x, lastMousePosRef.current.y)
+                onMoveToSidebarRef.current?.(srcSpot, drag.srcDay, drag.srcSpot, e.clientX, e.clientY)
             }
             isDraggingToSidebarRef.current = false
             setIsDraggingToSidebar(false)
