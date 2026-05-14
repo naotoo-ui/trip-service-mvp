@@ -159,7 +159,7 @@ interface Props {
     startDate?: Date
     zoom: number
     onUpdateDays: (updated: ItineraryDay[]) => void
-    onDropSuggestedSpot?: (dayIdx: number, time: string, spot: SidebarSpot) => void
+    onDropSuggestedSpot?: (dayIdx: number, time: string, spot: SidebarSpot, spotIdx: number) => void
     onDropFreeBlock?: (dayIdx: number, time: string, type: SpotType) => void
     onMoveToSidebar?: (spot: Spot, dayIdx: number, spotIdx: number) => void
     onDraggingToSidebarChange?: (v: boolean) => void
@@ -429,7 +429,7 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDr
                             try {
                                 const data = JSON.parse(e.dataTransfer.getData('application/json'))
                                 if (data.source === 'suggested') {
-                                    onDropSuggestedSpot?.(pos.dayIdx, pos.time, data.spot as SidebarSpot)
+                                    onDropSuggestedSpot?.(pos.dayIdx, pos.time, data.spot as SidebarSpot, (data.idx as number) ?? 0)
                                 } else if (data.source === 'free') {
                                     onDropFreeBlock?.(pos.dayIdx, pos.time, data.type as SpotType)
                                 }
@@ -492,6 +492,7 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDr
                         {days.map((day, dayIdx) =>
                             day.spots.map((spot, spotIdx) => {
                                 const isDragging = drag?.srcDay === dayIdx && drag?.srcSpot === spotIdx
+                                const goingToSidebar = isDragging && isDraggingToSidebar
                                 const vDay   = (isDragging && temp) ? temp.dayIdx : dayIdx
                                 const vStart = (isDragging && temp) ? temp.start  : toMins(spot.time)
                                 const vDur   = (isDragging && temp) ? temp.dur    : getDur(spot)
@@ -508,7 +509,9 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDr
                                         style={{
                                             position: 'absolute', top, left, width, height,
                                             zIndex: isDragging ? 200 : st.light ? 5 : 10,
-                                            opacity: st.light ? 0.72 : 1,
+                                            // サイドバーへドラッグ中は非表示（最終日に貼り付いて見える問題を防ぐ）
+                                            opacity: goingToSidebar ? 0 : st.light ? 0.72 : 1,
+                                            pointerEvents: goingToSidebar ? 'none' : 'auto',
                                             borderRadius: 6, overflow: 'hidden',
                                             backgroundColor: st.bg,
                                             border: `1px solid ${st.border}`,

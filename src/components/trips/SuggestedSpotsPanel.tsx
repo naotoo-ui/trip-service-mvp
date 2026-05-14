@@ -60,7 +60,7 @@ export default function SuggestedSpotsPanel({ spots, height, isReceiving, onDele
                                 key={i}
                                 draggable
                                 onDragStart={e => {
-                                    e.dataTransfer.setData('application/json', JSON.stringify({ source: 'suggested', spot }))
+                                    e.dataTransfer.setData('application/json', JSON.stringify({ source: 'suggested', spot, idx: i }))
                                     e.dataTransfer.effectAllowed = 'copy'
                                 }}
                                 style={{

@@ -41,10 +41,12 @@ function parseStartDate(raw?: string): Date | undefined {
     return isNaN(d.getTime()) ? undefined : d
 }
 
+type Snapshot = { days: ItineraryDay[]; sidebarSpots: SidebarSpot[] }
+
 export default function ItineraryEditor({ trip }: { trip: Trip }) {
     const [days, setDays]             = useState<ItineraryDay[]>(trip.itinerary.days)
-    const [history, setHistory]       = useState<ItineraryDay[][]>([])
-    const [redoStack, setRedoStack]   = useState<ItineraryDay[][]>([])
+    const [history, setHistory]       = useState<Snapshot[]>([])
+    const [redoStack, setRedoStack]   = useState<Snapshot[]>([])
     const [startDate]                 = useState<Date | undefined>(parseStartDate(trip.itinerary.start_date))
     const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved')
     const [zoom, setZoom]             = useState(1.0)
@@ -73,18 +75,29 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
         }
     }, [trip.share_id, trip.itinerary, days, sidebarSpots])
 
+    // days のみ変更（サイドバーに影響しない操作用）
     function handleUpdateDays(updated: ItineraryDay[]) {
-        setHistory(h => [...h, days])
-        setRedoStack([])  // 新しい操作でredoスタッククリア
+        setHistory(h => [...h, { days, sidebarSpots }])
+        setRedoStack([])
         setDays(updated)
+        setSaveStatus('unsaved')
+    }
+
+    // days + sidebarSpots を同時に変更（両方を undo/redo 対象にする）
+    function handleUpdateBoth(updatedDays: ItineraryDay[], updatedSidebar: SidebarSpot[]) {
+        setHistory(h => [...h, { days, sidebarSpots }])
+        setRedoStack([])
+        setDays(updatedDays)
+        setSidebarSpots(updatedSidebar)
         setSaveStatus('unsaved')
     }
 
     function undo() {
         if (history.length === 0) return
         const prev = history[history.length - 1]
-        setRedoStack(r => [...r, days])
-        setDays(prev)
+        setRedoStack(r => [...r, { days, sidebarSpots }])
+        setDays(prev.days)
+        setSidebarSpots(prev.sidebarSpots)
         setHistory(h => h.slice(0, -1))
         setSaveStatus('unsaved')
     }
@@ -92,8 +105,9 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
     function redo() {
         if (redoStack.length === 0) return
         const next = redoStack[redoStack.length - 1]
-        setHistory(h => [...h, days])
-        setDays(next)
+        setHistory(h => [...h, { days, sidebarSpots }])
+        setDays(next.days)
+        setSidebarSpots(next.sidebarSpots)
         setRedoStack(r => r.slice(0, -1))
         setSaveStatus('unsaved')
     }
@@ -132,15 +146,14 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
         const newDays = days.map((d, i) =>
             i === dayIdx ? { ...d, spots: d.spots.filter((_, si) => si !== spotIdx) } : d
         )
-        handleUpdateDays(newDays)
-        setSidebarSpots(prev => [...prev, sidebarSpot])
+        handleUpdateBoth(newDays, [...sidebarSpots, sidebarSpot])
     }
 
-    function handleDropSuggestedSpot(dayIdx: number, time: string, spot: SidebarSpot) {
+    function handleDropSuggestedSpot(dayIdx: number, time: string, spot: SidebarSpot, spotIdx: number) {
         const newSpot: Spot = { time, name: spot.name, description: spot.description, type: spot.type, duration_minutes: spot.duration_minutes }
         const newDays = days.map((d, i) => i === dayIdx ? { ...d, spots: insertSpot(d.spots, newSpot) } : d)
-        handleUpdateDays(newDays)
-        setSidebarSpots(prev => prev.filter(s => s.name !== spot.name))
+        const newSidebar = sidebarSpots.filter((_, i) => i !== spotIdx)
+        handleUpdateBoth(newDays, newSidebar)
     }
 
     function handleDropFreeBlock(dayIdx: number, time: string, type: SpotType) {
@@ -362,7 +375,7 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
                     spots={sidebarSpots}
                     height="clamp(320px, calc(100vh - 540px), 440px)"
                     isReceiving={receivingSidebar}
-                    onDelete={idx => setSidebarSpots(prev => prev.filter((_, i) => i !== idx))}
+                    onDelete={idx => handleUpdateBoth(days, sidebarSpots.filter((_, i) => i !== idx))}
                 />
                 <FreeBlocksPanel
                     height="clamp(320px, calc(100vh - 540px), 440px)"
