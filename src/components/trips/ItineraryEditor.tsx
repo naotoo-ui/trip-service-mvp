@@ -54,6 +54,7 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
     const [receivingSidebar, setReceivingSidebar] = useState(false)
     const [sidebarInsertHint, setSidebarInsertHint] = useState<number | null>(null)
     const [editingSpot, setEditingSpot] = useState<{ spot: Spot; dayIdx: number; spotIdx: number } | null>(null)
+    const [draggingCalendarSpot, setDraggingCalendarSpot] = useState<{ name: string; type: SpotType; duration_minutes: number } | null>(null)
     const sidebarPanelRef = useRef<HTMLDivElement>(null)
 
     const saveToDb = useCallback(async () => {
@@ -395,6 +396,8 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
                         onSidebarDragMove={mouseY => setSidebarInsertHint(getInsertIndex(mouseY))}
                         onDoubleClickSpot={handleDoubleClickSpot}
                         sidebarRef={sidebarPanelRef}
+                        onDragStart={spot => setDraggingCalendarSpot({ name: spot.name, type: spot.type, duration_minutes: spot.duration_minutes })}
+                        onDragEnd={() => setDraggingCalendarSpot(null)}
                     />
                 </div>
                 {/* sidebarPanelRef でラップ: CalendarView のドラッグ検出 + 挿入位置計算に使用 */}
@@ -404,6 +407,7 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
                         isReceiving={receivingSidebar}
                         insertHint={sidebarInsertHint}
                         onDelete={idx => handleUpdateBoth(days, sidebarSpots.filter((_, i) => i !== idx))}
+                        previewSpot={receivingSidebar ? draggingCalendarSpot : null}
                     />
                 </div>
                 <FreeBlocksPanel />

@@ -19,18 +19,45 @@ function Stars({ n }: { n?: number }) {
     )
 }
 
+interface PreviewSpot { name: string; type: SpotType; duration_minutes: number }
+
 interface Props {
     spots: SidebarSpot[]
     isReceiving?: boolean
     insertHint?: number | null
     onDelete?: (index: number) => void
+    previewSpot?: PreviewSpot | null
 }
 
 const InsertLine = () => (
     <div style={{ height: 3, backgroundColor: '#2563eb', borderRadius: 2, margin: '0 4px', flexShrink: 0 }} />
 )
 
-export default function SuggestedSpotsPanel({ spots, isReceiving, insertHint, onDelete }: Props) {
+function PreviewSpotCard({ spot }: { spot: PreviewSpot }) {
+    const st = SPOT_STYLES[spot.type] ?? SPOT_STYLES['その他']
+    return (
+        <div style={{
+            padding: '7px 8px',
+            borderRadius: 8,
+            border: `2px dashed ${st.accent}`,
+            backgroundColor: st.bg,
+            opacity: 0.75,
+            display: 'flex',
+            gap: 5,
+            alignItems: 'flex-start',
+            pointerEvents: 'none',
+            flexShrink: 0,
+        }}>
+            <div style={{ width: 3, minHeight: 28, borderRadius: 2, backgroundColor: st.accent, flexShrink: 0, marginTop: 1 }} />
+            <div style={{ minWidth: 0, flex: 1 }}>
+                <p style={{ fontSize: 11, fontWeight: 600, color: st.text, margin: 0, lineHeight: 1.3, wordBreak: 'break-all' }}>{spot.name}</p>
+                <p style={{ fontSize: 10, color: '#9ca3af', margin: '2px 0 0' }}>{spot.duration_minutes}分</p>
+            </div>
+        </div>
+    )
+}
+
+export default function SuggestedSpotsPanel({ spots, isReceiving, insertHint, onDelete, previewSpot }: Props) {
     return (
         <div style={{
             width: 168,
@@ -48,9 +75,11 @@ export default function SuggestedSpotsPanel({ spots, isReceiving, insertHint, on
             </p>
 
             {spots.length === 0 ? (
-                <p style={{ fontSize: 10, color: '#d1d5db', margin: 0, lineHeight: 1.5 }}>
-                    旅程生成時または<br />カレンダーから<br />ドラッグで追加
-                </p>
+                previewSpot
+                    ? <PreviewSpotCard spot={previewSpot} />
+                    : <p style={{ fontSize: 10, color: '#d1d5db', margin: 0, lineHeight: 1.5 }}>
+                        旅程生成時または<br />カレンダーから<br />ドラッグで追加
+                      </p>
             ) : (
                 <>
                     <p style={{ fontSize: 9, color: '#d1d5db', margin: '0 0 2px' }}>↙ カレンダーへドラッグ</p>
@@ -58,7 +87,9 @@ export default function SuggestedSpotsPanel({ spots, isReceiving, insertHint, on
                         const st = SPOT_STYLES[spot.type] ?? SPOT_STYLES['その他']
                         return (
                             <React.Fragment key={i}>
-                            {insertHint != null && insertHint === i && <InsertLine />}
+                            {insertHint != null && insertHint === i && (
+                                previewSpot ? <PreviewSpotCard spot={previewSpot} /> : <InsertLine />
+                            )}
                             <div
                                 data-spot-idx={i}
                                 draggable
@@ -106,7 +137,9 @@ export default function SuggestedSpotsPanel({ spots, isReceiving, insertHint, on
                         )
                     })}
                     {/* リストの末尾への挿入インジケーター */}
-                    {insertHint != null && insertHint === spots.length && <InsertLine />}
+                    {insertHint != null && insertHint === spots.length && (
+                        previewSpot ? <PreviewSpotCard spot={previewSpot} /> : <InsertLine />
+                    )}
                 </>
             )}
         </div>

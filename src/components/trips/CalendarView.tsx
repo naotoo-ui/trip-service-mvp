@@ -166,10 +166,12 @@ interface Props {
     onSidebarDragMove?: (mouseY: number) => void
     onDoubleClickSpot?: (spot: Spot, dayIdx: number, spotIdx: number) => void
     sidebarRef?: React.RefObject<HTMLDivElement | null>
+    onDragStart?: (spot: Spot) => void
+    onDragEnd?: () => void
 }
 
 // ────────── コンポーネント ──────────
-export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDropSuggestedSpot, onDropFreeBlock, onMoveToSidebar, onDraggingToSidebarChange, onSidebarDragMove, onDoubleClickSpot, sidebarRef }: Props) {
+export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDropSuggestedSpot, onDropFreeBlock, onMoveToSidebar, onDraggingToSidebarChange, onSidebarDragMove, onDoubleClickSpot, sidebarRef, onDragStart, onDragEnd }: Props) {
     const containerRef = useRef<HTMLDivElement>(null)
     const gridBodyRef  = useRef<HTMLDivElement>(null)
 
@@ -183,6 +185,10 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDr
     // sidebarRef もコールバック ref パターンで保持
     const sidebarRefRef = useRef(sidebarRef)
     sidebarRefRef.current = sidebarRef
+    const onDragStartRef = useRef(onDragStart)
+    onDragStartRef.current = onDragStart
+    const onDragEndRef = useRef(onDragEnd)
+    onDragEndRef.current = onDragEnd
 
     const [colW, setColW] = useState(160)
     const ppm             = BASE_PPM * zoom
@@ -292,6 +298,7 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDr
             isDraggingToSidebarRef.current = false
             setIsDraggingToSidebar(false)
             onDraggingToSidebarChangeRef.current?.(false)
+            onDragEndRef.current?.()
             setDrag(null); setTemp(null)
             return
         }
@@ -320,6 +327,7 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDr
         }
 
         onUpdateDays(newDays)
+        onDragEndRef.current?.()
         setDrag(null); setTemp(null)
     }, [drag, days, onUpdateDays])
 
@@ -342,6 +350,10 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDr
         e.preventDefault(); e.stopPropagation()
         setDrag({ mode, srcDay, srcSpot, initStart, initDur, mouseY0: e.clientY })
         setTemp({ dayIdx: srcDay, start: initStart, dur: initDur })
+        if (mode === 'move') {
+            const spot = days[srcDay]?.spots[srcSpot]
+            if (spot) onDragStartRef.current?.(spot)
+        }
     }
 
     function calcDropPos(e: React.DragEvent): { dayIdx: number; time: string } | null {
@@ -551,7 +563,9 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDr
                                             boxShadow: isDragging
                                                 ? `0 8px 28px rgba(0,0,0,0.22), 0 0 0 2px ${st.accent}`
                                                 : '0 1px 4px rgba(0,0,0,0.07)',
-                                            transition: isDragging ? 'none' : 'box-shadow 0.15s',
+                                            transform: isDragging ? 'scale(0.93)' : 'none',
+                                            transformOrigin: 'center',
+                                            transition: isDragging ? 'none' : 'box-shadow 0.15s, transform 0.1s',
                                         }}
                                     >
                                         <div style={{ position: 'absolute', top: 0, left: 0, width: ACCENT, height: '100%', backgroundColor: st.accent }} />
