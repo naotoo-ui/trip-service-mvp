@@ -376,6 +376,11 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
                 >
                     保存
                 </button>
+
+                {/* 区切り線 */}
+                <div style={{ width: 1, height: 18, backgroundColor: '#d1d5db', flexShrink: 0 }} />
+
+                <ShareButton shareId={trip.share_id} />
             </div>
 
             {/* ── カレンダービュー + サイドパネル（3カラム）── */}
@@ -412,9 +417,6 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
                 </div>
                 <FreeBlocksPanel />
             </div>
-
-            {/* ── シェアボタン ── */}
-            <ShareButton shareId={trip.share_id} />
 
             {/* ── スポット詳細モーダル（ダブルクリックで表示）── */}
             {editingSpot && (
