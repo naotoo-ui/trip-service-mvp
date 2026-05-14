@@ -49,7 +49,6 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
     const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved')
     const [zoom, setZoom]             = useState(1.0)
     const [sidebarSpots, setSidebarSpots] = useState<SidebarSpot[]>(trip.itinerary.sidebar_spots ?? [])
-    const [pendingFreeDrop, setPendingFreeDrop] = useState<{ dayIdx: number; time: string; type: SpotType } | null>(null)
     const [receivingSidebar, setReceivingSidebar] = useState(false)
     const [editingSpot, setEditingSpot] = useState<{ spot: Spot; dayIdx: number; spotIdx: number } | null>(null)
 
@@ -105,11 +104,20 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
 
     function handleSpotDetailSave(updated: Spot) {
         if (!editingSpot) return
-        const newDays = days.map((d, di) =>
-            di === editingSpot.dayIdx
-                ? { ...d, spots: d.spots.map((s, si) => si === editingSpot.spotIdx ? updated : s) }
-                : d
-        )
+        let newDays: ItineraryDay[]
+        if (editingSpot.spotIdx === -1) {
+            // フリーブロックのドロップで新規追加
+            newDays = days.map((d, i) =>
+                i === editingSpot.dayIdx ? { ...d, spots: insertSpot(d.spots, updated) } : d
+            )
+        } else {
+            // 既存スポットの編集
+            newDays = days.map((d, di) =>
+                di === editingSpot.dayIdx
+                    ? { ...d, spots: d.spots.map((s, si) => si === editingSpot.spotIdx ? updated : s) }
+                    : d
+            )
+        }
         handleUpdateDays(newDays)
         setEditingSpot(null)
     }
@@ -136,15 +144,8 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
     }
 
     function handleDropFreeBlock(dayIdx: number, time: string, type: SpotType) {
-        setPendingFreeDrop({ dayIdx, time, type })
-    }
-
-    function handleConfirmFreeDrop(name: string, type: SpotType, duration: number) {
-        if (!pendingFreeDrop) return
-        const newSpot: Spot = { time: pendingFreeDrop.time, name, description: '', type, duration_minutes: duration }
-        const newDays = days.map((d, i) => i === pendingFreeDrop.dayIdx ? { ...d, spots: insertSpot(d.spots, newSpot) } : d)
-        handleUpdateDays(newDays)
-        setPendingFreeDrop(null)
+        const placeholder: Spot = { time, name: '', description: '', type, duration_minutes: 60 }
+        setEditingSpot({ spot: placeholder, dayIdx, spotIdx: -1 })
     }
 
     const saveColor = saveStatus === 'saved' ? '#10b981' : saveStatus === 'saving' ? '#60a5fa' : '#f59e0b'
@@ -364,9 +365,6 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
                     onDelete={idx => setSidebarSpots(prev => prev.filter((_, i) => i !== idx))}
                 />
                 <FreeBlocksPanel
-                    pending={pendingFreeDrop}
-                    onConfirm={handleConfirmFreeDrop}
-                    onCancel={() => setPendingFreeDrop(null)}
                     height="clamp(320px, calc(100vh - 540px), 440px)"
                 />
             </div>

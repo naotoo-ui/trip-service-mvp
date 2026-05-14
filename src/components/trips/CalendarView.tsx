@@ -182,6 +182,8 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDr
 
     const [drag, setDrag]                   = useState<Drag | null>(null)
     const [temp, setTemp]                   = useState<Temp | null>(null)
+    const tempRef                           = useRef<Temp | null>(null)
+    tempRef.current                         = temp
     const [dragOver, setDragOver]           = useState<{ dayIdx: number; start: number } | null>(null)
     const [isDraggingToSidebar, setIsDraggingToSidebar] = useState(false)
     const isDraggingToSidebarRef            = useRef(false)
@@ -250,7 +252,10 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDr
     }
 
     const onMouseUp = useCallback(() => {
-        if (!drag || !temp) { setDrag(null); setTemp(null); return }
+        // temp は ref 経由で参照（temp を deps に入れると onMouseUp が毎フレーム再生成され
+        // useEffect クリーンアップが走り resetSidebarDrag() がリセットされ続けるバグを防ぐ）
+        const t = tempRef.current
+        if (!drag || !t) { setDrag(null); setTemp(null); return }
 
         // サイドバーへのドラッグ完了
         if (isDraggingToSidebarRef.current && drag.mode === 'move') {
@@ -270,30 +275,27 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDr
         const srcSpot = days[drag.srcDay]?.spots[drag.srcSpot]
         if (!srcSpot) { setDrag(null); setTemp(null); return }
 
-        const newSpot: Spot = { ...srcSpot, time: toTime(temp.start), duration_minutes: temp.dur }
+        const newSpot: Spot = { ...srcSpot, time: toTime(t.start), duration_minutes: t.dur }
         let newDays: ItineraryDay[]
 
         if (drag.mode !== 'move') {
-            // リサイズ: cascade push で重なりを解消
             const newSpots = applyResize(days[drag.srcDay].spots, drag.srcSpot, newSpot)
             newDays = days.map((d, i) => i === drag.srcDay ? { ...d, spots: newSpots } : d)
-        } else if (temp.dayIdx === drag.srcDay) {
-            // 同一日 move
+        } else if (t.dayIdx === drag.srcDay) {
             const newSpots = applyMoveSameDay(days[drag.srcDay].spots, drag.srcSpot, newSpot)
             newDays = days.map((d, i) => i === drag.srcDay ? { ...d, spots: newSpots } : d)
         } else {
-            // 他日 move
             const srcSpots  = removeFromDay(days[drag.srcDay].spots, drag.srcSpot)
-            const destSpots = insertWithCompress(days[temp.dayIdx].spots, newSpot)
+            const destSpots = insertWithCompress(days[t.dayIdx].spots, newSpot)
             newDays = days.map((d, i) =>
                 i === drag.srcDay ? { ...d, spots: srcSpots  } :
-                i === temp.dayIdx ? { ...d, spots: destSpots } : d
+                i === t.dayIdx   ? { ...d, spots: destSpots } : d
             )
         }
 
         onUpdateDays(newDays)
         setDrag(null); setTemp(null)
-    }, [drag, temp, days, onUpdateDays])
+    }, [drag, days, onUpdateDays])
 
     useEffect(() => {
         if (!drag) return
