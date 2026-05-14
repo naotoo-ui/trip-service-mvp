@@ -200,6 +200,8 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDr
     const [dragOver, setDragOver]           = useState<{ dayIdx: number; start: number } | null>(null)
     const [isDraggingToSidebar, setIsDraggingToSidebar] = useState(false)
     const isDraggingToSidebarRef            = useRef(false)
+    const [ghostPos, setGhostPos]           = useState<{ x: number; y: number } | null>(null)
+    const dragOffsetRef                     = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
     const [nowMins, setNowMins] = useState(() => { const n = new Date(); return n.getHours() * 60 + n.getMinutes() })
 
     const GRID_H = (GRID_END - GRID_START) * 60 * ppm + 48
@@ -255,6 +257,7 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDr
             if (toSidebar) {
                 onSidebarDragMoveRef.current?.(e.clientY)
             }
+            setGhostPos({ x: e.clientX, y: e.clientY })
             const s = snap(drag.initStart + dMins)
             setTemp({ dayIdx: xToDayIdx(e.clientX), start: Math.max(GRID_START * 60, Math.min(GRID_END * 60 - drag.initDur, s)), dur: drag.initDur })
         } else if (drag.mode === 'resize-bottom') {
@@ -276,7 +279,7 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDr
     const onMouseUp = useCallback((e: MouseEvent) => {
         // temp は ref 経由で参照（deps から外すことで毎フレーム再生成を防ぐ）
         const t = tempRef.current
-        if (!drag || !t) { setDrag(null); setTemp(null); return }
+        if (!drag || !t) { setDrag(null); setTemp(null); setGhostPos(null); return }
 
         // mouseUp 時点でもサイドバー境界を直接確認（mousemove が間に合わない場合の保険）
         let releaseInSidebar = isDraggingToSidebarRef.current
@@ -299,7 +302,7 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDr
             setIsDraggingToSidebar(false)
             onDraggingToSidebarChangeRef.current?.(false)
             onDragEndRef.current?.()
-            setDrag(null); setTemp(null)
+            setDrag(null); setTemp(null); setGhostPos(null)
             return
         }
         isDraggingToSidebarRef.current = false
@@ -328,7 +331,7 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDr
 
         onUpdateDays(newDays)
         onDragEndRef.current?.()
-        setDrag(null); setTemp(null)
+        setDrag(null); setTemp(null); setGhostPos(null)
     }, [drag, days, onUpdateDays])
 
     useEffect(() => {
@@ -343,6 +346,7 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDr
             document.body.style.userSelect = ''
             document.body.style.cursor = ''
             resetSidebarDrag()
+            setGhostPos(null)
         }
     }, [drag, onMouseMove, onMouseUp]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -351,6 +355,20 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDr
         setDrag({ mode, srcDay, srcSpot, initStart, initDur, mouseY0: e.clientY })
         setTemp({ dayIdx: srcDay, start: initStart, dur: initDur })
         if (mode === 'move') {
+            // ブロックの画面座標を計算してカーソルのオフセットを記録
+            if (containerRef.current && gridBodyRef.current) {
+                const cr = containerRef.current.getBoundingClientRect()
+                const gridBodyTop = gridBodyRef.current.offsetTop
+                const blockScreenTop = cr.top + gridBodyTop + (initStart - GRID_START * 60) * ppm - containerRef.current.scrollTop
+                const blockScreenLeft = cr.left + TIME_COL + srcDay * colW + 2
+                dragOffsetRef.current = {
+                    x: e.clientX - blockScreenLeft,
+                    y: e.clientY - blockScreenTop,
+                }
+            } else {
+                dragOffsetRef.current = { x: 20, y: 20 }
+            }
+            setGhostPos({ x: e.clientX, y: e.clientY })
             const spot = days[srcDay]?.spots[srcSpot]
             if (spot) onDragStartRef.current?.(spot)
         }
@@ -403,6 +421,43 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDr
                 position: 'relative',
             }}
         >
+            {/* ドラッグゴースト（move時にカーソルを追うフローティングブロック）*/}
+            {drag?.mode === 'move' && ghostPos && (() => {
+                const srcSpot = days[drag.srcDay]?.spots[drag.srcSpot]
+                if (!srcSpot) return null
+                const st = STYLES[srcSpot.type] ?? STYLES['その他']
+                const ghostW = colW - 4
+                const ghostH = Math.max(MIN_DUR * ppm, drag.initDur * ppm)
+                return (
+                    <div style={{
+                        position: 'fixed',
+                        top: ghostPos.y - dragOffsetRef.current.y,
+                        left: ghostPos.x - dragOffsetRef.current.x,
+                        width: ghostW,
+                        height: ghostH,
+                        zIndex: 9999,
+                        pointerEvents: 'none',
+                        borderRadius: 6,
+                        overflow: 'hidden',
+                        backgroundColor: st.bg,
+                        border: `1px solid ${st.border}`,
+                        boxShadow: `0 12px 32px rgba(0,0,0,0.28), 0 0 0 2px ${st.accent}`,
+                        transform: 'scale(0.93)',
+                        transformOrigin: 'top left',
+                        opacity: 0.95,
+                    }}>
+                        <div style={{ position: 'absolute', top: 0, left: 0, width: ACCENT, height: '100%', backgroundColor: st.accent }} />
+                        <div style={{ position: 'absolute', top: HANDLE, bottom: HANDLE, left: ACCENT + 6, right: 4, overflow: 'hidden' }}>
+                            <p style={{ fontSize: 12, fontWeight: st.light ? 400 : 600, color: st.text, lineHeight: 1.35, margin: 0,
+                                overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: ghostH < 52 ? 1 : 2, WebkitBoxOrient: 'vertical' as const,
+                            }}>
+                                {srcSpot.name}
+                            </p>
+                        </div>
+                    </div>
+                )
+            })()}
+
             {/* サイドバーへドラッグ中インジケーター */}
             {isDraggingToSidebar && (
                 <div style={{
@@ -537,6 +592,7 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDr
                         {days.map((day, dayIdx) =>
                             day.spots.map((spot, spotIdx) => {
                                 const isDragging = drag?.srcDay === dayIdx && drag?.srcSpot === spotIdx
+                                const isMoveDrag = isDragging && drag?.mode === 'move'
                                 const goingToSidebar = isDragging && isDraggingToSidebar
                                 const vDay   = (isDragging && temp) ? temp.dayIdx : dayIdx
                                 const vStart = (isDragging && temp) ? temp.start  : toMins(spot.time)
@@ -554,18 +610,17 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDr
                                         style={{
                                             position: 'absolute', top, left, width, height,
                                             zIndex: isDragging ? 200 : st.light ? 5 : 10,
-                                            // サイドバーへドラッグ中は非表示（最終日に貼り付いて見える問題を防ぐ）
-                                            opacity: goingToSidebar ? 0 : st.light ? 0.72 : 1,
-                                            pointerEvents: goingToSidebar ? 'none' : 'auto',
+                                            // move ドラッグ中: 半透明プレースホルダー（行き先を示す）
+                                            // sidebar ドラッグ中: 完全非表示
+                                            opacity: goingToSidebar ? 0 : isMoveDrag ? 0.25 : (st.light ? 0.72 : 1),
+                                            pointerEvents: (goingToSidebar || isMoveDrag) ? 'none' : 'auto',
                                             borderRadius: 6, overflow: 'hidden',
                                             backgroundColor: st.bg,
-                                            border: `1px solid ${st.border}`,
-                                            boxShadow: isDragging
+                                            border: isMoveDrag ? `1px dashed ${st.border}` : `1px solid ${st.border}`,
+                                            boxShadow: isDragging && !isMoveDrag
                                                 ? `0 8px 28px rgba(0,0,0,0.22), 0 0 0 2px ${st.accent}`
-                                                : '0 1px 4px rgba(0,0,0,0.07)',
-                                            transform: isDragging ? 'scale(0.93)' : 'none',
-                                            transformOrigin: 'center',
-                                            transition: isDragging ? 'none' : 'box-shadow 0.15s, transform 0.1s',
+                                                : 'none',
+                                            transition: isDragging ? 'none' : 'box-shadow 0.15s',
                                         }}
                                     >
                                         <div style={{ position: 'absolute', top: 0, left: 0, width: ACCENT, height: '100%', backgroundColor: st.accent }} />
