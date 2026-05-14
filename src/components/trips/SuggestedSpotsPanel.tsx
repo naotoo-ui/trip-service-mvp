@@ -20,23 +20,18 @@ function Stars({ n }: { n?: number }) {
 
 interface Props {
     spots: SidebarSpot[]
-    height: string
     isReceiving?: boolean
     onDelete?: (index: number) => void
 }
 
-export default function SuggestedSpotsPanel({ spots, height, isReceiving, onDelete }: Props) {
+export default function SuggestedSpotsPanel({ spots, isReceiving, onDelete }: Props) {
     return (
         <div style={{
             width: 168,
             flexShrink: 0,
-            height,
-            overflowY: 'auto',
-            overscrollBehavior: 'contain',
             display: 'flex',
             flexDirection: 'column',
             gap: 6,
-            paddingRight: 2,
             borderRadius: 12,
             border: isReceiving ? '2px dashed #2563eb' : '2px solid transparent',
             transition: 'border-color 0.15s',
@@ -58,6 +53,7 @@ export default function SuggestedSpotsPanel({ spots, height, isReceiving, onDele
                         return (
                             <div
                                 key={i}
+                                data-spot-idx={i}
                                 draggable
                                 onDragStart={e => {
                                     e.dataTransfer.setData('application/json', JSON.stringify({ source: 'suggested', spot, idx: i }))

@@ -161,13 +161,14 @@ interface Props {
     onUpdateDays: (updated: ItineraryDay[]) => void
     onDropSuggestedSpot?: (dayIdx: number, time: string, spot: SidebarSpot, spotIdx: number) => void
     onDropFreeBlock?: (dayIdx: number, time: string, type: SpotType) => void
-    onMoveToSidebar?: (spot: Spot, dayIdx: number, spotIdx: number) => void
+    onMoveToSidebar?: (spot: Spot, dayIdx: number, spotIdx: number, mouseX: number, mouseY: number) => void
     onDraggingToSidebarChange?: (v: boolean) => void
     onDoubleClickSpot?: (spot: Spot, dayIdx: number, spotIdx: number) => void
+    sidebarRef?: React.RefObject<HTMLDivElement | null>
 }
 
 // ────────── コンポーネント ──────────
-export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDropSuggestedSpot, onDropFreeBlock, onMoveToSidebar, onDraggingToSidebarChange, onDoubleClickSpot }: Props) {
+export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDropSuggestedSpot, onDropFreeBlock, onMoveToSidebar, onDraggingToSidebarChange, onDoubleClickSpot, sidebarRef }: Props) {
     const containerRef = useRef<HTMLDivElement>(null)
     const gridBodyRef  = useRef<HTMLDivElement>(null)
 
@@ -176,6 +177,11 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDr
     const onDraggingToSidebarChangeRef  = useRef(onDraggingToSidebarChange)
     onMoveToSidebarRef.current           = onMoveToSidebar
     onDraggingToSidebarChangeRef.current = onDraggingToSidebarChange
+    // sidebarRef もコールバック ref パターンで保持
+    const sidebarRefRef = useRef(sidebarRef)
+    sidebarRefRef.current = sidebarRef
+    // マウス位置を onMouseUp から参照するため ref で追跡
+    const lastMousePosRef = useRef({ x: 0, y: 0 })
 
     const [colW, setColW] = useState(160)
     const ppm             = BASE_PPM * zoom
@@ -223,11 +229,17 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDr
 
     const onMouseMove = useCallback((e: MouseEvent) => {
         if (!drag) return
+        lastMousePosRef.current = { x: e.clientX, y: e.clientY }
         const dMins = (e.clientY - drag.mouseY0) / ppm
         if (drag.mode === 'move') {
-            // カレンダー右端を越えたらサイドバーへのドラッグとして扱う
-            const rect = containerRef.current?.getBoundingClientRect()
-            const toSidebar = !!rect && e.clientX > rect.right + 4
+            // sidebarRef の実際の境界でサイドバーへのドラッグを判定
+            let toSidebar = false
+            const sidebarEl = sidebarRefRef.current?.current
+            if (sidebarEl) {
+                const sr = sidebarEl.getBoundingClientRect()
+                toSidebar = e.clientX >= sr.left && e.clientX <= sr.right
+                         && e.clientY >= sr.top  && e.clientY <= sr.bottom
+            }
             if (toSidebar !== isDraggingToSidebarRef.current) {
                 isDraggingToSidebarRef.current = toSidebar
                 setIsDraggingToSidebar(toSidebar)
@@ -261,7 +273,7 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDr
         if (isDraggingToSidebarRef.current && drag.mode === 'move') {
             const srcSpot = days[drag.srcDay]?.spots[drag.srcSpot]
             if (srcSpot) {
-                onMoveToSidebarRef.current?.(srcSpot, drag.srcDay, drag.srcSpot)
+                onMoveToSidebarRef.current?.(srcSpot, drag.srcDay, drag.srcSpot, lastMousePosRef.current.x, lastMousePosRef.current.y)
             }
             isDraggingToSidebarRef.current = false
             setIsDraggingToSidebar(false)
@@ -355,8 +367,15 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDr
 
     return (
         <div
-            className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden"
-            style={{ isolation: 'isolate', position: 'relative' }}
+            style={{
+                borderRadius: 16,
+                border: '1px solid #e5e7eb',
+                backgroundColor: 'white',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.07)',
+                overflow: 'hidden',
+                isolation: 'isolate',
+                position: 'relative',
+            }}
         >
             {/* サイドバーへドラッグ中インジケーター */}
             {isDraggingToSidebar && (
@@ -369,13 +388,13 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDr
                     <span style={{ background: '#2563eb', color: 'white', fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 8 }}>→ 保管</span>
                 </div>
             )}
-            {/* カレンダー本体（内部スクロールコンテナ・固定高）
-                overscrollBehavior: contain → スクロールがカレンダー外に伝播しない（内部スクロール分離） */}
+            {/* カレンダー本体（内部スクロールコンテナ・固定高 480px）*/}
             <div
                 ref={containerRef}
-                className="overflow-auto select-none"
                 style={{
-                    height: 'clamp(320px, calc(100vh - 540px), 440px)',
+                    overflow: 'auto',
+                    userSelect: 'none',
+                    height: 480,
                     overscrollBehavior: 'contain',
                 }}
             >

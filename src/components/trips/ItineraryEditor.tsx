@@ -1,5 +1,5 @@
 'use client'
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import type { Trip, ItineraryDay, Spot, SidebarSpot, SpotType } from '@/types'
 import CalendarView from './CalendarView'
 import SuggestedSpotsPanel from './SuggestedSpotsPanel'
@@ -53,6 +53,7 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
     const [sidebarSpots, setSidebarSpots] = useState<SidebarSpot[]>(trip.itinerary.sidebar_spots ?? [])
     const [receivingSidebar, setReceivingSidebar] = useState(false)
     const [editingSpot, setEditingSpot] = useState<{ spot: Spot; dayIdx: number; spotIdx: number } | null>(null)
+    const sidebarPanelRef = useRef<HTMLDivElement>(null)
 
     const saveToDb = useCallback(async () => {
         setSaveStatus('saving')
@@ -136,7 +137,20 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
         setEditingSpot(null)
     }
 
-    function handleMoveToSidebar(spot: Spot, dayIdx: number, spotIdx: number) {
+    // sidebarPanelRef 内の [data-spot-idx] 要素のY中点を使ってドロップ位置を計算
+    function getInsertIndex(mouseY: number): number {
+        if (!sidebarPanelRef.current) return sidebarSpots.length
+        const items = Array.from(sidebarPanelRef.current.querySelectorAll<HTMLElement>('[data-spot-idx]'))
+        for (const item of items) {
+            const rect = item.getBoundingClientRect()
+            if (mouseY < rect.top + rect.height / 2) {
+                return parseInt(item.dataset.spotIdx ?? String(sidebarSpots.length))
+            }
+        }
+        return sidebarSpots.length
+    }
+
+    function handleMoveToSidebar(spot: Spot, dayIdx: number, spotIdx: number, _mouseX: number, mouseY: number) {
         const sidebarSpot: SidebarSpot = {
             name: spot.name,
             description: spot.description,
@@ -146,7 +160,13 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
         const newDays = days.map((d, i) =>
             i === dayIdx ? { ...d, spots: d.spots.filter((_, si) => si !== spotIdx) } : d
         )
-        handleUpdateBoth(newDays, [...sidebarSpots, sidebarSpot])
+        const insertIdx = getInsertIndex(mouseY)
+        const newSidebar = [
+            ...sidebarSpots.slice(0, insertIdx),
+            sidebarSpot,
+            ...sidebarSpots.slice(insertIdx),
+        ]
+        handleUpdateBoth(newDays, newSidebar)
     }
 
     function handleDropSuggestedSpot(dayIdx: number, time: string, spot: SidebarSpot, spotIdx: number) {
@@ -358,7 +378,7 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
 
             {/* ── カレンダービュー + サイドパネル（3カラム）── */}
             <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                <div style={{ flex: 6, minWidth: 0 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
                     <CalendarView
                         days={days}
                         startDate={startDate}
@@ -369,17 +389,18 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
                         onMoveToSidebar={handleMoveToSidebar}
                         onDraggingToSidebarChange={setReceivingSidebar}
                         onDoubleClickSpot={handleDoubleClickSpot}
+                        sidebarRef={sidebarPanelRef}
                     />
                 </div>
-                <SuggestedSpotsPanel
-                    spots={sidebarSpots}
-                    height="clamp(320px, calc(100vh - 540px), 440px)"
-                    isReceiving={receivingSidebar}
-                    onDelete={idx => handleUpdateBoth(days, sidebarSpots.filter((_, i) => i !== idx))}
-                />
-                <FreeBlocksPanel
-                    height="clamp(320px, calc(100vh - 540px), 440px)"
-                />
+                {/* sidebarPanelRef でラップ: CalendarView のドラッグ検出 + 挿入位置計算に使用 */}
+                <div ref={sidebarPanelRef}>
+                    <SuggestedSpotsPanel
+                        spots={sidebarSpots}
+                        isReceiving={receivingSidebar}
+                        onDelete={idx => handleUpdateBoth(days, sidebarSpots.filter((_, i) => i !== idx))}
+                    />
+                </div>
+                <FreeBlocksPanel />
             </div>
 
             {/* ── シェアボタン ── */}

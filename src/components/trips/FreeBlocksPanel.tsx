@@ -8,18 +8,11 @@ const BLOCK_TYPES: { type: SpotType; label: string; accent: string; bg: string; 
     { type: 'その他', label: 'その他', accent: '#059669', bg: '#ecfdf5', border: '#a7f3d0' },
 ]
 
-interface Props {
-    height: string
-}
-
-export default function FreeBlocksPanel({ height }: Props) {
+export default function FreeBlocksPanel() {
     return (
         <div style={{
             width: 112,
             flexShrink: 0,
-            height,
-            overflowY: 'auto',
-            overscrollBehavior: 'contain',
             display: 'flex',
             flexDirection: 'column',
             gap: 6,
