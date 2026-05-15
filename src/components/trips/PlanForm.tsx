@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import DatePicker from './DatePicker'
 import type { GroupType } from '@/types'
+import GeneratingOverlay from './GeneratingOverlay'
 
 // ────────── サブコンポーネント ──────────
 function Counter({
@@ -152,6 +153,8 @@ export default function PlanForm() {
     }
 
     return (
+        <>
+        {loading && <GeneratingOverlay />}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
 
             {/* ── 目的地 ── */}
@@ -359,5 +362,6 @@ export default function PlanForm() {
                 {loading ? '✈️ AIが旅程を生成中... (最大60秒)' : '✈️ 旅程を生成する'}
             </button>
         </div>
+        </>
     )
 }

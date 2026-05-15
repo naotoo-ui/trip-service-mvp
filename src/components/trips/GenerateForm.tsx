@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import DatePicker from './DatePicker'
+import GeneratingOverlay from './GeneratingOverlay'
 
 export default function GenerateForm() {
     const router = useRouter()
@@ -39,6 +40,8 @@ export default function GenerateForm() {
     }
 
     return (
+        <>
+        {loading && <GeneratingOverlay />}
         <form onSubmit={e => e.preventDefault()} className="space-y-3">
             <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1">行き先</label>
@@ -98,5 +101,6 @@ export default function GenerateForm() {
                 {loading ? '生成中...' : '旅程を生成する →'}
             </button>
         </form>
+        </>
     )
 }
