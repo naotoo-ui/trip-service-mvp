@@ -360,6 +360,9 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDr
     }, [drag, onMouseMove, onMouseUp]) // eslint-disable-line react-hooks/exhaustive-deps
 
     function startDrag(e: React.MouseEvent, mode: Drag['mode'], srcDay: number, srcSpot: number, initStart: number, initDur: number) {
+        // ダブルクリックの2回目 mousedown では e.preventDefault() を呼ばない。
+        // MDN仕様: mousedown で preventDefault() すると dblclick が発火しなくなる。
+        if (e.detail > 1) return
         e.preventDefault(); e.stopPropagation()
         dragMovedRef.current = false
         setDrag({ mode, srcDay, srcSpot, initStart, initDur, mouseY0: e.clientY, mouseX0: e.clientX })
