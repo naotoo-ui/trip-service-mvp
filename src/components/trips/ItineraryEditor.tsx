@@ -416,6 +416,10 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
                         sidebarRef={sidebarPanelRef}
                         onDragStart={spot => setDraggingCalendarSpot({ name: spot.name, type: spot.type, duration_minutes: spot.duration_minutes })}
                         onDragEnd={() => setDraggingCalendarSpot(null)}
+                        onGapClick={(dayIdx, time, duration) => {
+                            const placeholder: Spot = { time, name: '', description: '', type: '移動', duration_minutes: duration }
+                            setEditingSpot({ spot: placeholder, dayIdx, spotIdx: -1 })
+                        }}
                     />
                 </div>
                 {/* モバイル: カレンダー下にパネルを縦並び表示 */}

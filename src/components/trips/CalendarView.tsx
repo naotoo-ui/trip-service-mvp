@@ -162,10 +162,11 @@ interface Props {
     sidebarRef?: React.RefObject<HTMLDivElement | null>
     onDragStart?: (spot: Spot) => void
     onDragEnd?: () => void
+    onGapClick?: (dayIdx: number, time: string, duration: number) => void
 }
 
 // ────────── コンポーネント ──────────
-export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDropSuggestedSpot, onDropFreeBlock, onMoveToSidebar, onDraggingToSidebarChange, onSidebarDragMove, onDoubleClickSpot, sidebarRef, onDragStart, onDragEnd }: Props) {
+export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDropSuggestedSpot, onDropFreeBlock, onMoveToSidebar, onDraggingToSidebarChange, onSidebarDragMove, onDoubleClickSpot, sidebarRef, onDragStart, onDragEnd, onGapClick }: Props) {
     const containerRef = useRef<HTMLDivElement>(null)
     const gridBodyRef  = useRef<HTMLDivElement>(null)
     const isMobile     = useIsMobile()
@@ -772,11 +773,21 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDr
                                                 WebkitLineClamp: height < 52 ? 1 : 2,
                                                 WebkitBoxOrient: 'vertical' as const,
                                             }}>
-                                                {spot.name}
+                                                {spot.name || (spot.type === '移動' ? '移動' : '')}
                                             </p>
-                                            {height > 46 && (
-                                                <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>
-                                                    {toTime(vStart)} › {toTime(Math.min(vStart + vDur, GRID_END * 60))}
+                                            {/* 移動ブロックは height>28 で常に発着時刻、他は height>46 */}
+                                            {(spot.type === '移動' ? height > 28 : height > 46) && (
+                                                <p style={{ fontSize: 10, color: '#94a3b8', marginTop: 1, fontVariantNumeric: 'tabular-nums' }}>
+                                                    {toTime(vStart)} → {toTime(Math.min(vStart + vDur, GRID_END * 60))}
+                                                </p>
+                                            )}
+                                            {/* 移動ブロック: ルートメモをブロック内に表示 */}
+                                            {spot.type === '移動' && height > 52 && spot.memo && (
+                                                <p style={{
+                                                    fontSize: 9, color: '#b0b9c4', marginTop: 2,
+                                                    overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
+                                                }}>
+                                                    {spot.memo}
                                                 </p>
                                             )}
                                         </div>
@@ -839,17 +850,28 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDr
                                             height: 0, borderTop: `1px dashed ${lineColor}`,
                                             transform: 'translateY(-50%)',
                                         }} />
+                                        {/* ラベル部分だけ pointerEvents: auto でクリック可能にする */}
                                         {height >= 16 && (
-                                            <span style={{
-                                                fontSize: 9, color: textColor,
-                                                backgroundColor: 'rgba(255,255,255,0.9)',
-                                                padding: '1px 4px', borderRadius: 3,
-                                                fontVariantNumeric: 'tabular-nums',
-                                                fontWeight: isWarning ? 600 : 400,
-                                                position: 'relative', zIndex: 1,
-                                            }}>
-                                                {gapMins}分
-                                            </span>
+                                            <button
+                                                type="button"
+                                                onClick={() => onGapClick?.(dayIdx, toTime(gapStart), gapMins)}
+                                                title={onGapClick ? '移動ブロックを挿入' : undefined}
+                                                style={{
+                                                    fontSize: 9, color: textColor,
+                                                    backgroundColor: 'rgba(255,255,255,0.92)',
+                                                    padding: '2px 5px', borderRadius: 3,
+                                                    fontVariantNumeric: 'tabular-nums',
+                                                    fontWeight: isWarning ? 600 : 400,
+                                                    position: 'relative', zIndex: 4,
+                                                    border: `1px dashed ${lineColor}`,
+                                                    cursor: onGapClick ? 'pointer' : 'default',
+                                                    pointerEvents: 'auto',
+                                                    lineHeight: 1.4,
+                                                    transition: 'background-color 0.1s',
+                                                }}
+                                            >
+                                                {onGapClick ? `＋ ${gapMins}分` : `${gapMins}分`}
+                                            </button>
                                         )}
                                     </div>
                                 )

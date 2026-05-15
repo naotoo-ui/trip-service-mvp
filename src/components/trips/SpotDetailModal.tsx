@@ -2,6 +2,15 @@
 import { useState } from 'react'
 import type { Spot, SpotType } from '@/types'
 
+function toMinsLocal(time: string): number {
+    const [h, m] = time.split(':').map(Number)
+    return h * 60 + (m || 0)
+}
+function toTimeLocal(mins: number): string {
+    const clamped = Math.max(0, Math.min(1439, mins))
+    return `${String(Math.floor(clamped / 60)).padStart(2, '0')}:${String(clamped % 60).padStart(2, '0')}`
+}
+
 const SPOT_STYLES: Record<SpotType, { accent: string; bg: string; border: string; text: string }> = {
     観光:   { accent: '#2563eb', bg: '#eff6ff', border: '#bfdbfe', text: '#1d4ed8' },
     グルメ: { accent: '#ea580c', bg: '#fff7ed', border: '#fed7aa', text: '#c2410c' },
@@ -32,6 +41,7 @@ export default function SpotDetailModal({ spot, onSave, onCancel }: Props) {
     const [name, setName]                     = useState(spot.name)
     const [type, setType]                     = useState<SpotType>(spot.type)
     const [duration, setDuration]             = useState(spot.duration_minutes || 60)
+    const [depTime, setDepTime]               = useState(spot.time)
     const [needsBooking, setNeedsBooking]     = useState(spot.needs_booking ?? false)
     const [bookingConfirmed, setBookingConf]  = useState(spot.booking_confirmed ?? false)
     const [memo, setMemo]                     = useState(spot.memo ?? '')
@@ -40,6 +50,7 @@ export default function SpotDetailModal({ spot, onSave, onCancel }: Props) {
     const st = SPOT_STYLES[type] ?? SPOT_STYLES['その他']
     const isTransit = type === '移動'
     const durStep = isTransit ? 1 : 10
+    const arrTime = toTimeLocal(toMinsLocal(depTime) + duration)
 
     function handleSave() {
         const cleanLinks = userLinks.filter(l => l.trim())
@@ -47,6 +58,7 @@ export default function SpotDetailModal({ spot, onSave, onCancel }: Props) {
             ...spot,
             name: name.trim() || spot.name,
             type,
+            time: isTransit ? depTime : spot.time,
             duration_minutes: duration,
             needs_booking: needsBooking || undefined,
             booking_confirmed: bookingConfirmed || undefined,
@@ -94,7 +106,9 @@ export default function SpotDetailModal({ spot, onSave, onCancel }: Props) {
                         }}
                     />
                     <p style={{ fontSize: 12, color: st.text, margin: '6px 0 0', opacity: 0.8 }}>
-                        🕐 {spot.time}  ·  {spot.duration_minutes}分
+                        {isTransit
+                            ? `🚌 ${depTime} → ${arrTime}  ·  ${duration}分`
+                            : `🕐 ${spot.time}  ·  ${spot.duration_minutes}分`}
                     </p>
                 </div>
 
@@ -119,6 +133,42 @@ export default function SpotDetailModal({ spot, onSave, onCancel }: Props) {
                             })}
                         </div>
                     </div>
+
+                    {/* 発着時刻（移動ブロックのみ）*/}
+                    {isTransit && (
+                        <div>
+                            <label style={fieldLabel}>発着時刻</label>
+                            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10 }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                    <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 600 }}>発</span>
+                                    <input
+                                        type="time"
+                                        value={depTime}
+                                        onChange={e => { if (e.target.value) setDepTime(e.target.value) }}
+                                        style={{ ...inputBase, width: 110, fontVariantNumeric: 'tabular-nums' }}
+                                    />
+                                </div>
+                                <span style={{ fontSize: 18, color: '#d1d5db', paddingBottom: 8 }}>→</span>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                    <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 600 }}>着</span>
+                                    <input
+                                        type="time"
+                                        value={arrTime}
+                                        onChange={e => {
+                                            if (!e.target.value) return
+                                            const newArr = toMinsLocal(e.target.value)
+                                            const dep = toMinsLocal(depTime)
+                                            setDuration(Math.max(1, newArr - dep))
+                                        }}
+                                        style={{ ...inputBase, width: 110, fontVariantNumeric: 'tabular-nums' }}
+                                    />
+                                </div>
+                            </div>
+                            <p style={{ fontSize: 11, color: '#9ca3af', margin: '6px 0 0' }}>
+                                着時刻を変更すると所要時間が自動更新されます
+                            </p>
+                        </div>
+                    )}
 
                     {/* 所要時間 */}
                     <div>
@@ -221,13 +271,13 @@ export default function SpotDetailModal({ spot, onSave, onCancel }: Props) {
                         </div>
                     </div>
 
-                    {/* メモ */}
+                    {/* メモ / ルートメモ */}
                     <div>
-                        <label style={fieldLabel}>メモ</label>
+                        <label style={fieldLabel}>{isTransit ? 'ルートメモ' : 'メモ'}</label>
                         <textarea
                             value={memo}
                             onChange={e => setMemo(e.target.value)}
-                            placeholder="自由にメモを記入..."
+                            placeholder={isTransit ? '例：京都駅 → 金閣寺：バス30分、¥230' : '自由にメモを記入...'}
                             rows={3}
                             style={{ ...inputBase, resize: 'none', width: '100%', boxSizing: 'border-box' }}
                         />
