@@ -8,6 +8,7 @@ import SpotDetailModal from './SpotDetailModal'
 import HotelDetailModal from './HotelDetailModal'
 import ShareButton from './ShareButton'
 import CopyButton from './CopyButton'
+import { getDestinationEmoji } from '@/lib/destinationEmoji'
 import { useIsMobile } from '@/hooks/useIsMobile'
 
 function toMins(time: string) { const [h, m] = time.split(':').map(Number); return h * 60 + (m || 0) }
@@ -43,17 +44,6 @@ function insertSpot(daySpots: Spot[], newSpot: Spot): Spot[] {
 
 const ZOOM_MAX  = 3.0
 const ZOOM_STEP = 0.2
-
-const destinationEmoji: Record<string, string> = {
-    沖縄: '🌺', 京都: '⛩️', 北海道: '🐻', 東京: '🗼', 大阪: '🍜',
-    韓国: '🇰🇷', ハワイ: '🌺', 台湾: '🇹🇼', パリ: '🗼', ニューヨーク: '🗽',
-}
-function getEmoji(dest: string) {
-    for (const [k, v] of Object.entries(destinationEmoji)) {
-        if (dest.includes(k)) return v
-    }
-    return '✈️'
-}
 
 function parseStartDate(raw?: string): Date | undefined {
     if (!raw) return undefined
@@ -307,7 +297,7 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
                             )}
                         </div>
                     </div>
-                    <div style={{ fontSize: isMobile ? 32 : 44, marginLeft: 12, lineHeight: 1 }}>{getEmoji(trip.destination)}</div>
+                    <div style={{ fontSize: isMobile ? 32 : 44, marginLeft: 12, lineHeight: 1 }}>{getDestinationEmoji(trip.destination)}</div>
                 </div>
                 {trip.source_url && (
                     <a

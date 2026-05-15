@@ -38,7 +38,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                             <span className="text-base sm:text-lg tracking-tight">旅程ジェネレーター</span>
                         </Link>
                         <nav className="flex items-center gap-3 text-sm text-gray-500">
-                            <Link href="/trips" className="hidden sm:block hover:text-gray-900 transition-colors">旅程一覧</Link>
+                            <Link href="/explore" className="hover:text-gray-900 transition-colors">探す</Link>
                             <Link href="/" className="bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors text-xs font-medium whitespace-nowrap">
                                 ＋ 作成
                             </Link>
