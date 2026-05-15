@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState, useCallback, useEffect } from 'react'
-import type { ItineraryDay, Spot, SidebarSpot, SpotType } from '@/types'
+import type { HotelInfo, ItineraryDay, Spot, SidebarSpot, SpotType } from '@/types'
 import { useIsMobile } from '@/hooks/useIsMobile'
 
 // ────────── 定数 ──────────
@@ -163,10 +163,11 @@ interface Props {
     onDragStart?: (spot: Spot) => void
     onDragEnd?: () => void
     onGapClick?: (dayIdx: number, time: string, duration: number) => void
+    onDoubleClickHotel?: (hotel: HotelInfo | undefined, dayIdx: number) => void
 }
 
 // ────────── コンポーネント ──────────
-export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDropSuggestedSpot, onDropFreeBlock, onMoveToSidebar, onDraggingToSidebarChange, onSidebarDragMove, onDoubleClickSpot, sidebarRef, onDragStart, onDragEnd, onGapClick }: Props) {
+export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDropSuggestedSpot, onDropFreeBlock, onMoveToSidebar, onDraggingToSidebarChange, onSidebarDragMove, onDoubleClickSpot, sidebarRef, onDragStart, onDragEnd, onGapClick, onDoubleClickHotel }: Props) {
     const containerRef = useRef<HTMLDivElement>(null)
     const gridBodyRef  = useRef<HTMLDivElement>(null)
     const isMobile     = useIsMobile()
@@ -606,6 +607,61 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDr
                                         <p style={{ fontSize: 14, fontWeight: 700, color: '#374151', margin: 0, lineHeight: '40px' }}>{h.top}</p>
                                     )}
                                     {h.isToday && <div style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#2563eb', margin: '0 auto' }} />}
+                                </div>
+                            )
+                        })}
+                    </div>
+
+                    {/* 宿泊帯（列ヘッダー直下）*/}
+                    <div style={{ display: 'flex', minWidth: minW, borderBottom: '1px solid #e5e7eb' }}>
+                        <div style={{
+                            width: TIME_COL, flexShrink: 0, borderRight: '1px solid #e2e8f0',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>
+                            <span style={{ fontSize: 9, color: '#c4b5fd', fontWeight: 600, letterSpacing: '0.05em', writingMode: 'horizontal-tb' }}>宿泊</span>
+                        </div>
+                        {days.map((day, i) => {
+                            if (isMobile && i !== mobileDayIdx) return null
+                            const hotel = day.hotel
+                            return (
+                                <div
+                                    key={i}
+                                    style={{
+                                        width: colW, flexShrink: 0,
+                                        borderRight: !isMobile && i < days.length - 1 ? '1px solid #f1f5f9' : 'none',
+                                        padding: '5px 6px',
+                                        backgroundColor: hotel ? '#faf5ff' : 'white',
+                                        cursor: 'pointer',
+                                    }}
+                                    onDoubleClick={() => onDoubleClickHotel?.(hotel, i)}
+                                >
+                                    {hotel ? (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, minHeight: 30 }}>
+                                            <span style={{ fontSize: 14, flexShrink: 0 }}>🏨</span>
+                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                                <p style={{ fontSize: 11, fontWeight: 600, color: '#6d28d9', margin: 0, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
+                                                    {hotel.name}
+                                                </p>
+                                                {(hotel.check_in || hotel.check_out) && (
+                                                    <p style={{ fontSize: 10, color: '#9ca3af', margin: 0, fontVariantNumeric: 'tabular-nums' }}>
+                                                        {hotel.check_in && `IN ${hotel.check_in}`}
+                                                        {hotel.check_in && hotel.check_out && ' · '}
+                                                        {hotel.check_out && `OUT ${hotel.check_out}`}
+                                                    </p>
+                                                )}
+                                            </div>
+                                            {hotel.booking_confirmed && (
+                                                <span style={{ fontSize: 10, color: '#10b981', fontWeight: 700, flexShrink: 0 }}>✓予約済</span>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <div style={{
+                                            minHeight: 30, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            border: '1.5px dashed #e9d5ff', borderRadius: 6,
+                                        }}>
+                                            <span style={{ fontSize: 10, color: '#c4b5fd' }}>＋ 宿泊地を追加</span>
+                                        </div>
+                                    )}
                                 </div>
                             )
                         })}

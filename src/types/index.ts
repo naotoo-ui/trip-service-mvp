@@ -27,10 +27,22 @@ export interface Spot {
     user_links?: string[]          // ユーザー追加リンク（最大5件）
 }
 
+export interface HotelInfo {
+    name: string
+    address?: string
+    check_in?: string        // "15:00" 形式
+    check_out?: string       // "11:00" 形式
+    price_per_night?: number // 円
+    booking_confirmed?: boolean
+    booking_url?: string
+    memo?: string
+}
+
 export interface ItineraryDay {
     day: number
     label: string
     spots: Spot[]
+    hotel?: HotelInfo
 }
 
 export interface SidebarSpot {

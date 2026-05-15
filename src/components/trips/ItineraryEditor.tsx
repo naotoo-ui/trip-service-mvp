@@ -1,10 +1,11 @@
 'use client'
 import { useState, useCallback, useRef } from 'react'
-import type { Trip, ItineraryDay, Spot, SidebarSpot, SpotType } from '@/types'
+import type { Trip, ItineraryDay, Spot, SidebarSpot, SpotType, HotelInfo } from '@/types'
 import CalendarView from './CalendarView'
 import SuggestedSpotsPanel from './SuggestedSpotsPanel'
 import FreeBlocksPanel from './FreeBlocksPanel'
 import SpotDetailModal from './SpotDetailModal'
+import HotelDetailModal from './HotelDetailModal'
 import ShareButton from './ShareButton'
 import { useIsMobile } from '@/hooks/useIsMobile'
 
@@ -71,7 +72,8 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
     const [sidebarSpots, setSidebarSpots] = useState<SidebarSpot[]>(trip.itinerary.sidebar_spots ?? [])
     const [receivingSidebar, setReceivingSidebar] = useState(false)
     const [sidebarInsertHint, setSidebarInsertHint] = useState<number | null>(null)
-    const [editingSpot, setEditingSpot] = useState<{ spot: Spot; dayIdx: number; spotIdx: number } | null>(null)
+    const [editingSpot, setEditingSpot]   = useState<{ spot: Spot; dayIdx: number; spotIdx: number } | null>(null)
+    const [editingHotel, setEditingHotel] = useState<{ hotel: HotelInfo | undefined; dayIdx: number } | null>(null)
     const [draggingCalendarSpot, setDraggingCalendarSpot] = useState<{ name: string; type: SpotType; duration_minutes: number } | null>(null)
     const sidebarPanelRef = useRef<HTMLDivElement>(null)
 
@@ -194,6 +196,20 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
         const newDays = days.map((d, i) => i === dayIdx ? { ...d, spots: insertSpot(d.spots, newSpot) } : d)
         const newSidebar = sidebarSpots.filter((_, i) => i !== spotIdx)
         handleUpdateBoth(newDays, newSidebar)
+    }
+
+    function handleHotelSave(hotel: HotelInfo) {
+        if (!editingHotel) return
+        const newDays = days.map((d, i) => i === editingHotel.dayIdx ? { ...d, hotel } : d)
+        handleUpdateDays(newDays)
+        setEditingHotel(null)
+    }
+
+    function handleHotelDelete() {
+        if (!editingHotel) return
+        const newDays = days.map((d, i) => i === editingHotel.dayIdx ? { ...d, hotel: undefined } : d)
+        handleUpdateDays(newDays)
+        setEditingHotel(null)
     }
 
     function handleDropFreeBlock(dayIdx: number, time: string, type: SpotType) {
@@ -481,6 +497,7 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
                             const placeholder: Spot = { time, name: '', description: '', type: '移動', duration_minutes: duration }
                             setEditingSpot({ spot: placeholder, dayIdx, spotIdx: -1 })
                         }}
+                        onDoubleClickHotel={(hotel, dayIdx) => setEditingHotel({ hotel, dayIdx })}
                     />
                 </div>
                 {/* モバイル: カレンダー下にパネルを縦並び表示 */}
@@ -502,6 +519,17 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
                     spot={editingSpot.spot}
                     onSave={handleSpotDetailSave}
                     onCancel={() => setEditingSpot(null)}
+                />
+            )}
+
+            {/* ── 宿泊詳細モーダル ── */}
+            {editingHotel && (
+                <HotelDetailModal
+                    hotel={editingHotel.hotel}
+                    dayLabel={days[editingHotel.dayIdx]?.label ?? ''}
+                    onSave={handleHotelSave}
+                    onDelete={handleHotelDelete}
+                    onCancel={() => setEditingHotel(null)}
                 />
             )}
 
