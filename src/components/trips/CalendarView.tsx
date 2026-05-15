@@ -11,7 +11,8 @@ const MIN_DUR    = 20
 const TIME_COL   = 56
 const ACCENT     = 4
 const HANDLE     = 8
-const BASE_PPM   = 1.0   // pixels per minute at zoom=1.0
+const BASE_PPM        = 1.0   // pixels per minute at zoom=1.0
+const DRAG_THRESHOLD  = 5     // px: この距離以上動いて初めてドラッグと判定
 
 // GRID_END も含めて 24:00 ラベルを表示するため +1
 const HOURS        = Array.from({ length: GRID_END - GRID_START + 1 }, (_, i) => GRID_START + i)
@@ -150,7 +151,7 @@ const STYLES: Record<string, { accent: string; bg: string; border: string; text:
 interface Drag {
     mode: 'move' | 'resize-top' | 'resize-bottom'
     srcDay: number; srcSpot: number
-    initStart: number; initDur: number; mouseY0: number
+    initStart: number; initDur: number; mouseY0: number; mouseX0: number
 }
 interface Temp { dayIdx: number; start: number; dur: number }
 
@@ -202,6 +203,7 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDr
     const isDraggingToSidebarRef            = useRef(false)
     const [ghostPos, setGhostPos]           = useState<{ x: number; y: number } | null>(null)
     const dragOffsetRef                     = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
+    const dragMovedRef                      = useRef(false)
     const [nowMins, setNowMins] = useState(() => { const n = new Date(); return n.getHours() * 60 + n.getMinutes() })
 
     const GRID_H = (GRID_END - GRID_START) * 60 * ppm + 48
@@ -238,6 +240,11 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDr
 
     const onMouseMove = useCallback((e: MouseEvent) => {
         if (!drag) return
+        // まだ閾値未満の移動なら何もしない（クリック／ダブルクリックを妨げない）
+        if (!dragMovedRef.current) {
+            if (Math.abs(e.clientX - drag.mouseX0) < DRAG_THRESHOLD && Math.abs(e.clientY - drag.mouseY0) < DRAG_THRESHOLD) return
+            dragMovedRef.current = true
+        }
         const dMins = (e.clientY - drag.mouseY0) / ppm
         if (drag.mode === 'move') {
             // sidebarRef の実際の境界でサイドバーへのドラッグを判定
@@ -280,6 +287,8 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDr
         // temp は ref 経由で参照（deps から外すことで毎フレーム再生成を防ぐ）
         const t = tempRef.current
         if (!drag || !t) { setDrag(null); setTemp(null); setGhostPos(null); return }
+        // 閾値未満の移動＝クリック。ドラッグを適用せずキャンセル（dblclick を妨げない）
+        if (!dragMovedRef.current) { setDrag(null); setTemp(null); setGhostPos(null); return }
 
         // mouseUp 時点でもサイドバー境界を直接確認（mousemove が間に合わない場合の保険）
         let releaseInSidebar = isDraggingToSidebarRef.current
@@ -352,7 +361,8 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDr
 
     function startDrag(e: React.MouseEvent, mode: Drag['mode'], srcDay: number, srcSpot: number, initStart: number, initDur: number) {
         e.preventDefault(); e.stopPropagation()
-        setDrag({ mode, srcDay, srcSpot, initStart, initDur, mouseY0: e.clientY })
+        dragMovedRef.current = false
+        setDrag({ mode, srcDay, srcSpot, initStart, initDur, mouseY0: e.clientY, mouseX0: e.clientX })
         setTemp({ dayIdx: srcDay, start: initStart, dur: initDur })
         if (mode === 'move') {
             // ブロックの画面座標を計算してカーソルのオフセットを記録
@@ -656,7 +666,7 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDr
                                             onMouseDown={e => startDrag(e, 'move', dayIdx, spotIdx, toMins(spot.time), getDur(spot))}
                                             onDoubleClick={e => {
                                                 e.stopPropagation()
-                                                setDrag(null); setTemp(null)
+                                                setDrag(null); setTemp(null); setGhostPos(null)
                                                 onDoubleClickSpot?.(spot, dayIdx, spotIdx)
                                             }}
                                         >
