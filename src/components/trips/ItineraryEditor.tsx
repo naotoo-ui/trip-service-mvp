@@ -14,15 +14,17 @@ function toTime(mins: number) { return `${String(Math.floor(mins / 60)).padStart
 function buildMapsUrl(day: ItineraryDay, destination: string): string {
     const spots = day.spots.filter(s => s.type !== '移動')
     if (spots.length === 0) return ''
-    // スポット名に目的地を付加してあいまい検索の精度を上げる
-    const q = (name: string) => encodeURIComponent(`${name} ${destination}`)
+    // address があればスポット名＋住所、なければスポット名＋目的地で検索精度を確保
+    const q = (s: Spot) => encodeURIComponent(
+        s.address ? `${s.name} ${s.address}` : `${s.name} ${destination}`
+    )
     if (spots.length === 1) {
-        return `https://www.google.com/maps/search/?api=1&query=${q(spots[0].name)}`
+        return `https://www.google.com/maps/search/?api=1&query=${q(spots[0])}`
     }
-    const origin = q(spots[0].name)
-    const dest   = q(spots[spots.length - 1].name)
+    const origin    = q(spots[0])
+    const dest      = q(spots[spots.length - 1])
     // 中間地点は | で区切る（| 自体はエンコードしない）
-    const waypoints = spots.slice(1, -1).map(s => q(s.name)).join('|')
+    const waypoints = spots.slice(1, -1).map(q).join('|')
     return `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${dest}${waypoints ? `&waypoints=${waypoints}` : ''}`
 }
 

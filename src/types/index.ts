@@ -20,10 +20,11 @@ export interface Spot {
     duration_minutes: number
     type: SpotType
     transport_options?: TransportOption[]  // 移動スポットのみ
-    needs_booking?: boolean       // AI判定: 予約が必要か
-    booking_confirmed?: boolean   // ユーザー設定: 予約済みか
-    memo?: string                 // ユーザーメモ
-    user_links?: string[]         // ユーザー追加リンク（最大5件）
+    address?: string               // AI生成: 住所ヒント（例: "那覇市牧志"）Google Maps検索精度向上に使用
+    needs_booking?: boolean        // AI判定: 予約が必要か
+    booking_confirmed?: boolean    // ユーザー設定: 予約済みか
+    memo?: string                  // ユーザーメモ
+    user_links?: string[]          // ユーザー追加リンク（最大5件）
 }
 
 export interface ItineraryDay {
