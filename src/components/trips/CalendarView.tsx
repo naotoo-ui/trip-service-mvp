@@ -633,7 +633,7 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDr
                                         backgroundColor: hotel ? '#faf5ff' : 'white',
                                         cursor: 'pointer',
                                     }}
-                                    onDoubleClick={() => onDoubleClickHotel?.(hotel, i)}
+                                    onClick={() => onDoubleClickHotel?.(hotel, i)}
                                 >
                                     {hotel ? (
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 4, minHeight: 30 }}>

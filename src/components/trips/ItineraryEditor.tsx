@@ -7,6 +7,7 @@ import FreeBlocksPanel from './FreeBlocksPanel'
 import SpotDetailModal from './SpotDetailModal'
 import HotelDetailModal from './HotelDetailModal'
 import ShareButton from './ShareButton'
+import CopyButton from './CopyButton'
 import { useIsMobile } from '@/hooks/useIsMobile'
 
 function toMins(time: string) { const [h, m] = time.split(':').map(Number); return h * 60 + (m || 0) }
@@ -421,6 +422,7 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
                 {/* 区切り線 */}
                 <div style={{ width: 1, height: 18, backgroundColor: '#d1d5db', flexShrink: 0 }} />
 
+                <CopyButton shareId={trip.share_id} />
                 <ShareButton shareId={trip.share_id} />
             </div>
 

@@ -53,3 +53,24 @@ export async function updateTripItinerary(share_id: string, itinerary: Itinerary
         .eq('share_id', share_id)
     if (error) throw new Error(error.message)
 }
+
+export async function copyTrip(source_share_id: string): Promise<Trip> {
+    const source = await getTripByShareId(source_share_id)
+    if (!source) throw new Error('コピー元の旅程が見つかりません')
+    const new_share_id = generateShareId()
+    const { data, error } = await supabase
+        .from('trips')
+        .insert({
+            share_id: new_share_id,
+            title: `${source.title}（コピー）`,
+            destination: source.destination,
+            duration_days: source.duration_days,
+            wishes: source.wishes,
+            source_url: source.source_url,
+            itinerary: source.itinerary,
+        })
+        .select()
+        .single()
+    if (error) throw new Error(error.message)
+    return data as Trip
+}
