@@ -122,20 +122,37 @@ Claude Code が毎回このファイルを読み込みます。
 
 ### Step 1（実装済み）: Google Maps URL ボタン
 - **場所**: ItineraryEditor のカレンダー上部に横並びの日ごとリンク
-- **仕組み**: `https://www.google.com/maps/dir/スポット名+目的地/スポット名+目的地/...` を生成してタブで開く
+- **仕組み**: `?api=1&origin=...&destination=...&waypoints=...` 形式の Directions URL をタブで開く
 - **APIキー**: 不要
-- **制限**: スポット名の精度依存（地名を付加して緩和）、移動ブロックはURLから除外
+- **スポット精度**: `spot.address`（AI生成住所）があればスポット名＋住所、なければスポット名＋目的地でフォールバック
+- **制限**: 移動ブロックはURLから除外
 
-### Step 2（未着手）: アプリ内埋め込み地図（Leaflet + Nominatim）
+### Step 2（実装済み）: スポット詳細モーダル内 Google Maps 埋め込み
+- **場所**: SpotDetailModal のメモ欄下（移動ブロックは非表示）
+- **仕組み**: `https://maps.google.com/maps?q=スポット名+住所&output=embed&hl=ja&z=16` を iframe で埋め込み
+- **APIキー**: **不要**（非公式 `output=embed` 方式）
+- **費用**: **完全無料**
+- **リスク**: Google が仕様変更した場合に動作しなくなる可能性あり（非公式）
+- **精度**: `spot.address` があればスポット名＋住所、なければスポット名のみ
+
+#### Google Maps 埋め込み方式の比較（参考）
+| 方式 | 費用 | APIキー | 安定性 | 現状 |
+|------|------|---------|--------|------|
+| 非公式 iframe（`output=embed`） | 完全無料 | 不要 | △ 非公式 | ✅ 採用中 |
+| Google Maps Embed API | 無料枠（月28,000回） | 必要（クレカ登録） | ○ 公式 | 将来移行候補 |
+| OpenStreetMap iframe | 完全無料 | 不要 | ○ 公式 | Google Maps より見た目が地味 |
+
+### Step 3（未着手）: アプリ内ルート地図（Leaflet + Nominatim）
+- **目的**: 旅行中の移動フロー（ピン＋矢印）をアプリ内で可視化
 - **ライブラリ**: `leaflet` + `react-leaflet`（OSS、APIキー不要）
 - **ジオコーディング**: Nominatim（OpenStreetMap無料API）でスポット名→緯度経度変換
   - レート制限: 1リクエスト/秒、User-Agentヘッダー必須
-  - 日本語スポット名の精度: やや不安定（英語名も試すとよい）
+  - 日本語スポット名の精度: やや不安定（`spot.address` を活用すると改善）
 - **表示内容**: ピン（スポット）＋矢印（移動順序）、日ごとタブ切替
 - **実装場所案**: 旅程ページに「地図タブ」を追加するか、カレンダー下部に折りたたみ表示
 
-### Step 3（将来）: Google Maps JavaScript API（要APIキー）
-- 精度が必要になったタイミングで移行
+### Step 4（将来）: Google Maps JavaScript API（要APIキー）
+- 精度が最優先になったタイミングで移行
 - 無料枠: $200/月（中規模まで無料で使える）
 
 ---
@@ -376,6 +393,8 @@ AI生成時に移動ブロックを挿入すると、スポットを動かした
 - [x] スポット詳細モーダル（SpotDetailModal）: 種別/所要時間/予約/リンク/メモ/発着時刻/ルートメモ
 - [x] 移動ブロック発着時刻（発変更→着固定/着変更→発固定/所要時間変更→発固定）
 - [x] Google Maps リンク（日ごとの Directions URL ボタン、APIキー不要）
+- [x] スポット詳細モーダルに Google Maps iframe 埋め込み（非公式 output=embed 方式、APIキー不要・完全無料）
+- [x] Spot に address フィールド追加（AI生成、市区町村＋町名レベル）→ Maps 検索精度向上
 - [x] カレンダーのz-index隔離（isolation: isolate）
 - [x] 内部スクロール（overscroll-behavior: contain で連鎖防止）
 - [x] sidebar_spots の DB 保存（itinerary JSONB 内の `sidebar_spots` フィールド）

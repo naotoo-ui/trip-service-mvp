@@ -294,6 +294,23 @@ export default function SpotDetailModal({ spot, onSave, onCancel }: Props) {
                             style={{ ...inputBase, resize: 'none', width: '100%', boxSizing: 'border-box' }}
                         />
                     </div>
+
+                    {/* Google Maps プレビュー（移動ブロック以外）*/}
+                    {!isTransit && (
+                        <div>
+                            <label style={fieldLabel}>地図</label>
+                            <iframe
+                                src={`https://maps.google.com/maps?q=${encodeURIComponent(
+                                    spot.address ? `${spot.name} ${spot.address}` : spot.name
+                                )}&output=embed&hl=ja&z=16`}
+                                width="100%"
+                                height="200"
+                                style={{ border: 0, borderRadius: 8, display: 'block' }}
+                                loading="lazy"
+                                referrerPolicy="no-referrer-when-downgrade"
+                            />
+                        </div>
+                    )}
                 </div>
 
                 {/* フッター */}
