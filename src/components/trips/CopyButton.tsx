@@ -14,13 +14,16 @@ export default function CopyButton({ shareId }: { shareId: string }) {
                 body: JSON.stringify({ share_id: shareId }),
             })
             const text = await res.text()
-            let data: { share_id?: string; error?: string }
+            let data: { share_id?: string; edit_token?: string; error?: string }
             try { data = JSON.parse(text) } catch { throw new Error(`サーバーエラー: ${text.slice(0, 120)}`) }
             if (!res.ok || !data.share_id) throw new Error(data.error ?? 'コピーに失敗しました')
             setStatus('done')
             // 少し待ってからリダイレクト（"完了" を見せる）
+            const target = data.edit_token
+                ? `/trips/${data.share_id}?edit=${data.edit_token}`
+                : `/trips/${data.share_id}`
             setTimeout(() => {
-                window.location.href = `/trips/${data.share_id}`
+                window.location.href = target
             }, 600)
         } catch {
             setStatus('error')

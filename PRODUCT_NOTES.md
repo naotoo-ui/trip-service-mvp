@@ -23,7 +23,10 @@ Claude Code が毎回このファイルを読み込みます。
 | **Phase 1** | MVP（AI生成・保存・共有・URLブログ取込） | ✅完了 |
 | **Phase 2** | 編集UI改善（カレンダー・地図・宿泊・自動保存・タイトル編集） | ✅完了 |
 | **Phase 3** | バイラル・発見（コピー・OGP・/explore・LP強化・モダンUI） | ✅完了 |
-| **Phase 4** | 信頼性・リテンション・成長（分析・認証・権限・SEO・収益化） | 🔨 着手中 |
+| **Phase 4-A** | 信頼性整備（分析・編集権限分離・最近の旅程） | ✅完了 |
+| **Phase 4-B** | リテンション補強（エラー監視・AI品質改善） | ❌未着手 |
+| **Phase 4-C** | 認証・マイページ（Supabase Auth） | ❌未着手 |
+| **Phase 4-D** | 成長と収益化（SEO・アフィリエイト・PWA） | ❌未着手 |
 
 ---
 
@@ -74,67 +77,46 @@ Claude Code が毎回このファイルを読み込みます。
 - [x] グローバルヘッダー（backdrop-blur・グラデーションロゴ・将来のアバター用スロット）
 - [x] フッター（再ナビ・サイト名）
 
-### インフラ
+### インフラ・分析・権限
 - [x] GitHub Actions による Supabase keep-alive（3日ごと定期ping）
+- [x] Vercel Analytics 導入（PV・経路・離脱トラッキング）
+- [x] edit_token による編集権限の分離（閲覧URL ≠ 編集URL）
+- [x] PATCH API で edit_token 検証（403 forbidden）
+- [x] ItineraryEditor の読み取り専用モード（閲覧バナー + コピーCTA）
+- [x] localStorage 「最近の旅程」（最大20件・owner/viewer 区別）
+- [x] ヘッダーに 🕘 最近ボタン（ドロップダウン・編集可/閲覧のみバッジ）
 
 ---
 
 ## 次にやるべきこと — Phase 4 戦略
 
-### 現状の本質的な3つの課題（Phase 1-3 で残った問題）
+### Phase 4-A の3課題は解決済み（2026-05-16）
 
-1. **計測できない** — Vercel Analytics 未導入。PV・離脱箇所・コンバージョン率が見えず、改善の方向性が決められない
-2. **編集が無防備** — share_id を知る人は誰でも編集できる。共有先に勝手に書き換えられるリスク
-3. **ユーザーが消える** — URLを失えば旅程も永遠に消える。認証もリテンションメカニズムもない
+1. ~~計測できない~~ → ✅ Vercel Analytics 導入
+2. ~~編集が無防備~~ → ✅ edit_token による権限分離（要 SQL マイグレーション実行）
+3. ~~ユーザーが消える~~ → ✅ localStorage「最近の旅程」（暫定リテンション）
 
----
+### 🟠 Phase 4-B: 残った信頼性問題（1週間）
 
-### 🔴 Phase 4-A: Pre-Launch Polish（リリース前の必須整備・効果大・工数小）
-
-#### 1. Vercel Analytics 導入（工数: 30分）
-**なぜ最優先か**: 計測がないと、どの施策が効いているか分からない。リリース直後から計測してデータを蓄積すべき。
-
-実装イメージ:
-- `npm i @vercel/analytics`
-- `app/layout.tsx` に `<Analytics />` を追加するだけ
-- 標準で PV・経路・OS・国別が Vercel ダッシュボードで見える
-
-#### 2. 編集権限の分離（工数: 3〜4時間）
-**なぜ必須か**: 現状、share_id を知る人は誰でも編集できる。LINE 等で URL をシェアした瞬間に相手も編集可能になってしまい、安心してシェアできない。
+#### 1. エラー監視（Sentry 無料枠）（工数: 1時間）
+**なぜ必要か**: 本番でAI生成失敗・API timeout が起きても今は何も分からない。Vercel Analytics は PV メインで例外通知は弱い。
 
 実装方針:
-- `trips` テーブルに `edit_token VARCHAR(16)` 追加（既存レコードはバッチで埋める）
-- 編集 URL: `/trips/[share_id]?edit=[token]`、閲覧専用 URL: `/trips/[share_id]`
-- ItineraryEditor の編集機能を `editable` プロップで制御
-- 閲覧モードでも「コピーして自分用に作る」は可能（既存のCopyButtonを活用）
-- 作成者は両 URL を保有、シェア時は閲覧 URL のみを渡す UI に
-
----
-
-### 🟠 Phase 4-B: 信頼性とリテンション暫定対応（1週間）
-
-#### 3. localStorage「最近の旅程」（工数: 2〜3時間）
-**なぜ必要か**: 認証導入前の暫定リテンション解。ブラウザに直近のshare_idを保存し、URLを失っても自分が見た旅程を辿れるようにする。
-
-実装方針:
-- 旅程ページにアクセス時に localStorage に push（最大10件）
-- ヘッダーに「最近見た」ボタン追加 → ドロップダウン or 簡易ページ
-- 認証導入後も補助的に残す
-
-#### 4. エラー監視（Sentry 無料枠）（工数: 1時間）
-**なぜ必要か**: 本番でAI生成失敗・API timeout が起きても今は何も分からない。
-
-実装方針:
-- Sentry の Next.js 自動セットアップ
+- Sentry の Next.js 自動セットアップ（`npx @sentry/wizard@latest -i nextjs`）
 - 無料枠（5K errors/月）で十分
 
-#### 5. AI生成の精度改善（工数: 2〜4時間）
+#### 2. AI生成の精度改善（工数: 2〜4時間）
 **なぜ必要か**: 時々スポット重複・時間矛盾を含む旅程が生成される。プロンプトを強化してから認証を入れる方が完成度が高い。
 
 実装方針:
 - 失敗ケースの収集（Sentry / Analytics から）
 - プロンプトに「時間矛盾を避ける」「同一スポット重複禁止」を明示
 - バリデーション関数の追加（生成後にチェックして再生成）
+
+#### 3. SQL マイグレーション実行（工数: 5分）
+**必須**: `docs/migrations/001_add_edit_token.sql` を Supabase Dashboard で実行する
+- カラム追加だけなら既存旅程の動作には影響なし（後方互換）
+- 既存旅程にもトークンを発行したい場合は2)の UPDATE 文をコメントアウト解除
 
 ---
 
@@ -184,13 +166,13 @@ Claude Code が毎回このファイルを読み込みます。
 
 ---
 
-### 優先度マトリクス（Phase 4）
+### 優先度マトリクス（Phase 4 残り）
 
 | 施策 | 効果 | 工数 | 優先度 |
 |------|------|------|--------|
-| Vercel Analytics 導入 | ◎ 改善の指針 | 極小（30分） | 🔴 即着手 |
-| 編集権限の分離 | ◎ シェア時の安心 | 小（3-4h） | 🔴 即着手 |
-| localStorage 「最近の旅程」 | ○ 暫定リテンション | 小（2-3h） | 🟠 早めに |
+| ✅ Vercel Analytics 導入 | ◎ 改善の指針 | 極小（30分） | 完了 |
+| ✅ 編集権限の分離 | ◎ シェア時の安心 | 小（3-4h） | 完了 |
+| ✅ localStorage 「最近の旅程」 | ○ 暫定リテンション | 小（2-3h） | 完了 |
 | Sentry エラー監視 | ○ 本番品質 | 極小（1h） | 🟠 早めに |
 | AI 精度改善 | ○ プロダクト品質 | 中（2-4h） | 🟠 早めに |
 | Supabase Auth | ◎ 本質的リテンション | 大（1-2d） | 🟢 中期 |
@@ -257,10 +239,13 @@ src/
 │   ├── SpotDetailModal.tsx               # スポット詳細モーダル
 │   ├── HotelDetailModal.tsx              # 宿泊詳細モーダル
 │   ├── TripCard.tsx                      # 旅程カード（/・/explore で共用）
-│   ├── ShareButton.tsx                   # 共有リンクコピー
-│   └── CopyButton.tsx                    # 旅程コピーして派生作成
+│   ├── ShareButton.tsx                   # 共有リンクコピー（閲覧URLのみ）
+│   ├── CopyButton.tsx                    # 旅程コピーして派生作成（edit_token付きURLへ遷移）
+│   ├── TripViewTracker.tsx               # 閲覧履歴をlocalStorageに保存（マウント時）
+│   └── RecentTripsButton.tsx             # ヘッダー🕘最近ボタン（ドロップダウン）
 ├── hooks/
-│   └── useIsMobile.ts                    # window.matchMedia でブレークポイント検知
+│   ├── useIsMobile.ts                    # window.matchMedia でブレークポイント検知
+│   └── useRecentTrips.ts                 # localStorageベース「最近の旅程」フック
 ├── lib/
 │   ├── ai/gemini.ts                      # Gemini API ラッパー
 │   ├── db/trips.ts                       # Supabase CRUD（copyTrip 含む）
@@ -357,6 +342,47 @@ src/
 - サイズ: 1200×630、ランタイム: nodejs
 - デザイン: 青グラデーション背景・旅程タイトル・目的地・日数
 - 自動でメタタグに反映される（明示指定不要）
+
+---
+
+## 編集権限の設計（重要）
+
+### 概念
+- 閲覧URL: `/trips/[share_id]` — 誰でもアクセス可・編集不可
+- 編集URL: `/trips/[share_id]?edit=[edit_token]` — トークン一致で編集可
+- 編集トークン: ランダム32文字、`trips.edit_token` カラムに保存（NULL = レガシー、コードレベルで誰でも編集可）
+
+### 検証経路
+1. **クライアント**: TripPage が `searchParams.edit` を読み取り、`trip.edit_token` と一致するなら `editable=true`
+2. **サーバー**: PATCH /api/trips/[share_id] が body の `edit_token` を `getTripByShareId` の結果と照合、不一致なら 403
+3. **読み取り防止**: GET API は `edit_token` をレスポンスから除外（漏洩防止）
+
+### ItineraryEditor の振る舞い
+- `editable={false}` 時: 閲覧モードバナー表示 + Copy/Share のみ
+- ツールバーの編集系（undo/redo/保存）非表示
+- サイドバー（SuggestedSpots/FreeBlocks）非表示
+- CalendarView の編集コールバックを undefined に
+- タイトル h1 のダブルクリック編集を無効化
+
+### 新規旅程の作成フロー
+1. POST /api/plan or /generate or /scrape → `{share_id, edit_token}` を返す
+2. クライアントは `/trips/{share_id}?edit={edit_token}` へ遷移
+3. TripViewTracker が localStorage に owner として記録
+4. シェア時は ShareButton が読み取り専用URL `/trips/{share_id}` をコピー
+
+### マイグレーション
+`docs/migrations/001_add_edit_token.sql` を Supabase Dashboard で実行する。
+既存旅程は `edit_token IS NULL` のまま誰でも編集可（後方互換）、強化したい場合は UPDATE 文をコメント解除。
+
+---
+
+## localStorage 「最近の旅程」の設計
+
+- キー: `tripgen.recentTrips.v1`、最大20件
+- フォーマット: `RecentTrip[]`（share_id・title・destination・duration_days・role・edit_token?・accessed_at）
+- `role`: `'owner'`（自分が作成 or コピー）= edit_token を保存、`'viewer'`（閲覧のみ）= edit_token なし
+- 既存の owner レコードを viewer で上書きしない（owner 優先）
+- ヘッダー🕘最近ボタンで開閉、外クリック・Escape で閉じる
 
 ---
 

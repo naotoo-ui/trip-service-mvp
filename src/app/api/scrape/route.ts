@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
         const { title, destination, duration_days, itinerary } = await generateTripFromArticle(articleText)
         const trip = await saveTrip({ title, destination, duration_days, source_url: url, itinerary })
 
-        return NextResponse.json({ trip_id: trip.id, share_id: trip.share_id })
+        return NextResponse.json({ trip_id: trip.id, share_id: trip.share_id, edit_token: trip.edit_token })
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
         console.error('scrape error:', message)

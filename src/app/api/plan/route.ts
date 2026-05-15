@@ -39,7 +39,11 @@ export async function POST(req: NextRequest) {
             itinerary: itineraryWithDate,
         })
 
-        return NextResponse.json({ trip_id: trip.id, share_id: trip.share_id })
+        return NextResponse.json({
+            trip_id: trip.id,
+            share_id: trip.share_id,
+            edit_token: trip.edit_token,
+        })
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
         console.error('plan error:', message)

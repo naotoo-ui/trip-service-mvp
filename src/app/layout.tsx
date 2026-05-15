@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next"
 import { Geist } from "next/font/google"
 import Link from "next/link"
+import { Analytics } from '@vercel/analytics/next'
+import RecentTripsButton from '@/components/trips/RecentTripsButton'
 import "./globals.css"
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-geist-sans" })
@@ -56,8 +58,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                                 className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors"
                             >
                                 <span className="text-base leading-none">🔍</span>
-                                <span>探す</span>
+                                <span className="hidden sm:inline">探す</span>
                             </Link>
+                            <RecentTripsButton />
                             <Link
                                 href="/"
                                 className="flex items-center gap-1 px-3 sm:px-4 py-2 rounded-lg text-sm font-semibold text-white whitespace-nowrap shadow-sm hover:shadow-md transition-all"
@@ -76,6 +79,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <main className="flex-1">
                     {children}
                 </main>
+                <Analytics />
                 <footer className="border-t border-gray-200/80 bg-white">
                     <div className="max-w-6xl mx-auto px-4 py-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-gray-500">
                         <div className="flex items-center gap-2">

@@ -53,7 +53,15 @@ function parseStartDate(raw?: string): Date | undefined {
 
 type Snapshot = { days: ItineraryDay[]; sidebarSpots: SidebarSpot[] }
 
-export default function ItineraryEditor({ trip }: { trip: Trip }) {
+export default function ItineraryEditor({
+    trip,
+    editable = false,
+    editToken,
+}: {
+    trip: Trip
+    editable?: boolean
+    editToken?: string
+}) {
     const [days, setDays]             = useState<ItineraryDay[]>(trip.itinerary.days)
     const [history, setHistory]       = useState<Snapshot[]>([])
     const [redoStack, setRedoStack]   = useState<Snapshot[]>([])
@@ -72,6 +80,7 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
 
     // saveToDb を先に定義してから ref に渡す（TDZ回避）
     const saveToDb = useCallback(async () => {
+        if (!editable) return  // 閲覧モードでは保存しない
         setSaveStatus('saving')
         try {
             const itinerary = {
@@ -84,13 +93,13 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
             const res = await fetch(`/api/trips/${trip.share_id}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ itinerary, title }),
+                body: JSON.stringify({ itinerary, title, edit_token: editToken }),
             })
             setSaveStatus(res.ok ? 'saved' : 'unsaved')
         } catch {
             setSaveStatus('unsaved')
         }
-    }, [trip.share_id, trip.itinerary, days, sidebarSpots, title])
+    }, [trip.share_id, trip.itinerary, days, sidebarSpots, title, editable, editToken])
 
     const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const saveToDbRef      = useRef(saveToDb)
@@ -115,6 +124,7 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
 
     // days のみ変更（サイドバーに影響しない操作用）
     function handleUpdateDays(updated: ItineraryDay[]) {
+        if (!editable) return
         setHistory(h => [...h, { days, sidebarSpots }])
         setRedoStack([])
         setDays(updated)
@@ -124,6 +134,7 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
 
     // days + sidebarSpots を同時に変更（両方を undo/redo 対象にする）
     function handleUpdateBoth(updatedDays: ItineraryDay[], updatedSidebar: SidebarSpot[]) {
+        if (!editable) return
         setHistory(h => [...h, { days, sidebarSpots }])
         setRedoStack([])
         setDays(updatedDays)
@@ -242,6 +253,29 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
 
+            {/* ── 閲覧モードバナー ── */}
+            {!editable && (
+                <div style={{
+                    background: 'linear-gradient(90deg, #fef3c7 0%, #fde68a 100%)',
+                    border: '1.5px solid #fcd34d',
+                    borderRadius: 12,
+                    padding: '12px 16px',
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    flexWrap: 'wrap',
+                }}>
+                    <span style={{ fontSize: 20 }}>🔒</span>
+                    <div style={{ flex: 1, minWidth: 200 }}>
+                        <p style={{ fontSize: 13, fontWeight: 700, color: '#78350f', margin: 0 }}>
+                            閲覧モードで表示中
+                        </p>
+                        <p style={{ fontSize: 12, color: '#92400e', margin: '2px 0 0' }}>
+                            この旅程は編集できません。「コピーして使う」で自分用の編集可能なプランを作れます。
+                        </p>
+                    </div>
+                    <CopyButton shareId={trip.share_id} />
+                </div>
+            )}
+
             {/* ── しおり表紙 ── */}
             <div style={{
                 background: 'linear-gradient(135deg, #2563eb 0%, #4338ca 100%)',
@@ -275,11 +309,11 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
                             />
                         ) : (
                             <h1
-                                onDoubleClick={() => setEditingTitle(true)}
-                                title="ダブルクリックで編集"
+                                onDoubleClick={editable ? () => setEditingTitle(true) : undefined}
+                                title={editable ? 'ダブルクリックで編集' : undefined}
                                 style={{
                                     fontSize: isMobile ? 18 : 22, fontWeight: 700, lineHeight: 1.3,
-                                    margin: '0 0 8px', cursor: 'text',
+                                    margin: '0 0 8px', cursor: editable ? 'text' : 'default',
                                 }}
                             >
                                 {title}
@@ -323,60 +357,60 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
                 borderRadius: 12,
                 flexWrap: isMobile ? 'wrap' : 'nowrap',
             }}>
-                {/* 戻るボタン */}
-                <button
-                    type="button"
-                    onClick={undo}
-                    disabled={history.length === 0}
-                    title="一つ前の状態に戻す"
-                    style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 4,
-                        padding: '5px 10px',
-                        border: '1px solid #e5e7eb',
-                        backgroundColor: 'white',
-                        borderRadius: 8,
-                        fontSize: 12,
-                        fontWeight: 500,
-                        color: '#4b5563',
-                        cursor: history.length === 0 ? 'not-allowed' : 'pointer',
-                        opacity: history.length === 0 ? 0.35 : 1,
-                        whiteSpace: 'nowrap',
-                        flexShrink: 0,
-                    }}
-                >
-                    ↩ 戻す
-                </button>
-
-                {/* 進むボタン */}
-                <button
-                    type="button"
-                    onClick={redo}
-                    disabled={redoStack.length === 0}
-                    title="一つ先の状態に進む"
-                    style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 4,
-                        padding: '5px 10px',
-                        border: '1px solid #e5e7eb',
-                        backgroundColor: 'white',
-                        borderRadius: 8,
-                        fontSize: 12,
-                        fontWeight: 500,
-                        color: '#4b5563',
-                        cursor: redoStack.length === 0 ? 'not-allowed' : 'pointer',
-                        opacity: redoStack.length === 0 ? 0.35 : 1,
-                        whiteSpace: 'nowrap',
-                        flexShrink: 0,
-                    }}
-                >
-                    ↪ 進む
-                </button>
-
-                {/* 区切り線（モバイルでは非表示）*/}
-                {!isMobile && <div style={{ width: 1, height: 18, backgroundColor: '#d1d5db', flexShrink: 0 }} />}
+                {/* 編集系ツール（編集モードのみ） */}
+                {editable && (
+                    <>
+                        <button
+                            type="button"
+                            onClick={undo}
+                            disabled={history.length === 0}
+                            title="一つ前の状態に戻す"
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                padding: '5px 10px',
+                                border: '1px solid #e5e7eb',
+                                backgroundColor: 'white',
+                                borderRadius: 8,
+                                fontSize: 12,
+                                fontWeight: 500,
+                                color: '#4b5563',
+                                cursor: history.length === 0 ? 'not-allowed' : 'pointer',
+                                opacity: history.length === 0 ? 0.35 : 1,
+                                whiteSpace: 'nowrap',
+                                flexShrink: 0,
+                            }}
+                        >
+                            ↩ 戻す
+                        </button>
+                        <button
+                            type="button"
+                            onClick={redo}
+                            disabled={redoStack.length === 0}
+                            title="一つ先の状態に進む"
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                padding: '5px 10px',
+                                border: '1px solid #e5e7eb',
+                                backgroundColor: 'white',
+                                borderRadius: 8,
+                                fontSize: 12,
+                                fontWeight: 500,
+                                color: '#4b5563',
+                                cursor: redoStack.length === 0 ? 'not-allowed' : 'pointer',
+                                opacity: redoStack.length === 0 ? 0.35 : 1,
+                                whiteSpace: 'nowrap',
+                                flexShrink: 0,
+                            }}
+                        >
+                            ↪ 進む
+                        </button>
+                        {!isMobile && <div style={{ width: 1, height: 18, backgroundColor: '#d1d5db', flexShrink: 0 }} />}
+                    </>
+                )}
 
                 {/* ズームコントロール（モバイルでは非表示）*/}
                 {!isMobile && <span style={{ fontSize: 11, color: '#9ca3af', whiteSpace: 'nowrap', flexShrink: 0 }}>縦軸</span>}
@@ -435,35 +469,35 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
                 {/* スペーサー */}
                 <div style={{ flex: 1 }} />
 
-                {/* 保存ステータス */}
-                <span style={{ fontSize: 12, color: saveColor, whiteSpace: 'nowrap', flexShrink: 0 }}>
-                    {saveText}
-                </span>
-
-                {/* 保存ボタン */}
-                <button
-                    type="button"
-                    onClick={saveToDb}
-                    disabled={saveStatus === 'saved' || saveStatus === 'saving'}
-                    style={{
-                        padding: '5px 12px',
-                        backgroundColor: saveStatus === 'saved' || saveStatus === 'saving' ? '#d1d5db' : '#2563eb',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: 8,
-                        fontSize: 12,
-                        fontWeight: 600,
-                        cursor: saveStatus === 'saved' || saveStatus === 'saving' ? 'not-allowed' : 'pointer',
-                        whiteSpace: 'nowrap',
-                        flexShrink: 0,
-                        transition: 'background-color 0.15s',
-                    }}
-                >
-                    保存
-                </button>
-
-                {/* 区切り線 */}
-                <div style={{ width: 1, height: 18, backgroundColor: '#d1d5db', flexShrink: 0 }} />
+                {/* 保存ステータス・保存ボタン（編集モードのみ） */}
+                {editable && (
+                    <>
+                        <span style={{ fontSize: 12, color: saveColor, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                            {saveText}
+                        </span>
+                        <button
+                            type="button"
+                            onClick={saveToDb}
+                            disabled={saveStatus === 'saved' || saveStatus === 'saving'}
+                            style={{
+                                padding: '5px 12px',
+                                backgroundColor: saveStatus === 'saved' || saveStatus === 'saving' ? '#d1d5db' : '#2563eb',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: 8,
+                                fontSize: 12,
+                                fontWeight: 600,
+                                cursor: saveStatus === 'saved' || saveStatus === 'saving' ? 'not-allowed' : 'pointer',
+                                whiteSpace: 'nowrap',
+                                flexShrink: 0,
+                                transition: 'background-color 0.15s',
+                            }}
+                        >
+                            保存
+                        </button>
+                        <div style={{ width: 1, height: 18, backgroundColor: '#d1d5db', flexShrink: 0 }} />
+                    </>
+                )}
 
                 <CopyButton shareId={trip.share_id} />
                 <ShareButton shareId={trip.share_id} />
@@ -526,36 +560,40 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
                         startDate={startDate}
                         zoom={zoom}
                         onUpdateDays={handleUpdateDays}
-                        onDropSuggestedSpot={handleDropSuggestedSpot}
-                        onDropFreeBlock={handleDropFreeBlock}
-                        onMoveToSidebar={handleMoveToSidebar}
-                        onDraggingToSidebarChange={v => {
+                        onDropSuggestedSpot={editable ? handleDropSuggestedSpot : undefined}
+                        onDropFreeBlock={editable ? handleDropFreeBlock : undefined}
+                        onMoveToSidebar={editable ? handleMoveToSidebar : undefined}
+                        onDraggingToSidebarChange={editable ? (v => {
                             setReceivingSidebar(v)
                             if (!v) setSidebarInsertHint(null)
-                        }}
-                        onSidebarDragMove={mouseY => setSidebarInsertHint(getInsertIndex(mouseY))}
-                        onDoubleClickSpot={handleDoubleClickSpot}
-                        sidebarRef={sidebarPanelRef}
-                        onDragStart={spot => setDraggingCalendarSpot({ name: spot.name, type: spot.type, duration_minutes: spot.duration_minutes })}
-                        onDragEnd={() => setDraggingCalendarSpot(null)}
-                        onGapClick={(dayIdx, time, duration) => {
+                        }) : undefined}
+                        onSidebarDragMove={editable ? (mouseY => setSidebarInsertHint(getInsertIndex(mouseY))) : undefined}
+                        onDoubleClickSpot={editable ? handleDoubleClickSpot : undefined}
+                        sidebarRef={editable ? sidebarPanelRef : undefined}
+                        onDragStart={editable ? (spot => setDraggingCalendarSpot({ name: spot.name, type: spot.type, duration_minutes: spot.duration_minutes })) : undefined}
+                        onDragEnd={editable ? (() => setDraggingCalendarSpot(null)) : undefined}
+                        onGapClick={editable ? ((dayIdx, time, duration) => {
                             const placeholder: Spot = { time, name: '', description: '', type: '移動', duration_minutes: duration }
                             setEditingSpot({ spot: placeholder, dayIdx, spotIdx: -1 })
-                        }}
-                        onDoubleClickHotel={(hotel, dayIdx) => setEditingHotel({ hotel, dayIdx })}
+                        }) : undefined}
+                        onDoubleClickHotel={editable ? ((hotel, dayIdx) => setEditingHotel({ hotel, dayIdx })) : undefined}
                     />
                 </div>
-                {/* モバイル: カレンダー下にパネルを縦並び表示 */}
-                <div ref={sidebarPanelRef}>
-                    <SuggestedSpotsPanel
-                        spots={sidebarSpots}
-                        isReceiving={receivingSidebar}
-                        insertHint={sidebarInsertHint}
-                        onDelete={idx => handleUpdateBoth(days, sidebarSpots.filter((_, i) => i !== idx))}
-                        previewSpot={receivingSidebar ? draggingCalendarSpot : null}
-                    />
-                </div>
-                {!isMobile && <FreeBlocksPanel />}
+                {/* 編集モードのみサイドバー表示（おすすめスポット・フリーブロック） */}
+                {editable && (
+                    <>
+                        <div ref={sidebarPanelRef}>
+                            <SuggestedSpotsPanel
+                                spots={sidebarSpots}
+                                isReceiving={receivingSidebar}
+                                insertHint={sidebarInsertHint}
+                                onDelete={idx => handleUpdateBoth(days, sidebarSpots.filter((_, i) => i !== idx))}
+                                previewSpot={receivingSidebar ? draggingCalendarSpot : null}
+                            />
+                        </div>
+                        {!isMobile && <FreeBlocksPanel />}
+                    </>
+                )}
             </div>
 
             {/* ── スポット詳細モーダル（ダブルクリックで表示）── */}

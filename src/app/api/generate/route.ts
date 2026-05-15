@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
 
         const trip = await saveTrip({ title, destination, duration_days, wishes, itinerary: itineraryWithDate })
 
-        return NextResponse.json({ trip_id: trip.id, share_id: trip.share_id })
+        return NextResponse.json({ trip_id: trip.id, share_id: trip.share_id, edit_token: trip.edit_token })
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
         console.error('generate error:', message)

@@ -64,6 +64,7 @@ export interface Itinerary {
 export interface Trip {
     id: string
     share_id: string
+    edit_token?: string         // 編集権限トークン（NULL = 旧トリップ・現在は閲覧専用）
     title: string
     destination: string
     duration_days: number
