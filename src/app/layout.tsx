@@ -8,6 +8,17 @@ const geist = Geist({ subsets: ["latin"], variable: "--font-geist-sans" })
 export const metadata: Metadata = {
     title: "旅程ジェネレーター",
     description: "AIが旅行プランを自動で作成します。行き先・日数・やりたいことを入力するか、旅行ブログのURLを貼り付けるだけで旅程を生成します。",
+    metadataBase: new URL(
+        process.env.NEXT_PUBLIC_SITE_URL ?? `https://${process.env.VERCEL_URL ?? 'localhost:3000'}`
+    ),
+    openGraph: {
+        siteName: '旅程ジェネレーター',
+        locale: 'ja_JP',
+        type: 'website',
+    },
+    twitter: {
+        card: 'summary_large_image',
+    },
 }
 
 export const viewport: Viewport = {
