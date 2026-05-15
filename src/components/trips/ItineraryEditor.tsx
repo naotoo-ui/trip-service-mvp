@@ -76,7 +76,16 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
     const [editingSpot, setEditingSpot]   = useState<{ spot: Spot; dayIdx: number; spotIdx: number } | null>(null)
     const [editingHotel, setEditingHotel] = useState<{ hotel: HotelInfo | undefined; dayIdx: number } | null>(null)
     const [draggingCalendarSpot, setDraggingCalendarSpot] = useState<{ name: string; type: SpotType; duration_minutes: number } | null>(null)
+    const [title, setTitle]               = useState(trip.title)
+    const [editingTitle, setEditingTitle] = useState(false)
     const sidebarPanelRef = useRef<HTMLDivElement>(null)
+
+    function commitTitle(value: string) {
+        const trimmed = value.trim() || trip.title
+        setTitle(trimmed)
+        setEditingTitle(false)
+        setSaveStatus('unsaved')
+    }
 
     const saveToDb = useCallback(async () => {
         setSaveStatus('saving')
@@ -91,13 +100,13 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
             const res = await fetch(`/api/trips/${trip.share_id}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ itinerary }),
+                body: JSON.stringify({ itinerary, title }),
             })
             setSaveStatus(res.ok ? 'saved' : 'unsaved')
         } catch {
             setSaveStatus('unsaved')
         }
-    }, [trip.share_id, trip.itinerary, days, sidebarSpots])
+    }, [trip.share_id, trip.itinerary, days, sidebarSpots, title])
 
     // days のみ変更（サイドバーに影響しない操作用）
     function handleUpdateDays(updated: ItineraryDay[]) {
@@ -239,9 +248,36 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
                         <p style={{ fontSize: 10, color: '#bfdbfe', fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', margin: '0 0 6px' }}>
                             Travel Itinerary
                         </p>
-                        <h1 style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700, lineHeight: 1.3, margin: '0 0 8px' }}>
-                            {trip.title}
-                        </h1>
+                        {editingTitle ? (
+                            <input
+                                autoFocus
+                                value={title}
+                                onChange={e => setTitle(e.target.value)}
+                                onBlur={e => commitTitle(e.target.value)}
+                                onKeyDown={e => {
+                                    if (e.key === 'Enter') commitTitle(e.currentTarget.value)
+                                    if (e.key === 'Escape') { setTitle(title); setEditingTitle(false) }
+                                }}
+                                style={{
+                                    fontSize: isMobile ? 18 : 22, fontWeight: 700, lineHeight: 1.3,
+                                    margin: '0 0 8px', width: '100%', background: 'rgba(255,255,255,0.15)',
+                                    border: '1.5px solid rgba(255,255,255,0.5)', borderRadius: 8,
+                                    color: 'white', padding: '2px 8px', outline: 'none',
+                                    fontFamily: 'inherit', boxSizing: 'border-box',
+                                }}
+                            />
+                        ) : (
+                            <h1
+                                onDoubleClick={() => setEditingTitle(true)}
+                                title="ダブルクリックで編集"
+                                style={{
+                                    fontSize: isMobile ? 18 : 22, fontWeight: 700, lineHeight: 1.3,
+                                    margin: '0 0 8px', cursor: 'text',
+                                }}
+                            >
+                                {title}
+                            </h1>
+                        )}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 12, color: '#bfdbfe' }}>
                             <span>📍 {trip.destination}</span>
                             <span style={{ opacity: 0.5 }}>·</span>

@@ -18,9 +18,9 @@ export async function PATCH(
 ) {
     try {
         const { share_id } = await params
-        const { itinerary }: { itinerary: Itinerary } = await req.json()
+        const { itinerary, title }: { itinerary: Itinerary; title?: string } = await req.json()
         if (!itinerary) return NextResponse.json({ error: 'itinerary は必須です' }, { status: 400 })
-        await updateTripItinerary(share_id, itinerary)
+        await updateTripItinerary(share_id, itinerary, title)
         return NextResponse.json({ ok: true })
     } catch (err) {
         return NextResponse.json({ error: '保存に失敗しました' }, { status: 500 })

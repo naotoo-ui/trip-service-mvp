@@ -46,10 +46,12 @@ export async function getRecentTrips(limit = 20): Promise<Trip[]> {
     return data as Trip[]
 }
 
-export async function updateTripItinerary(share_id: string, itinerary: Itinerary): Promise<void> {
+export async function updateTripItinerary(share_id: string, itinerary: Itinerary, title?: string): Promise<void> {
+    const patch: Record<string, unknown> = { itinerary }
+    if (title !== undefined) patch.title = title
     const { error } = await supabase
         .from('trips')
-        .update({ itinerary })
+        .update(patch)
         .eq('share_id', share_id)
     if (error) throw new Error(error.message)
 }
