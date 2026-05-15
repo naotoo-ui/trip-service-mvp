@@ -569,22 +569,29 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDr
                 </div>
             )}
 
-            {/* カレンダー本体（内部スクロールコンテナ・固定高 480px）*/}
+            {/* カレンダー本体（内部スクロールコンテナ・サイドバー高さに合わせて拡大）*/}
             <div
                 ref={containerRef}
                 style={{
                     overflow: 'auto',
                     userSelect: 'none',
-                    height: 480,
+                    height: 'min(720px, calc(100vh - 220px))',
+                    minHeight: 480,
                     overscrollBehavior: 'contain',
                 }}
             >
                 <div style={{ minWidth: minW }}>
 
-                    {/* 列ヘッダー（sticky） */}
+                    {/* 列ヘッダー + 宿泊帯（両方を一括 sticky で固定） */}
                     <div
-                        className="sticky top-0 z-30 bg-white border-b-2 border-gray-200"
-                        style={{ display: 'flex', minWidth: minW }}
+                        style={{
+                            position: 'sticky', top: 0, zIndex: 30,
+                            backgroundColor: 'white',
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.04)',
+                        }}
+                    >
+                    <div
+                        style={{ display: 'flex', minWidth: minW, borderBottom: '2px solid #e5e7eb' }}
                     >
                         <div style={{ width: TIME_COL, flexShrink: 0, borderRight: '1px solid #e2e8f0' }} />
                         {days.map((_, i) => {
@@ -613,7 +620,7 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDr
                     </div>
 
                     {/* 宿泊帯（列ヘッダー直下）*/}
-                    <div style={{ display: 'flex', minWidth: minW, borderBottom: '1px solid #e5e7eb' }}>
+                    <div style={{ display: 'flex', minWidth: minW, borderBottom: '1px solid #e5e7eb', backgroundColor: 'white' }}>
                         <div style={{
                             width: TIME_COL, flexShrink: 0, borderRight: '1px solid #e2e8f0',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -666,6 +673,7 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDr
                             )
                         })}
                     </div>
+                    </div>{/* ← 列ヘッダー＋宿泊帯 sticky ラッパー終了 */}
 
                     {/* グリッド本体 */}
                     <div
