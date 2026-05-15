@@ -40,8 +40,8 @@ interface Props {
 export default function SpotDetailModal({ spot, onSave, onCancel }: Props) {
     const [name, setName]                     = useState(spot.name)
     const [type, setType]                     = useState<SpotType>(spot.type)
-    const [duration, setDuration]             = useState(spot.duration_minutes || 60)
     const [depTime, setDepTime]               = useState(spot.time)
+    const [arrTime, setArrTime]               = useState(toTimeLocal(toMinsLocal(spot.time) + (spot.duration_minutes || 60)))
     const [needsBooking, setNeedsBooking]     = useState(spot.needs_booking ?? false)
     const [bookingConfirmed, setBookingConf]  = useState(spot.booking_confirmed ?? false)
     const [memo, setMemo]                     = useState(spot.memo ?? '')
@@ -50,7 +50,8 @@ export default function SpotDetailModal({ spot, onSave, onCancel }: Props) {
     const st = SPOT_STYLES[type] ?? SPOT_STYLES['その他']
     const isTransit = type === '移動'
     const durStep = isTransit ? 1 : 10
-    const arrTime = toTimeLocal(toMinsLocal(depTime) + duration)
+    // duration は depTime と arrTime から導出。発を変えると所要時間が変わり、着を変えると所要時間が変わる
+    const duration = Math.max(1, toMinsLocal(arrTime) - toMinsLocal(depTime))
 
     function handleSave() {
         const cleanLinks = userLinks.filter(l => l.trim())
@@ -144,7 +145,11 @@ export default function SpotDetailModal({ spot, onSave, onCancel }: Props) {
                                     <input
                                         type="time"
                                         value={depTime}
-                                        onChange={e => { if (e.target.value) setDepTime(e.target.value) }}
+                                        onChange={e => {
+                                            if (!e.target.value) return
+                                            // 発を変更 → 着は固定 → 所要時間が変わる
+                                            setDepTime(e.target.value)
+                                        }}
                                         style={{ ...inputBase, width: 110, fontVariantNumeric: 'tabular-nums' }}
                                     />
                                 </div>
@@ -155,17 +160,15 @@ export default function SpotDetailModal({ spot, onSave, onCancel }: Props) {
                                         type="time"
                                         value={arrTime}
                                         onChange={e => {
-                                            if (!e.target.value) return
-                                            const newArr = toMinsLocal(e.target.value)
-                                            const dep = toMinsLocal(depTime)
-                                            setDuration(Math.max(1, newArr - dep))
+                                            // 着を変更 → 発は固定 → 所要時間が変わる
+                                            if (e.target.value) setArrTime(e.target.value)
                                         }}
                                         style={{ ...inputBase, width: 110, fontVariantNumeric: 'tabular-nums' }}
                                     />
                                 </div>
                             </div>
                             <p style={{ fontSize: 11, color: '#9ca3af', margin: '6px 0 0' }}>
-                                着時刻を変更すると所要時間が自動更新されます
+                                発を変えると着は固定・所要時間が変わります
                             </p>
                         </div>
                     )}
@@ -176,7 +179,11 @@ export default function SpotDetailModal({ spot, onSave, onCancel }: Props) {
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                             <button
                                 type="button"
-                                onClick={() => setDuration(d => Math.max(durStep, d - durStep))}
+                                onClick={() => {
+                                    // 所要時間を減らす → 発は固定 → 着が前にずれる
+                                    const newDur = Math.max(durStep, duration - durStep)
+                                    setArrTime(toTimeLocal(toMinsLocal(depTime) + newDur))
+                                }}
                                 style={{ width: 30, height: 30, border: '1.5px solid #e5e7eb', borderRadius: 8, background: 'white', cursor: 'pointer', fontSize: 15, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
                             >−</button>
                             <input
@@ -187,7 +194,8 @@ export default function SpotDetailModal({ spot, onSave, onCancel }: Props) {
                                 step={durStep}
                                 onChange={e => {
                                     const v = parseInt(e.target.value) || durStep
-                                    setDuration(isTransit ? Math.max(1, v) : Math.max(10, Math.round(v / 10) * 10))
+                                    const newDur = isTransit ? Math.max(1, v) : Math.max(10, Math.round(v / 10) * 10)
+                                    setArrTime(toTimeLocal(toMinsLocal(depTime) + newDur))
                                 }}
                                 style={{
                                     ...inputBase, width: 72, textAlign: 'center',
@@ -196,7 +204,11 @@ export default function SpotDetailModal({ spot, onSave, onCancel }: Props) {
                             />
                             <button
                                 type="button"
-                                onClick={() => setDuration(d => Math.min(1440, d + durStep))}
+                                onClick={() => {
+                                    // 所要時間を増やす → 発は固定 → 着が後ろにずれる
+                                    const newDur = Math.min(1440, duration + durStep)
+                                    setArrTime(toTimeLocal(toMinsLocal(depTime) + newDur))
+                                }}
                                 style={{ width: 30, height: 30, border: '1.5px solid #e5e7eb', borderRadius: 8, background: 'white', cursor: 'pointer', fontSize: 15, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
                             >＋</button>
                             <span style={{ fontSize: 13, color: '#6b7280' }}>分</span>
