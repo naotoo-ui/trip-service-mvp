@@ -27,6 +27,12 @@ body {
 /* ドラッグ中のカーソル */
 [data-dragging="true"] { cursor: grabbing !important; }
 
+/* FAQ details/summary のデフォルトマーカーを非表示 */
+details > summary { list-style: none; }
+details > summary::-webkit-details-marker { display: none; }
+details[open] .faq-toggle::before { content: "−"; }
+details:not([open]) .faq-toggle::before { content: "＋"; }
+
 /* ローディングアニメーション */
 @keyframes spin-ring {
     to { transform: rotate(360deg); }
