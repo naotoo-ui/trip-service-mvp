@@ -31,18 +31,28 @@ export default function RecentTripsButton() {
                 type="button"
                 onClick={() => setOpen(v => !v)}
                 aria-label="最近の旅程"
-                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-colors"
-                style={{ position: 'relative' }}
+                className="nav-hover"
+                style={{
+                    position: 'relative',
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    padding: '8px 12px', borderRadius: 10,
+                    border: 'none', background: 'transparent',
+                    color: '#475569', fontSize: 13, fontWeight: 600,
+                    cursor: 'pointer', whiteSpace: 'nowrap',
+                    transition: 'background 0.15s, color 0.15s',
+                }}
             >
-                <span className="text-base leading-none">🕘</span>
-                <span className="hidden sm:inline">最近</span>
+                <span style={{ fontSize: 14 }}>🕘</span>
+                <span className="nav-label">最近</span>
                 {trips.length > 0 && (
                     <span style={{
-                        position: 'absolute', top: 4, right: 4,
-                        background: '#2563eb', color: 'white',
-                        fontSize: 10, fontWeight: 700,
+                        position: 'absolute', top: 2, right: 2,
+                        background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+                        color: 'white',
+                        fontSize: 9, fontWeight: 800,
                         padding: '1px 5px', borderRadius: 99,
-                        lineHeight: 1.2, minWidth: 16, textAlign: 'center',
+                        lineHeight: 1.3, minWidth: 16, textAlign: 'center',
+                        boxShadow: '0 1px 3px rgba(239,68,68,0.4)',
                     }}>{trips.length > 9 ? '9+' : trips.length}</span>
                 )}
             </button>

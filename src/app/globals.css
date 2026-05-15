@@ -33,6 +33,27 @@ details > summary::-webkit-details-marker { display: none; }
 details[open] .faq-toggle::before { content: "−"; }
 details:not([open]) .faq-toggle::before { content: "＋"; }
 
+/* ヘッダーナビのホバー効果 */
+.nav-hover:hover {
+    background: rgba(15, 23, 42, 0.05);
+    color: #0f172a !important;
+}
+.cta-hover:hover {
+    box-shadow: 0 4px 14px rgba(37, 99, 235, 0.45);
+    transform: translateY(-1px);
+}
+
+/* モバイルではナビラベル・ロゴテキストを隠す（アイコンのみ） */
+@media (max-width: 520px) {
+    .nav-label { display: none; }
+    .logo-text {
+        font-size: 14px !important;
+    }
+}
+@media (max-width: 380px) {
+    .logo-text { display: none; }
+}
+
 /* ローディングアニメーション */
 @keyframes spin-ring {
     to { transform: rotate(360deg); }
