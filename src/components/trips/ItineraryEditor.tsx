@@ -1,5 +1,5 @@
 'use client'
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import type { Trip, ItineraryDay, Spot, SidebarSpot, SpotType, HotelInfo } from '@/types'
 import CalendarView from './CalendarView'
 import SuggestedSpotsPanel from './SuggestedSpotsPanel'
@@ -80,13 +80,7 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
     const [editingTitle, setEditingTitle] = useState(false)
     const sidebarPanelRef = useRef<HTMLDivElement>(null)
 
-    function commitTitle(value: string) {
-        const trimmed = value.trim() || trip.title
-        setTitle(trimmed)
-        setEditingTitle(false)
-        setSaveStatus('unsaved')
-    }
-
+    // saveToDb を先に定義してから ref に渡す（TDZ回避）
     const saveToDb = useCallback(async () => {
         setSaveStatus('saving')
         try {
@@ -108,12 +102,34 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
         }
     }, [trip.share_id, trip.itinerary, days, sidebarSpots, title])
 
+    const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const saveToDbRef      = useRef(saveToDb)
+    useEffect(() => { saveToDbRef.current = saveToDb }, [saveToDb])
+    useEffect(() => () => { if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current) }, [])
+
+    function scheduleAutoSave() {
+        if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current)
+        autoSaveTimerRef.current = setTimeout(() => {
+            saveToDbRef.current()
+            autoSaveTimerRef.current = null
+        }, 3000)
+    }
+
+    function commitTitle(value: string) {
+        const trimmed = value.trim() || trip.title
+        setTitle(trimmed)
+        setEditingTitle(false)
+        setSaveStatus('unsaved')
+        scheduleAutoSave()
+    }
+
     // days のみ変更（サイドバーに影響しない操作用）
     function handleUpdateDays(updated: ItineraryDay[]) {
         setHistory(h => [...h, { days, sidebarSpots }])
         setRedoStack([])
         setDays(updated)
         setSaveStatus('unsaved')
+        scheduleAutoSave()
     }
 
     // days + sidebarSpots を同時に変更（両方を undo/redo 対象にする）
@@ -123,6 +139,7 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
         setDays(updatedDays)
         setSidebarSpots(updatedSidebar)
         setSaveStatus('unsaved')
+        scheduleAutoSave()
     }
 
     function undo() {
