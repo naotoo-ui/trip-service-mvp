@@ -31,12 +31,15 @@ interface Props {
 export default function SpotDetailModal({ spot, onSave, onCancel }: Props) {
     const [name, setName]                     = useState(spot.name)
     const [type, setType]                     = useState<SpotType>(spot.type)
+    const [duration, setDuration]             = useState(spot.duration_minutes || 60)
     const [needsBooking, setNeedsBooking]     = useState(spot.needs_booking ?? false)
     const [bookingConfirmed, setBookingConf]  = useState(spot.booking_confirmed ?? false)
     const [memo, setMemo]                     = useState(spot.memo ?? '')
     const [userLinks, setUserLinks]           = useState<string[]>(spot.user_links ?? [])
 
     const st = SPOT_STYLES[type] ?? SPOT_STYLES['その他']
+    const isTransit = type === '移動'
+    const durStep = isTransit ? 1 : 10
 
     function handleSave() {
         const cleanLinks = userLinks.filter(l => l.trim())
@@ -44,6 +47,7 @@ export default function SpotDetailModal({ spot, onSave, onCancel }: Props) {
             ...spot,
             name: name.trim() || spot.name,
             type,
+            duration_minutes: duration,
             needs_booking: needsBooking || undefined,
             booking_confirmed: bookingConfirmed || undefined,
             memo: memo.trim() || undefined,
@@ -113,6 +117,42 @@ export default function SpotDetailModal({ spot, onSave, onCancel }: Props) {
                                     }}>{t}</button>
                                 )
                             })}
+                        </div>
+                    </div>
+
+                    {/* 所要時間 */}
+                    <div>
+                        <label style={fieldLabel}>所要時間</label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <button
+                                type="button"
+                                onClick={() => setDuration(d => Math.max(durStep, d - durStep))}
+                                style={{ width: 30, height: 30, border: '1.5px solid #e5e7eb', borderRadius: 8, background: 'white', cursor: 'pointer', fontSize: 15, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                            >−</button>
+                            <input
+                                type="number"
+                                value={duration}
+                                min={isTransit ? 1 : 10}
+                                max={1440}
+                                step={durStep}
+                                onChange={e => {
+                                    const v = parseInt(e.target.value) || durStep
+                                    setDuration(isTransit ? Math.max(1, v) : Math.max(10, Math.round(v / 10) * 10))
+                                }}
+                                style={{
+                                    ...inputBase, width: 72, textAlign: 'center',
+                                    fontVariantNumeric: 'tabular-nums', fontWeight: 600,
+                                }}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setDuration(d => Math.min(1440, d + durStep))}
+                                style={{ width: 30, height: 30, border: '1.5px solid #e5e7eb', borderRadius: 8, background: 'white', cursor: 'pointer', fontSize: 15, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                            >＋</button>
+                            <span style={{ fontSize: 13, color: '#6b7280' }}>分</span>
+                            {isTransit && (
+                                <span style={{ fontSize: 11, color: '#9ca3af' }}>（1分単位）</span>
+                            )}
                         </div>
                     </div>
 

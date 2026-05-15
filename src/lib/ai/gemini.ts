@@ -44,16 +44,15 @@ export function buildGeneratePrompt(input: GenerateInput): string {
 交通手段ヒント: ${styleHint}
 
 ルール:
-- 各日に観光・グルメスポット3〜4件（移動スポット含まず）
-- 隣接スポット間には必ず移動スポット（"A → B" 形式）を挿入
-- 移動スポットのtransport_optionsは推奨1件＋代替1件の計2件
+- 各日に観光・グルメスポット3〜5件
+- 移動時間を考慮してスポット間に十分な空き時間を設ける（移動ブロックは生成しない）
 - 8〜9時スタート、実在する店名・スポット名を使用
 - trip_styleは一貫させる
 
 出力フォーマット:
-{"title":"...","trip_style":"rental_car","trip_style_reason":"...","days":[{"day":1,"label":"1日目","spots":[{"time":"09:00","name":"...","description":"...","duration_minutes":60,"type":"観光","transport_options":[]},{"time":"10:30","name":"A → B","description":"...","duration_minutes":30,"type":"移動","transport_options":[{"mode":"レンタカー","duration_minutes":30,"note":"...","recommended":true},{"mode":"タクシー","duration_minutes":35,"note":"..."}]}]}]}
+{"title":"...","trip_style":"rental_car","trip_style_reason":"...","days":[{"day":1,"label":"1日目","spots":[{"time":"09:00","name":"...","description":"...","duration_minutes":60,"type":"観光"},{"time":"11:00","name":"...","description":"...","duration_minutes":90,"type":"グルメ"}]}]}
 
-typeは「観光」「グルメ」「移動」「宿泊」「その他」のいずれか。`
+typeは「観光」「グルメ」「宿泊」「その他」のいずれか（移動は含めない）。`
 }
 
 export function buildScrapePrompt(articleText: string): string {
@@ -65,13 +64,12 @@ ${articleText.slice(0, 6000)}
 ルール:
 - 記事のスポット・飲食店・宿泊先を忠実に抽出
 - 記事の交通手段をtrip_styleに反映
-- 隣接スポット間に移動スポット（"A → B"形式）を挿入
-- transport_optionsは推奨1件＋代替1件
+- 移動時間を考慮してスポット間に十分な空き時間を設ける（移動ブロックは生成しない）
 
 出力フォーマット:
-{"title":"...","destination":"...","duration_days":3,"trip_style":"rental_car","trip_style_reason":"...","days":[{"day":1,"label":"1日目","spots":[{"time":"09:00","name":"...","description":"...","duration_minutes":60,"type":"観光","transport_options":[]},{"time":"10:00","name":"A → B","description":"...","duration_minutes":30,"type":"移動","transport_options":[{"mode":"レンタカー","duration_minutes":30,"note":"...","recommended":true},{"mode":"タクシー","duration_minutes":35,"note":"..."}]}]}]}
+{"title":"...","destination":"...","duration_days":3,"trip_style":"rental_car","trip_style_reason":"...","days":[{"day":1,"label":"1日目","spots":[{"time":"09:00","name":"...","description":"...","duration_minutes":60,"type":"観光"},{"time":"11:00","name":"...","description":"...","duration_minutes":90,"type":"グルメ"}]}]}
 
-typeは「観光」「グルメ」「移動」「宿泊」「その他」のいずれか。`
+typeは「観光」「グルメ」「宿泊」「その他」のいずれか（移動は含めない）。`
 }
 
 export function parseTripJson(raw: string): {
@@ -132,9 +130,8 @@ ${metaLines ? `補足: ${metaLines}` : ''}
 ${articleSection}
 
 ルール:
-- 各日に観光・グルメスポット3〜4件（移動スポット含まず）
-- 隣接スポット間には必ず移動スポット（"A → B" 形式）を挿入
-- 移動スポットのtransport_optionsは推奨1件＋代替1件の計2件
+- 各日に観光・グルメスポット3〜5件
+- 移動時間を考慮してスポット間に十分な空き時間を設ける（移動ブロックは生成しない）
 - 8〜9時スタート、実在する店名・スポット名を使用
 - trip_styleは一貫させる
 - 参考記事がある場合、記事に記載されたスポットを積極的に活用
@@ -143,9 +140,9 @@ ${articleSection}
 - 予約が必要なスポット（人気観光地・レストラン・体験アクティビティ・チケット制施設等）にはneeds_booking:trueを付与（不要なら省略）
 
 出力フォーマット:
-{"title":"...","trip_style":"rental_car","trip_style_reason":"...","days":[{"day":1,"label":"1日目","spots":[{"time":"09:00","name":"...","description":"...","duration_minutes":60,"type":"観光","needs_booking":true,"transport_options":[]},{"time":"10:30","name":"A → B","description":"...","duration_minutes":30,"type":"移動","transport_options":[{"mode":"レンタカー","duration_minutes":30,"note":"...","recommended":true},{"mode":"タクシー","duration_minutes":35,"note":"..."}]}]}],"sidebar_spots":[{"name":"...","description":"...","type":"観光","duration_minutes":90,"popularity":4}]}
+{"title":"...","trip_style":"rental_car","trip_style_reason":"...","days":[{"day":1,"label":"1日目","spots":[{"time":"09:00","name":"...","description":"...","duration_minutes":60,"type":"観光","needs_booking":true},{"time":"11:00","name":"...","description":"...","duration_minutes":90,"type":"グルメ"}]}],"sidebar_spots":[{"name":"...","description":"...","type":"観光","duration_minutes":90,"popularity":4}]}
 
-typeは「観光」「グルメ」「移動」「宿泊」「その他」のいずれか。`
+typeは「観光」「グルメ」「宿泊」「その他」のいずれか（移動は含めない）。`
 }
 
 export async function generateTripFromPlan(

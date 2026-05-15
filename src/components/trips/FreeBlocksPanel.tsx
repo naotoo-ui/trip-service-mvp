@@ -2,6 +2,7 @@
 import type { SpotType } from '@/types'
 
 const BLOCK_TYPES: { type: SpotType; label: string; accent: string; bg: string; border: string }[] = [
+    { type: '移動' as SpotType, label: '移動 🚌', accent: '#94a3b8', bg: '#f8fafc', border: '#e2e8f0' },
     { type: '観光',   label: '観光',   accent: '#2563eb', bg: '#eff6ff', border: '#bfdbfe' },
     { type: 'グルメ', label: 'グルメ', accent: '#ea580c', bg: '#fff7ed', border: '#fed7aa' },
     { type: '宿泊',   label: '宿泊',   accent: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe' },

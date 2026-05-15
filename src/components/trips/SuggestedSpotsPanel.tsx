@@ -1,6 +1,7 @@
 'use client'
 import React from 'react'
 import type { SidebarSpot, SpotType } from '@/types'
+import { useIsMobile } from '@/hooks/useIsMobile'
 
 const SPOT_STYLES: Record<SpotType, { accent: string; bg: string; border: string; text: string }> = {
     観光:   { accent: '#2563eb', bg: '#eff6ff', border: '#bfdbfe', text: '#1d4ed8' },
@@ -33,11 +34,11 @@ const InsertLine = () => (
     <div style={{ height: 3, backgroundColor: '#2563eb', borderRadius: 2, margin: '0 4px', flexShrink: 0 }} />
 )
 
-function PreviewSpotCard({ spot }: { spot: PreviewSpot }) {
+function PreviewSpotCard({ spot, compact }: { spot: PreviewSpot; compact?: boolean }) {
     const st = SPOT_STYLES[spot.type] ?? SPOT_STYLES['その他']
     return (
         <div style={{
-            padding: '7px 8px',
+            padding: compact ? '6px 8px' : '7px 8px',
             borderRadius: 8,
             border: `2px dashed ${st.accent}`,
             backgroundColor: st.bg,
@@ -47,6 +48,7 @@ function PreviewSpotCard({ spot }: { spot: PreviewSpot }) {
             alignItems: 'flex-start',
             pointerEvents: 'none',
             flexShrink: 0,
+            width: compact ? 110 : undefined,
         }}>
             <div style={{ width: 3, minHeight: 28, borderRadius: 2, backgroundColor: st.accent, flexShrink: 0, marginTop: 1 }} />
             <div style={{ minWidth: 0, flex: 1 }}>
@@ -58,6 +60,85 @@ function PreviewSpotCard({ spot }: { spot: PreviewSpot }) {
 }
 
 export default function SuggestedSpotsPanel({ spots, isReceiving, insertHint, onDelete, previewSpot }: Props) {
+    const isMobile = useIsMobile()
+
+    if (isMobile) {
+        // モバイル: 横スクロールの水平リスト
+        return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <p style={{ fontSize: 10, fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.08em', margin: 0 }}>
+                    おすすめスポット
+                </p>
+                {spots.length === 0 ? (
+                    <p style={{ fontSize: 11, color: '#d1d5db', margin: 0 }}>
+                        旅程生成時に候補スポットが表示されます
+                    </p>
+                ) : (
+                    <div style={{
+                        display: 'flex', flexDirection: 'row', gap: 8,
+                        overflowX: 'auto', paddingBottom: 4,
+                        scrollbarWidth: 'none',
+                    }}>
+                        {spots.map((spot, i) => {
+                            const st = SPOT_STYLES[spot.type] ?? SPOT_STYLES['その他']
+                            return (
+                                <div
+                                    key={i}
+                                    data-spot-idx={i}
+                                    draggable
+                                    onDragStart={e => {
+                                        e.dataTransfer.setData('application/json', JSON.stringify({ source: 'suggested', spot, idx: i }))
+                                        e.dataTransfer.effectAllowed = 'copy'
+                                    }}
+                                    style={{
+                                        padding: '8px 10px',
+                                        borderRadius: 10,
+                                        border: `1px solid ${st.border}`,
+                                        backgroundColor: st.bg,
+                                        cursor: 'grab',
+                                        userSelect: 'none',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        gap: 4,
+                                        position: 'relative',
+                                        flexShrink: 0,
+                                        width: 120,
+                                    }}
+                                >
+                                    <div style={{ display: 'flex', gap: 5, alignItems: 'flex-start' }}>
+                                        <div style={{ width: 3, minHeight: 28, borderRadius: 2, backgroundColor: st.accent, flexShrink: 0, marginTop: 1 }} />
+                                        <div style={{ minWidth: 0, flex: 1 }}>
+                                            <p style={{ fontSize: 11, fontWeight: 600, color: st.text, margin: 0, lineHeight: 1.3, wordBreak: 'break-all', paddingRight: 14 }}>{spot.name}</p>
+                                            <Stars n={spot.popularity} />
+                                            <p style={{ fontSize: 10, color: '#9ca3af', margin: '2px 0 0' }}>{spot.duration_minutes}分</p>
+                                        </div>
+                                    </div>
+                                    {onDelete && (
+                                        <button
+                                            type="button"
+                                            onClick={e => { e.stopPropagation(); onDelete(i) }}
+                                            style={{
+                                                position: 'absolute', top: 4, right: 4,
+                                                width: 16, height: 16,
+                                                border: 'none', borderRadius: 3,
+                                                background: 'rgba(0,0,0,0.15)',
+                                                color: '#6b7280', fontSize: 11,
+                                                cursor: 'pointer', lineHeight: 1,
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                padding: 0,
+                                            }}
+                                        >×</button>
+                                    )}
+                                </div>
+                            )
+                        })}
+                    </div>
+                )}
+            </div>
+        )
+    }
+
+    // デスクトップ: 縦リスト（従来通り）
     return (
         <div style={{
             width: 168,

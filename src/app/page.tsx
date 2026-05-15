@@ -22,13 +22,13 @@ export default function Home() {
             </section>
 
             {/* フォームカード */}
-            <section style={{ maxWidth: 680, margin: '-48px auto 0', padding: '0 16px' }}>
+            <section style={{ maxWidth: 680, margin: '-48px auto 0', padding: '0 12px' }}>
                 <div style={{
                     background: 'white',
                     borderRadius: 20,
                     boxShadow: '0 4px 24px rgba(0,0,0,0.10)',
                     border: '1px solid #f0f0f0',
-                    padding: '28px 28px 32px',
+                    padding: '20px 16px 24px',
                 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 22 }}>
                         <span style={{ fontSize: 24 }}>🗺️</span>
