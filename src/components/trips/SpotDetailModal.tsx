@@ -303,9 +303,7 @@ export default function SpotDetailModal({ spot, onSave, onCancel }: Props) {
                                 src={`https://maps.google.com/maps?q=${encodeURIComponent(
                                     spot.address ? `${spot.name} ${spot.address}` : spot.name
                                 )}&output=embed&hl=ja&z=16`}
-                                width="100%"
-                                height="200"
-                                style={{ border: 0, borderRadius: 8, display: 'block' }}
+                                style={{ border: 0, borderRadius: 8, display: 'block', width: '100%', aspectRatio: '1 / 1' }}
                                 loading="lazy"
                                 referrerPolicy="no-referrer-when-downgrade"
                             />
