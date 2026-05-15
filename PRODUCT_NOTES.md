@@ -9,7 +9,7 @@ Claude Code が毎回このファイルを読み込みます。
 **旅行プランAIジェネレーター** — 条件（目的地・日数・希望など）や参考URLを入力すると、AIがリアルな旅程をJSON形式で生成し、カレンダービューで可視化・編集できるWebサービス。
 
 - **Vercel** にデプロイ済み（GitHub push で自動デプロイ）
-- **スタック**: Next.js 15 App Router / TypeScript / Tailwind CSS v4 / Supabase(PostgreSQL) / Google Gemini API
+- **スタック**: Next.js 16 App Router / TypeScript / Tailwind CSS v4 / Supabase(PostgreSQL) / Google Gemini API
 - **AI モデル**: `gemini-2.5-flash-lite`（maxOutputTokens: 8192）
 - **DB**: Supabase、RLS有効、`trips` テーブル（id, share_id, title, destination, duration_days, wishes, source_url, itinerary(JSONB), created_at）
 - **認証**: なし（share_id による URL 共有のみ）
@@ -21,20 +21,25 @@ Claude Code が毎回このファイルを読み込みます。
 | フェーズ | 内容 | 状態 |
 |---------|------|------|
 | **Phase 1** | MVP（AI生成・保存・共有・URLブログ取込） | ✅完了 |
-| **Phase 2** | 初期改善（編集UI・地図・宿泊管理・自動保存・タイトル編集） | ✅完了 |
-| **Phase 3** | バイラル・発見（コピー・OGP・/explore・LP強化） | ✅完了 |
-| **Phase 4〜** | UX強化（認証・SEOページ・収益化） | ❌未着手 |
+| **Phase 2** | 編集UI改善（カレンダー・地図・宿泊・自動保存・タイトル編集） | ✅完了 |
+| **Phase 3** | バイラル・発見（コピー・OGP・/explore・LP強化・モダンUI） | ✅完了 |
+| **Phase 4** | 信頼性・リテンション・成長（分析・認証・権限・SEO・収益化） | 🔨 着手中 |
 
 ---
 
 ## 実装済み機能（完全リスト）
 
-- [x] 統合フォーム（PlanForm）: 目的地複数・URL最大5本・人数・グループ種別・日程ピッカーなど
+### 生成・保存
+- [x] 統合フォーム（PlanForm）: 目的地複数・URL最大5本・人数・グループ種別・日程ピッカー
 - [x] URL複数並行スクレイプ（Promise.allSettled、失敗URL無視）
 - [x] 条件→AI旅程生成（gemini-2.5-flash-lite）
 - [x] URLスクレイプ→AI旅程生成
-- [x] AI生成中ローディングオーバーレイ（GeneratingOverlay: スピナー+ステップ進行+ヒント）
-- [x] Outlookスタイルカレンダービュー（固定高さ480px・内部スクロール）
+- [x] AI生成中ローディングオーバーレイ（スピナー+ステップ進行+ヒント）
+- [x] 旅程の自動保存（編集停止から3秒後にバックグラウンド保存・debounce）
+- [x] 旅程の手動保存（Supabase PATCH・即時）
+
+### 編集・カレンダー
+- [x] Outlookスタイルカレンダービュー（固定480px・内部スクロール）
 - [x] ドラッグ移動（同日/他日）+ リサイズ（cascade push）+ ドラッグゴースト
 - [x] タッチドラッグ対応・モバイル1日表示（‹ 前日 / 翌日 › ナビ）
 - [x] スポット色分け（観光=青/グルメ=オレンジ/移動=グレー/宿泊=紫/その他=緑）
@@ -43,118 +48,128 @@ Claude Code が毎回このファイルを読み込みます。
 - [x] 移動ブロック: 発着時刻入力・ルートメモ・1分単位所要時間
 - [x] Undo / Redo（days + sidebarSpots の完全 Snapshot 方式）
 - [x] ズームコントロール（横ツールバーに統合）
-- [x] 旅程の手動保存（Supabase PATCH）
-- [x] share_id による URL 共有（ツールバー内 ShareButton）
-- [x] おすすめスポットパネル（SuggestedSpotsPanel）: カレンダー↔双方向ドラッグ
-- [x] フリーブロックパネル（FreeBlocksPanel）: 型タグをドラッグしてカレンダーに配置
-- [x] スポット詳細モーダル（SpotDetailModal）: 種別/所要時間/予約/リンク/メモ/発着時刻/Google Maps
-- [x] Spot に address フィールド（AI生成、市区町村＋町名レベル）→ Maps 検索精度向上
+- [x] おすすめスポットパネル（カレンダー↔双方向ドラッグ）
+- [x] フリーブロックパネル（型タグをドラッグしてカレンダーに配置）
+- [x] スポット詳細モーダル: 種別/所要時間/予約/リンク/メモ/発着時刻/Google Maps
+- [x] 旅程タイトルのインライン編集（ダブルクリックで input 化）
+
+### 地図・宿泊
+- [x] Spot に address フィールド（AI生成・市区町村＋町名）→ Maps 検索精度向上
 - [x] Google Maps リンク（日ごとの Directions URL ボタン、APIキー不要）
-- [x] スポット詳細モーダルに Google Maps iframe 埋め込み（非公式 output=embed 方式）
+- [x] スポット詳細モーダル・宿泊モーダルに Google Maps iframe 埋め込み（非公式 output=embed）
 - [x] カレンダー宿泊帯（列ヘッダー直下・シングルクリックでモーダル）
-- [x] HotelDetailModal: 住所/CI-CO時刻/料金/予約URL/メモ/Google Maps iframe
-- [x] GitHub Actions による Supabase keep-alive（3日ごと定期ping）
+- [x] HotelDetailModal: 住所/CI-CO時刻/料金/予約URL/メモ/Maps
+
+### バイラル・発見
+- [x] share_id による URL 共有（ShareButton）
 - [x] 旅程コピー機能（POST /api/trips/copy → 新 share_id で複製）
 - [x] OGP 設定（動的 og 画像生成・Twitter/LINE プレビュー対応）
-- [x] 旅程タイトルのインライン編集（ダブルクリックで input 化）
-- [x] 自動保存（編集停止から3秒後にバックグラウンド保存・debounce）
-- [x] /explore ページ（旅程発見ページ・カードグリッド・新着表示）
-- [x] LP強化（ヒーロー指標・みんなのプラン・最終CTA・ナビ整理）
+- [x] /explore ページ（旅程発見・カードグリッド・新着表示）
+
+### LP・UI
+- [x] モダンランディングページ（ヒーロー統合フォーム・指標バッジ・How it works）
+- [x] Features セクション（6機能の説明）
+- [x] FAQ セクション（4問・details/summary）
+- [x] 最終CTA（二段ボタン）
+- [x] グローバルヘッダー（backdrop-blur・グラデーションロゴ・将来のアバター用スロット）
+- [x] フッター（再ナビ・サイト名）
+
+### インフラ
+- [x] GitHub Actions による Supabase keep-alive（3日ごと定期ping）
 
 ---
 
-## 次にやるべきこと — リリース戦略の深考察
+## 次にやるべきこと — Phase 4 戦略
 
-### 現状の本質的な問題
+### 現状の本質的な3つの課題（Phase 1-3 で残った問題）
 
-現時点では「使えるプロダクト」にはなっているが、**以下の3つの欠陥がある**：
-
-1. **発見できない** — URL を知っている人しか使えない。Google 検索にも出ない
-2. **バイラルしない** — シェアされても見た人が何もできない（コピーして自分用にできない）
-3. **ユーザーが消える** — アカウントなし → URLを失えば旅程も消える → リテンションゼロ
-
-これらを解決しないと、友人に紹介しても広がらない。
+1. **計測できない** — Vercel Analytics 未導入。PV・離脱箇所・コンバージョン率が見えず、改善の方向性が決められない
+2. **編集が無防備** — share_id を知る人は誰でも編集できる。共有先に勝手に書き換えられるリスク
+3. **ユーザーが消える** — URLを失えば旅程も永遠に消える。認証もリテンションメカニズムもない
 
 ---
 
-### 🔴 最優先: リリース前に必ずやること（効果大・工数小）
+### 🔴 Phase 4-A: Pre-Launch Polish（リリース前の必須整備・効果大・工数小）
 
-#### 1. 旅程コピー機能（工数: 2〜3時間）
-**なぜ最優先か**: 共有URLを受け取った人が「このプランいいな → 自分用にカスタマイズしたい」と思った瞬間が最大の獲得チャンス。今はそのまま使えない。
+#### 1. Vercel Analytics 導入（工数: 30分）
+**なぜ最優先か**: 計測がないと、どの施策が効いているか分からない。リリース直後から計測してデータを蓄積すべき。
 
 実装イメージ:
-- 旅程詳細ページに「このプランをコピーして使う」ボタンを追加
-- POST /api/trips/copy → 同じ itinerary で新しい share_id を発行 → 新しいページに遷移
-- コピー元の share_id を `source_trip_id` として記録するとバイラル分析にも使える
+- `npm i @vercel/analytics`
+- `app/layout.tsx` に `<Analytics />` を追加するだけ
+- 標準で PV・経路・OS・国別が Vercel ダッシュボードで見える
 
-#### 2. OGP（SNSシェア画像）の設定（工数: 1〜2時間）
-**なぜ必須か**: LINE・Twitter でシェアした時にリンクプレビューが表示されないと、クリック率が激減する。旅行プランのシェアは LINE が主流（日本）。
+#### 2. 編集権限の分離（工数: 3〜4時間）
+**なぜ必須か**: 現状、share_id を知る人は誰でも編集できる。LINE 等で URL をシェアした瞬間に相手も編集可能になってしまい、安心してシェアできない。
 
-実装イメージ:
-- `trips/[id]/page.tsx` に `generateMetadata()` を追加
-- `og:title`: 旅程タイトル、`og:description`: 「${目的地} ${日数}日間の旅程プラン」
-- 画像は静的OGP（`/og-default.png`）で十分。余裕があれば satori で動的生成も可
-
-```typescript
-export async function generateMetadata({ params }) {
-    const trip = await getTripByShareId(id)
-    return {
-        title: `${trip.title} | TripService`,
-        description: `${trip.destination} ${trip.duration_days}日間の旅程プランです`,
-        openGraph: { title: ..., description: ..., images: ['/og-default.png'] },
-    }
-}
-```
+実装方針:
+- `trips` テーブルに `edit_token VARCHAR(16)` 追加（既存レコードはバッチで埋める）
+- 編集 URL: `/trips/[share_id]?edit=[token]`、閲覧専用 URL: `/trips/[share_id]`
+- ItineraryEditor の編集機能を `editable` プロップで制御
+- 閲覧モードでも「コピーして自分用に作る」は可能（既存のCopyButtonを活用）
+- 作成者は両 URL を保有、シェア時は閲覧 URL のみを渡す UI に
 
 ---
 
-### 🟠 リリース直後に着手すること（効果大・工数中）
+### 🟠 Phase 4-B: 信頼性とリテンション暫定対応（1週間）
 
-#### 3. 旅程一覧・発見ページ /explore（工数: 4〜6時間）
-**なぜ必要か**: SEO流入・口コミ流入の受け皿。「沖縄旅行 プラン」で検索した人がトップページでなく実際の旅程例を見られれば、価値が即座に伝わる。
-
-実装方針（DB変更なしで始める）:
-- `trips` テーブルに `is_public boolean default true` を追加（初期は全公開）
-- `/explore` ページで最新20件を表示（destination・duration_days・title だけ表示）
-- カード形式: 🗼 東京 3日間 / 「家族で楽しむ東京観光プラン」
-- 将来的にタグ・人気順・検索機能を足す
-
-#### 4. 自動保存（工数: 2〜3時間）
-**なぜ必要か**: 現在の手動保存では、編集中にタブを閉じると変更が消える。ユーザーが怖くて積極的に編集できない。
+#### 3. localStorage「最近の旅程」（工数: 2〜3時間）
+**なぜ必要か**: 認証導入前の暫定リテンション解。ブラウザに直近のshare_idを保存し、URLを失っても自分が見た旅程を辿れるようにする。
 
 実装方針:
-- `saveStatus === 'unsaved'` になってから 3秒後に自動で `saveToDb()` を実行（debounce）
-- ツールバーの「保存ボタン」は残す（即時保存の手段として）
+- 旅程ページにアクセス時に localStorage に push（最大10件）
+- ヘッダーに「最近見た」ボタン追加 → ドロップダウン or 簡易ページ
+- 認証導入後も補助的に残す
 
-#### 5. ランディングページの強化（工数: 3〜4時間）
-**なぜ必要か**: 現状のトップページはフォームだけ。初めて来た人が「何ができるのか」を 3秒で理解できない。
+#### 4. エラー監視（Sentry 無料枠）（工数: 1時間）
+**なぜ必要か**: 本番でAI生成失敗・API timeout が起きても今は何も分からない。
 
 実装方針:
-- フォームの上に「30秒で旅程が完成する」キャッチコピー + サンプル旅程のスクリーンショット
-- /explore の人気プランを 3〜5件 ピックアップして表示
-- ステップ説明: ① 目的地・日数を入力 → ② AIが旅程生成 → ③ カレンダーで編集・共有
+- Sentry の Next.js 自動セットアップ
+- 無料枠（5K errors/月）で十分
+
+#### 5. AI生成の精度改善（工数: 2〜4時間）
+**なぜ必要か**: 時々スポット重複・時間矛盾を含む旅程が生成される。プロンプトを強化してから認証を入れる方が完成度が高い。
+
+実装方針:
+- 失敗ケースの収集（Sentry / Analytics から）
+- プロンプトに「時間矛盾を避ける」「同一スポット重複禁止」を明示
+- バリデーション関数の追加（生成後にチェックして再生成）
 
 ---
 
-### 🟡 中期的に取り組むこと（効果大・工数大）
+### 🟢 Phase 4-C: 認証とマイページ（2〜3日）
 
-#### 6. 認証（メール or LINE ログイン）（工数: 1〜2日）
-Supabase Auth を使えばメール magic link 認証が数時間で実装できる。
-- ログインすると「自分の旅程一覧」が見られる
-- ログインなしでも旅程作成は可能（ゲストモード）
-- メールアドレスを取得できればメルマガ配信・再訪促進が可能
+#### 6. Supabase Auth 導入（メール magic link）（工数: 1〜2日）
+- DB: `trips.user_id UUID NULL` を追加（NULL = ゲスト）
+- ヘッダーに「ログイン」ボタン、ログイン後はアバターに切替
+- 既存のゲスト旅程はそのまま残す（user_id NULL のまま）
+- ログイン中に旅程作成 → 自動で user_id 紐付け
 
-#### 7. SEOページ自動生成（工数: 1〜2日）
-「沖縄 2泊3日 モデルコース」などのキーワードで月間数千〜数万の検索がある。
-- `/plans/[destination]/[duration]` のような静的ページ
-- AI生成した旅程をSSGで事前レンダリング
+#### 7. /me ダッシュボード（工数: 半日）
+- 自分の旅程一覧（最新順）
+- 削除機能（ソフトデリート: `deleted_at`）
+- /explore からの公開制御（is_public）
+
+---
+
+### 🟡 Phase 4-D: 成長と収益化（中期）
+
+#### 8. SEOページ自動生成（工数: 1〜2日）
+- `/plans/[destination]/[duration]` を SSG で生成
+- 「沖縄 2泊3日 モデルコース」のキーワード狙い
+- AI生成済みの公開旅程を埋め込み
 - 内部リンクから旅程生成フォームへ誘導
 
-#### 8. アフィリエイト収益化（工数: 数時間〜）
-HotelDetailModal の `booking_url` フィールドを使い、じゃらん・楽天トラベルへのアフィリエイトリンクを誘導。
-- ホテル情報入力時に「じゃらんで検索」「楽天トラベルで検索」ボタンを追加（アフィリエイトパラメータ付き）
-- ユーザーにとって便利な機能として自然に導線を作れる
-- **実装コスト: 数時間、期待収益: ユーザー数に比例して増加**
+#### 9. アフィリエイト統合（工数: 数時間〜）
+- HotelDetailModal に「じゃらんで探す」「楽天トラベルで探す」ボタン
+- ホテル名＋目的地をパラメータに渡すアフィリエイトリンク
+- 実装コスト低・期待収益はユーザー数に比例
+
+#### 10. PWA化（工数: 半日）
+- `manifest.json` + service worker
+- インストール可能なWebアプリに
+- オフライン対応（読み取り専用キャッシュ）
 
 ---
 
@@ -164,22 +179,25 @@ HotelDetailModal の `booking_url` フィールドを使い、じゃらん・楽
 - ネイティブアプリ化（PWA で十分）
 - 多言語対応（まず日本人ユーザーを掴む）
 - AI精度の完璧化（80点で十分、ユーザー編集で補う）
-- 複雑な認証・権限管理（シンプルに保つ）
+- リアルタイム共同編集（複雑すぎる、需要を確認してから）
+- LINE Bot / Slack 連携（後回し）
 
 ---
 
-### 優先度マトリクス（要約）
+### 優先度マトリクス（Phase 4）
 
 | 施策 | 効果 | 工数 | 優先度 |
 |------|------|------|--------|
-| 旅程コピー機能 | ◎ バイラル起点 | 小 | 🔴 即着手 |
-| OGP設定 | ◎ SNSシェア必須 | 極小 | 🔴 即着手 |
-| 自動保存 | ○ UX基礎 | 小 | 🟠 早めに |
-| /explore ページ | ◎ 発見・SEO | 中 | 🟠 早めに |
-| LPの強化 | ○ CVR改善 | 中 | 🟠 早めに |
-| 認証（メール） | ◎ リテンション | 大 | 🟡 中期 |
-| SEOページ | ◎ 流入獲得 | 大 | 🟡 中期 |
-| アフィリエイト | ○ 収益化 | 小 | 🟡 中期 |
+| Vercel Analytics 導入 | ◎ 改善の指針 | 極小（30分） | 🔴 即着手 |
+| 編集権限の分離 | ◎ シェア時の安心 | 小（3-4h） | 🔴 即着手 |
+| localStorage 「最近の旅程」 | ○ 暫定リテンション | 小（2-3h） | 🟠 早めに |
+| Sentry エラー監視 | ○ 本番品質 | 極小（1h） | 🟠 早めに |
+| AI 精度改善 | ○ プロダクト品質 | 中（2-4h） | 🟠 早めに |
+| Supabase Auth | ◎ 本質的リテンション | 大（1-2d） | 🟢 中期 |
+| /me ダッシュボード | ◎ 認証の受け皿 | 中（0.5d） | 🟢 中期（認証とセット） |
+| SEOページ | ◎ 流入獲得 | 大（1-2d） | 🟡 中長期 |
+| アフィリエイト | ○ 収益化 | 小（数時間） | 🟡 中長期 |
+| PWA化 | ○ 体験向上 | 中（0.5d） | 🟡 中長期 |
 
 ---
 
@@ -212,33 +230,44 @@ HotelDetailModal の `booking_url` フィールドを使い、じゃらん・楽
 ```
 src/
 ├── app/
-│   ├── page.tsx                  # トップページ（PlanForm）
-│   ├── layout.tsx                # 共通レイアウト
-│   ├── loading.tsx               # スケルトンローディング
-│   ├── trips/[id]/page.tsx       # 旅程詳細ページ（OGP設定もここ）
+│   ├── page.tsx                          # トップページ（ヒーロー統合フォーム・LP）
+│   ├── layout.tsx                        # 共通レイアウト（ヘッダー・フッター・OGPベース）
+│   ├── globals.css                       # グローバルCSS・アニメーション
+│   ├── loading.tsx                       # スケルトンローディング
+│   ├── not-found.tsx                     # 404
+│   ├── explore/page.tsx                  # /explore 旅程発見ページ
+│   ├── trips/page.tsx                    # /trips → /explore へリダイレクト
+│   ├── trips/[id]/page.tsx               # 旅程詳細ページ（OGP動的設定）
+│   ├── trips/[id]/opengraph-image.tsx    # 動的 OG 画像生成（1200×630）
+│   ├── trips/[id]/loading.tsx            # 旅程詳細ロード中
 │   └── api/
-│       ├── plan/route.ts         # POST: 統合フォーム→並行スクレイプ→AI生成→保存
-│       ├── generate/route.ts     # POST: 条件→AI生成（現在トップから未使用）
-│       ├── scrape/route.ts       # POST: URL→スクレイプ→AI生成（現在トップから未使用）
-│       └── trips/[id]/route.ts   # PATCH: 旅程を手動保存
+│       ├── plan/route.ts                 # POST: 統合フォーム→並行スクレイプ→AI生成→保存
+│       ├── generate/route.ts             # POST: 条件→AI生成
+│       ├── scrape/route.ts               # POST: URL→スクレイプ→AI生成
+│       ├── trips/[share_id]/route.ts     # GET/PATCH: 旅程取得・保存（title対応）
+│       └── trips/copy/route.ts           # POST: 旅程コピー（新 share_id 発行）
 ├── components/trips/
-│   ├── PlanForm.tsx              # ★統合フォーム
-│   ├── GeneratingOverlay.tsx     # AI生成中フルスクリーンオーバーレイ
-│   ├── DatePicker.tsx            # 航空会社スタイル日程ピッカー
-│   ├── ItineraryEditor.tsx       # 旅程詳細画面の親コンポーネント
-│   ├── CalendarView.tsx          # ★Outlookスタイルカレンダー（最重要）
-│   ├── SuggestedSpotsPanel.tsx   # おすすめスポットサイドパネル
-│   ├── FreeBlocksPanel.tsx       # フリーブロックパネル
-│   ├── SpotDetailModal.tsx       # スポット詳細モーダル
-│   ├── HotelDetailModal.tsx      # 宿泊詳細モーダル（CI/CO・料金・予約URL等）
-│   └── ShareButton.tsx           # 共有リンクコピーボタン
+│   ├── PlanForm.tsx                      # ★統合フォーム
+│   ├── GeneratingOverlay.tsx             # AI生成中フルスクリーンオーバーレイ
+│   ├── DatePicker.tsx                    # 航空会社スタイル日程ピッカー
+│   ├── ItineraryEditor.tsx               # 旅程詳細画面の親（自動保存・タイトル編集も）
+│   ├── CalendarView.tsx                  # ★Outlookスタイルカレンダー（最重要）
+│   ├── SuggestedSpotsPanel.tsx           # おすすめスポットサイドパネル
+│   ├── FreeBlocksPanel.tsx               # フリーブロックパネル
+│   ├── SpotDetailModal.tsx               # スポット詳細モーダル
+│   ├── HotelDetailModal.tsx              # 宿泊詳細モーダル
+│   ├── TripCard.tsx                      # 旅程カード（/・/explore で共用）
+│   ├── ShareButton.tsx                   # 共有リンクコピー
+│   └── CopyButton.tsx                    # 旅程コピーして派生作成
 ├── hooks/
-│   └── useIsMobile.ts            # window.matchMedia でブレークポイント検知
+│   └── useIsMobile.ts                    # window.matchMedia でブレークポイント検知
 ├── lib/
-│   ├── ai/gemini.ts              # Gemini API ラッパー
-│   ├── db/trips.ts               # Supabase CRUD
-│   └── scraper.ts                # URL→本文テキスト抽出
-└── types/index.ts                # 全型定義
+│   ├── ai/gemini.ts                      # Gemini API ラッパー
+│   ├── db/trips.ts                       # Supabase CRUD（copyTrip 含む）
+│   ├── db/supabase.ts                    # Supabase クライアント
+│   ├── destinationEmoji.ts               # 目的地→絵文字マップ（40件以上）
+│   └── scraper/index.ts                  # URL→本文テキスト抽出
+└── types/index.ts                        # 全型定義
 ```
 
 ---
@@ -262,26 +291,22 @@ src/
 - ダブルタップ: `lastTapRef`（300ms 以内の同一スポット2タップ → SpotDetailModal）
 - リサイズ: 上端/下端ドラッグ + `applyResize()` で cascade push
 
-### Props（現在）
-```typescript
-interface Props {
-    days: ItineraryDay[]
-    startDate?: Date
-    zoom: number
-    onUpdateDays: (updated: ItineraryDay[]) => void
-    onDropSuggestedSpot?: (dayIdx, time, spot, spotIdx) => void
-    onDropFreeBlock?: (dayIdx, time, type) => void
-    onMoveToSidebar?: (spot, dayIdx, spotIdx, mouseX, mouseY) => void
-    onDraggingToSidebarChange?: (v) => void
-    onSidebarDragMove?: (mouseY) => void
-    onDoubleClickSpot?: (spot, dayIdx, spotIdx) => void
-    sidebarRef?: React.RefObject<HTMLDivElement | null>
-    onDragStart?: (spot) => void
-    onDragEnd?: () => void
-    onGapClick?: (dayIdx, time, duration) => void
-    onDoubleClickHotel?: (hotel, dayIdx) => void  // 宿泊帯クリック（シングルクリック）
-}
-```
+---
+
+## ItineraryEditor の重要な設計
+
+### 自動保存
+- 編集（handleUpdateDays / handleUpdateBoth / commitTitle）のたびに `scheduleAutoSave()` を呼ぶ
+- `scheduleAutoSave` は 3秒のdebounceタイマーをセット
+- `saveToDbRef` 経由で常に最新の `saveToDb`（最新state参照）を呼ぶ
+- アンマウント時にタイマークリア
+- 手動「保存」ボタンは即時実行（debounce無視）
+
+### タイトル編集
+- `editingTitle` state でモード切替（h1 ↔ input）
+- ダブルクリックで編集モード、Enter / blur で確定、Escape でキャンセル
+- 確定時に `setSaveStatus('unsaved')` → 自動保存トリガー
+- PATCH /api/trips/[share_id] に `title` も含めて送信
 
 ---
 
@@ -320,6 +345,21 @@ interface Props {
 
 ---
 
+## OGP 設定
+
+### 共通メタデータ（layout.tsx）
+- `metadataBase`: `NEXT_PUBLIC_SITE_URL` or `VERCEL_URL` から自動解決
+- `openGraph.siteName`: "旅程ジェネレーター"、`locale`: "ja_JP"
+- `twitter.card`: "summary_large_image"
+
+### 旅程ごとのOG画像（trips/[id]/opengraph-image.tsx）
+- Next.js 組み込み `ImageResponse`（Satori ベース）で生成
+- サイズ: 1200×630、ランタイム: nodejs
+- デザイン: 青グラデーション背景・旅程タイトル・目的地・日数
+- 自動でメタタグに反映される（明示指定不要）
+
+---
+
 ## API の重要仕様
 
 ### エラーハンドリング（必須）
@@ -353,9 +393,12 @@ try { data = JSON.parse(text) } catch { throw new Error(`サーバーエラー: 
 - **Next.js params**: `params: Promise<{ id: string }>` → `const { id } = await params`
 - **Tailwind v4**: 設定ファイル不要。**重要なレイアウトは inline styles**（flexbox 崩れ防止）
 - **itinerary の型**: `{ days, trip_style?, trip_style_reason?, start_date?, sidebar_spots? }`
-- **hotel の格納場所**: `itinerary.days[i].hotel`（JSONB内。DB スキーマ変更不要）
+- **hotel の格納場所**: `itinerary.days[i].hotel`（JSONB内・DB スキーマ変更不要）
 - **CalendarView PPM**: `BASE_PPM = 1.0`。ppm = BASE_PPM * zoom
 - **isolation: isolate**: CalendarView 外側ラッパーに必須
 - **overscroll-behavior: contain**: カレンダースクロールコンテナに必須
 - **useIsMobile**: SSR では `false`、クライアントマウント後に `window.matchMedia` で判定
 - **Google Maps 埋め込み**: `maps.google.com/maps?q=...&output=embed`（非公式・無料）
+- **ISR**: `/` と `/explore` は `export const revalidate = 60`（1分キャッシュ）
+- **OG画像**: `runtime = 'nodejs'`（edge runtime で Supabase Node SDK が動かない場合あり）
+- **details/summary**: globals.css でデフォルトマーカー非表示、`.faq-toggle` で ＋/− 切替
