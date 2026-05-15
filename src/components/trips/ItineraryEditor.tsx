@@ -11,6 +11,13 @@ import { useIsMobile } from '@/hooks/useIsMobile'
 function toMins(time: string) { const [h, m] = time.split(':').map(Number); return h * 60 + (m || 0) }
 function toTime(mins: number) { return `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}` }
 
+function buildMapsUrl(day: ItineraryDay, destination: string): string {
+    const spots = day.spots.filter(s => s.type !== '移動')
+    if (spots.length === 0) return ''
+    const parts = spots.map(s => encodeURIComponent(`${s.name} ${destination}`))
+    return `https://www.google.com/maps/dir/${parts.join('/')}`
+}
+
 function insertSpot(daySpots: Spot[], newSpot: Spot): Spot[] {
     const all = [...daySpots, newSpot].sort((a, b) => toMins(a.time) - toMins(b.time))
     for (let i = 1; i < all.length; i++) {
@@ -389,6 +396,50 @@ export default function ItineraryEditor({ trip }: { trip: Trip }) {
                 <div style={{ width: 1, height: 18, backgroundColor: '#d1d5db', flexShrink: 0 }} />
 
                 <ShareButton shareId={trip.share_id} />
+            </div>
+
+            {/* ── Google Maps リンク ── */}
+            <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '6px 10px',
+                backgroundColor: '#f9fafb',
+                border: '1px solid #e5e7eb',
+                borderRadius: 12,
+                overflowX: 'auto',
+            }}>
+                <span style={{ fontSize: 11, color: '#9ca3af', whiteSpace: 'nowrap', flexShrink: 0 }}>🗺️ Google Maps</span>
+                <div style={{ width: 1, height: 16, backgroundColor: '#e5e7eb', flexShrink: 0 }} />
+                {days.map((day, i) => {
+                    const url = buildMapsUrl(day, trip.destination)
+                    if (!url) return null
+                    return (
+                        <a
+                            key={i}
+                            href={url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                padding: '4px 10px',
+                                borderRadius: 7,
+                                border: '1px solid #e5e7eb',
+                                background: 'white',
+                                fontSize: 12,
+                                fontWeight: 500,
+                                color: '#1a73e8',
+                                textDecoration: 'none',
+                                whiteSpace: 'nowrap',
+                                flexShrink: 0,
+                            }}
+                        >
+                            {day.label}
+                        </a>
+                    )
+                })}
             </div>
 
             {/* ── カレンダービュー + サイドパネル ── */}

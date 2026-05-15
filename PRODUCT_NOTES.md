@@ -21,36 +21,36 @@ Claude Code が毎回このファイルを読み込みます。
 
 | フェーズ | 内容 | 状態 |
 |---------|------|------|
-| **Phase 1** | MVP（AI生成・保存・共有・URLブログ取込） | ✅ほぼ完了（スマホ対応のみ残）|
-| **Phase 2** | 初期改善（編集UI・地図・公開設定・一覧） | 🔨編集UIは完了、他は未着手 |
+| **Phase 1** | MVP（AI生成・保存・共有・URLブログ取込） | ✅完了 |
+| **Phase 2** | 初期改善（編集UI・地図・公開設定・一覧） | 🔨編集UI完了・地図URLボタン追加済み、他は未着手 |
 | **Phase 3** | バイラル・SEO強化 | ❌未着手 |
 | **Phase 4〜8** | UX強化・収益化・拡張 | ❌未着手 |
-
-**現状の強み**: Phase 2 の目玉である「旅程編集UI（ドラッグ&ドロップ）」が Phase 1 完了前に既に高品質で実装されている。Phase 1 の残課題であるスマホ対応を片付けつつ、Phase 2 の次の柱（一覧ページ・地図・公開設定）に進むタイミング。
 
 ---
 
 ## フェーズ別ロードマップ
 
-### Phase 1：MVP ✅ほぼ完了
+### Phase 1：MVP ✅完了
 
 | 機能 | 状態 | 備考 |
 |------|------|------|
 | AIによる旅行プラン自動生成（条件入力） | ✅ | PlanForm → /api/plan → Gemini |
-| 移動時間を考慮したスケジュール生成 | ✅ | 移動ブロック自動挿入・交通手段判定 |
+| 移動時間を考慮したスケジュール生成 | ✅ | ギャップ注釈方式に変更（移動ブロック非生成） |
 | 生成した旅程の保存機能 | ✅ | Supabase PATCH、手動保存ボタン |
 | 旅程の共有URL発行 | ✅ | share_id、ツールバーのShareButton |
 | URLを貼るだけでブログ記事から旅程生成 ★ | ✅ | cheerio スクレイプ → Gemini |
-| シンプルなUI（スマホ前提） | ⚠️ | 現状デスクトップ向け。スマホ対応が残課題 |
+| スマホ対応 | ✅ | シングルデイ表示・タッチドラッグ・縦レイアウト |
 
 ### Phase 2：初期改善 🔨進行中
 
 | 機能 | 状態 | 備考 |
 |------|------|------|
 | 旅程の編集（ドラッグ&ドロップ・時間変更） | ✅ | CalendarView + SuggestedSpotsPanel + FreeBlocksPanel |
-| スポット詳細編集（ダブルクリック） | ✅ | SpotDetailModal |
+| スポット詳細編集（ダブルクリック） | ✅ | SpotDetailModal（種別/所要時間/予約/リンク/メモ） |
+| 移動ブロック強化 | ✅ | 発着時刻・ルートメモ・ギャップタップで自動挿入 |
+| Google Mapsリンク（URLボタン方式） | ✅ | 日ごとのDirections URLを生成してタブで開く |
+| 地図表示（アプリ内埋め込み） | ❌ | Leaflet.js + Nominatim で将来実装予定（下記参照） |
 | 観光地情報の自動補完（説明・画像） | ❌ | Gemini で説明文は生成済み。画像は未対応 |
-| 地図表示（Google Maps連携） | ❌ | 優先度高め |
 | 旅行プランの公開/非公開設定 | ❌ | 認証導入が前提 |
 | 他ユーザーの旅程閲覧（一覧ページ） | ❌ | `/explore` 的なページ |
 
@@ -107,19 +107,36 @@ Claude Code が毎回このファイルを読み込みます。
 
 ## 次に取り組むべきこと（提案）
 
-Phase 1 の仕上げ → Phase 2 の残柱 → Phase 3 の入口、の順が自然。
-
-### 🔴 最優先（Phase 1 仕上げ）
-1. **スマホ対応** — カレンダーをスマホで使えるようにする。日単位タブ切替 or 横スクロール対応。現状のドラッグUIはモバイルでは動作しない。
-
-### 🟠 次の柱（Phase 2 残り）
-2. **旅程一覧ページ（/explore）** — ユーザーが他人の旅程を発見できる。SEO効果もある。認証なしで公開旅程だけ表示するシンプルな実装から始められる。
-3. **地図表示** — スポット詳細モーダルまたは旅程ページに地図を表示。Google Maps Embed API（無料枠あり）が最速。
-4. **スポット詳細の充実** — 予約要否フラグ・メモ欄・外部リンク（SpotDetailModal を拡張）
+### 🟠 Phase 2 残り（優先度順）
+1. **アプリ内地図表示（Leaflet）** — Google Maps URL ボタンで使い勝手確認後に着手。下記「地図ロードマップ」参照。
+2. **旅程一覧ページ（/explore）** — 認証なしで公開旅程だけ表示するシンプルな実装から。SEO効果もある。
+3. **スポット画像** — Unsplash/Pexels の無料API でスポット名検索 → サムネイル表示。
 
 ### 🟡 その後（Phase 3 入口）
-5. **旅程のコピー機能** — 「このプランをベースに作る」ボタン。バイラル効果大。
-6. **公開/非公開設定** — 認証（NextAuth or Supabase Auth）を入れるタイミング。
+4. **旅程のコピー機能** — 「このプランをベースに作る」ボタン。バイラル効果大。
+5. **公開/非公開設定** — 認証（NextAuth or Supabase Auth）を入れるタイミング。
+
+---
+
+## 地図機能ロードマップ
+
+### Step 1（実装済み）: Google Maps URL ボタン
+- **場所**: ItineraryEditor のカレンダー上部に横並びの日ごとリンク
+- **仕組み**: `https://www.google.com/maps/dir/スポット名+目的地/スポット名+目的地/...` を生成してタブで開く
+- **APIキー**: 不要
+- **制限**: スポット名の精度依存（地名を付加して緩和）、移動ブロックはURLから除外
+
+### Step 2（未着手）: アプリ内埋め込み地図（Leaflet + Nominatim）
+- **ライブラリ**: `leaflet` + `react-leaflet`（OSS、APIキー不要）
+- **ジオコーディング**: Nominatim（OpenStreetMap無料API）でスポット名→緯度経度変換
+  - レート制限: 1リクエスト/秒、User-Agentヘッダー必須
+  - 日本語スポット名の精度: やや不安定（英語名も試すとよい）
+- **表示内容**: ピン（スポット）＋矢印（移動順序）、日ごとタブ切替
+- **実装場所案**: 旅程ページに「地図タブ」を追加するか、カレンダー下部に折りたたみ表示
+
+### Step 3（将来）: Google Maps JavaScript API（要APIキー）
+- 精度が必要になったタイミングで移行
+- 無料枠: $200/月（中規模まで無料で使える）
 
 ---
 
@@ -149,6 +166,8 @@ src/
 │   ├── FreeBlocksPanel.tsx       # フリーブロックパネル（型タグをドラッグしてカレンダーに追加）
 │   ├── SpotDetailModal.tsx       # スポット詳細モーダル（ダブルクリックで表示・編集）
 │   └── ShareButton.tsx           # 共有リンクコピーボタン（ツールバー内に配置）
+├── hooks/
+│   └── useIsMobile.ts            # window.matchMedia でブレークポイント検知（SSR安全）
 ├── lib/
 │   ├── ai/gemini.ts              # Gemini API ラッパー（buildPlanPrompt / generateTripFromPlan 等）
 │   ├── db/trips.ts               # Supabase CRUD
@@ -169,15 +188,23 @@ src/
 - 外側ラッパーに `isolation: 'isolate'`（ドラッグ時のz-indexがページ要素に漏れないよう隔離）
 - `BASE_PPM = 1.0`（1分 = 1px の基準値）、実際の ppm = `BASE_PPM * zoom`
 - 初期スクロール位置: マウント時にコンテンツ開始時刻の 1時間前に自動スクロール
+- **モバイル**: `mobileDayIdx` state で1日分のみ表示、‹ 前日 / 翌日 › ナビゲーション
 
-### ドラッグ操作（マウスイベントベース）
-- **`DRAG_THRESHOLD = 5px`**: mousedown からこの距離以上動いた時のみドラッグ判定。未満の場合は onMouseUp でキャンセルしてクリック/ダブルクリックを通す。
-- **`e.detail > 1` 早期リターン**: startDrag でダブルクリック2回目の mousedown は `e.preventDefault()` を呼ばずに即リターン。こうしないと `dblclick` イベントが発火しなくなる（MDN仕様）。
-- **ドラッグゴースト**: move ドラッグ中は `position:fixed` のゴースト要素がカーソルをピクセル単位で追随（scale(0.93)）。元ブロックは半透明の破線プレースホルダー（スナップ先を示す）。
+### ドラッグ操作（マウス＋タッチイベント対応）
+- **`DRAG_THRESHOLD = 5px`**: mousedown からこの距離以上動いた時のみドラッグ判定
+- **`e.detail > 1` 早期リターン**: ダブルクリック2回目の mousedown は即リターン（dblclick イベント保護）
+- **タッチ対応**: `touchstart`→`startDragFromTouch`、`touchmove`（`{ passive: false }`＋`e.preventDefault()`）、`touchend`
+- **ダブルタップ検知**: `lastTapRef`（300ms 以内に同一スポットを2回タップ → SpotDetailModal を開く）
+- **ドラッグゴースト**: move ドラッグ中は `position:fixed` のゴースト要素がカーソルをピクセル単位で追随（scale(0.93)）
 - **同一日 move**: 移動したブロックのみ動く。重なりが出る場合のみ後続を cascade push
 - **他日 move**: 移動元から削除、移動先に挿入（重なるブロックを cascade push）
 - **リサイズ**: 上端/下端ドラッグで時刻変更 + `applyResize()` で隣接ブロックを cascade push
-- **カレンダー→サイドバー**: マウスがサイドバー領域に入ると検出し、`onSidebarDragMove` でリアルタイムに挿入位置を通知。mouseUp 時に `onMoveToSidebar` を呼ぶ。
+- **カレンダー→サイドバー**: マウスがサイドバー領域に入ると検出し、mouseUp 時に `onMoveToSidebar` を呼ぶ
+
+### ギャップ注釈
+- スポット間の空き時間を「XX分」ラベルで表示（移動ブロック削除の代替）
+- 親コンテナは `pointerEvents: 'none'`、ボタン子要素は `pointerEvents: 'auto'`（ドラッグ妨げず）
+- `onGapClick` prop が渡されている場合は「＋ XX分」と表示し、クリックで移動ブロックの SpotDetailModal を開く
 
 ### Props（現在）
 ```typescript
@@ -195,11 +222,12 @@ interface Props {
     sidebarRef?: React.RefObject<HTMLDivElement | null>
     onDragStart?: (spot: Spot) => void
     onDragEnd?: () => void
+    onGapClick?: (dayIdx: number, time: string, duration: number) => void
 }
 ```
 
 ### 重要な実装パターン
-- **コールバック ref パターン**: `useCallback` の deps に含めると毎フレーム再生成される props は `useRef` に入れて参照（`onMoveToSidebarRef` 等）
+- **コールバック ref パターン**: `useCallback` の deps に含めると毎フレーム再生成される props は `useRef` に入れて参照
 - **`tempRef`**: `temp` state を ref にも同期。`onMouseUp` の deps から `temp` を外して毎フレーム再生成を防ぐ
 - **`dragMovedRef`**: ドラッグしたかどうかのフラグ。`startDrag` でリセット、`onMouseMove` で閾値超えたらtrue
 
@@ -221,12 +249,47 @@ interface Props {
 - `draggingCalendarSpot`: ドラッグ中のスポット情報（サイドバープレビュー用）
 - `editingSpot`: ダブルクリックで開く SpotDetailModal 用
 
-### ツールバー（横一列・inline styles）
-左から順に: [↩ 戻す] [↪ 進む] | 縦軸 [−][バー][+] | spacer | [保存状態] [保存ボタン] | | [🔗 シェア]
+### 画面レイアウト（上から順）
+1. しおり表紙（グラデーション青カード）
+2. ツールバー: [↩ 戻す] [↪ 進む] | 縦軸 [−][バー][+] | spacer | [保存状態] [保存ボタン] | | [🔗 シェア]
+3. Google Maps リンク行: 🗺️ Google Maps | [1日目] [2日目] ...（日ごとの Directions URL）
+4. カレンダー + サイドパネル（モバイルは縦積み）
 
 ### Undo/Redo の注意点
 - history/redoStack は `Snapshot = { days, sidebarSpots }` を格納（両方まとめて復元）
 - `handleUpdateDays`（days のみ変更）でも Snapshot を保存する（サイドバーも含めた完全な履歴）
+
+### buildMapsUrl（Google Maps URL生成）
+```typescript
+// 移動ブロックを除いたスポット名＋目的地を waypoint に並べた Directions URL
+function buildMapsUrl(day: ItineraryDay, destination: string): string {
+    const spots = day.spots.filter(s => s.type !== '移動')
+    if (spots.length === 0) return ''
+    const parts = spots.map(s => encodeURIComponent(`${s.name} ${destination}`))
+    return `https://www.google.com/maps/dir/${parts.join('/')}`
+}
+```
+
+---
+
+## SpotDetailModal の設計
+
+**ファイル**: `src/components/trips/SpotDetailModal.tsx`
+
+### 状態モデル（移動ブロックの発着時刻）
+- `depTime`: state（HH:MM）— 出発時刻
+- `arrTime`: state（HH:MM）— 到着時刻（`spot.time + duration_minutes` で初期化）
+- `duration`: derived（`Math.max(1, toMinsLocal(arrTime) - toMinsLocal(depTime))`）
+
+### 発着時刻の編集ルール
+- 発を編集 → 着は固定・所要時間が変わる
+- 着を編集 → 発は固定・所要時間が変わる
+- 所要時間（± ボタン）を編集 → 発は固定・着が変わる（`arrTime = depTime + newDuration`）
+
+### 移動ブロック専用フィールド
+- 「発着時刻」セクション（移動のみ表示）
+- ヘッダーに `🚌 HH:MM → HH:MM · XX分` を表示
+- メモ欄が「ルートメモ」に変わりプレースホルダーも変更
 
 ---
 
@@ -274,6 +337,19 @@ try { data = JSON.parse(text) } catch { throw new Error(`サーバーエラー: 
 
 ---
 
+## 移動ブロックの設計方針
+
+AI生成時に移動ブロックを挿入すると、スポットを動かした瞬間に移動ブロックが意味をなさなくなる問題があった。
+**選択肢Cを採用**: ギャップ注釈方式（移動ブロックは生成しない）
+
+- AI はスポット間に十分な空き時間を設けるだけ（移動ブロックを生成しない）
+- カレンダー上の空き時間を「XX分」ラベルで表示
+- ユーザーが必要に応じてフリーブロックパネルから移動ブロックを手動で配置
+- ギャップ注釈をタップ → 移動ブロックの詳細モーダルが開き、そのまま追加できる
+- 移動ブロックは1分単位・発着時刻入力対応
+
+---
+
 ## 実装済み機能
 
 - [x] 統合フォーム（PlanForm）: 目的地複数・URL最大5本・人数・グループ種別など
@@ -285,17 +361,21 @@ try { data = JSON.parse(text) } catch { throw new Error(`サーバーエラー: 
 - [x] Outlookスタイルカレンダービュー（固定高さ480px・内部スクロール）
 - [x] ドラッグ移動（同日/他日）+ リサイズ（cascade push）
 - [x] ドラッグゴースト（scale(0.93)・カーソル追随・スナップ先プレースホルダー表示）
+- [x] タッチドラッグ対応（モバイル）
+- [x] モバイル1日表示（‹ 前日 / 翌日 › ナビ・ダブルタップで詳細）
 - [x] スポット色分け（観光=青/グルメ=オレンジ/移動=グレー/宿泊=紫/その他=緑）
-- [x] 移動スポットに交通手段表示（推奨・代替）
 - [x] 交通スタイル自動判定（沖縄→レンタカー、東京→電車 等）
+- [x] ギャップ注釈（スポット間の空き時間を「XX分」表示・タップで移動ブロック挿入）
 - [x] Undo / Redo（days + sidebarSpots の完全 Snapshot 方式）
 - [x] ズームコントロール（横ツールバーに統合）
 - [x] 旅程の手動保存（Supabase PATCH）
 - [x] share_id による URL 共有（ツールバー内 ShareButton）
 - [x] おすすめスポットパネル（SuggestedSpotsPanel）: カレンダー↔双方向ドラッグ
 - [x] カレンダー→サイドバー ドラッグ時リアルタイム挿入位置プレビュー（PreviewSpotCard）
-- [x] フリーブロックパネル（FreeBlocksPanel）: 型タグをドラッグしてカレンダーに配置
-- [x] スポット詳細モーダル（SpotDetailModal）: ダブルクリックで編集・フリーブロック配置時の名前入力
+- [x] フリーブロックパネル（FreeBlocksPanel）: 型タグをドラッグしてカレンダーに配置（移動ブロック含む）
+- [x] スポット詳細モーダル（SpotDetailModal）: 種別/所要時間/予約/リンク/メモ/発着時刻/ルートメモ
+- [x] 移動ブロック発着時刻（発変更→着固定/着変更→発固定/所要時間変更→発固定）
+- [x] Google Maps リンク（日ごとの Directions URL ボタン、APIキー不要）
 - [x] カレンダーのz-index隔離（isolation: isolate）
 - [x] 内部スクロール（overscroll-behavior: contain で連鎖防止）
 - [x] sidebar_spots の DB 保存（itinerary JSONB 内の `sidebar_spots` フィールド）
@@ -316,3 +396,4 @@ try { data = JSON.parse(text) } catch { throw new Error(`サーバーエラー: 
 - **isolation: isolate**: CalendarView外側ラッパーに必須（ドラッグ中z-index:200のブロックがページ要素に被らないよう隔離）
 - **overscroll-behavior: contain**: カレンダースクロールコンテナに必須（ページへのスクロール連鎖防止）
 - **グローバルCSSアニメーション**: `globals.css` に `spin-ring`, `float-plane`, `shimmer`, `fade-in-up`, `dot-bounce` 等を定義済み
+- **useIsMobile**: `src/hooks/useIsMobile.ts`。SSR では `false` を返し、クライアントマウント後に `window.matchMedia` で判定
