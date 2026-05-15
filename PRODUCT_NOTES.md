@@ -17,6 +17,112 @@ Claude Code が毎回このファイルを読み込みます。
 
 ---
 
+## 現在地（フェーズ進捗サマリー）
+
+| フェーズ | 内容 | 状態 |
+|---------|------|------|
+| **Phase 1** | MVP（AI生成・保存・共有・URLブログ取込） | ✅ほぼ完了（スマホ対応のみ残）|
+| **Phase 2** | 初期改善（編集UI・地図・公開設定・一覧） | 🔨編集UIは完了、他は未着手 |
+| **Phase 3** | バイラル・SEO強化 | ❌未着手 |
+| **Phase 4〜8** | UX強化・収益化・拡張 | ❌未着手 |
+
+**現状の強み**: Phase 2 の目玉である「旅程編集UI（ドラッグ&ドロップ）」が Phase 1 完了前に既に高品質で実装されている。Phase 1 の残課題であるスマホ対応を片付けつつ、Phase 2 の次の柱（一覧ページ・地図・公開設定）に進むタイミング。
+
+---
+
+## フェーズ別ロードマップ
+
+### Phase 1：MVP ✅ほぼ完了
+
+| 機能 | 状態 | 備考 |
+|------|------|------|
+| AIによる旅行プラン自動生成（条件入力） | ✅ | PlanForm → /api/plan → Gemini |
+| 移動時間を考慮したスケジュール生成 | ✅ | 移動ブロック自動挿入・交通手段判定 |
+| 生成した旅程の保存機能 | ✅ | Supabase PATCH、手動保存ボタン |
+| 旅程の共有URL発行 | ✅ | share_id、ツールバーのShareButton |
+| URLを貼るだけでブログ記事から旅程生成 ★ | ✅ | cheerio スクレイプ → Gemini |
+| シンプルなUI（スマホ前提） | ⚠️ | 現状デスクトップ向け。スマホ対応が残課題 |
+
+### Phase 2：初期改善 🔨進行中
+
+| 機能 | 状態 | 備考 |
+|------|------|------|
+| 旅程の編集（ドラッグ&ドロップ・時間変更） | ✅ | CalendarView + SuggestedSpotsPanel + FreeBlocksPanel |
+| スポット詳細編集（ダブルクリック） | ✅ | SpotDetailModal |
+| 観光地情報の自動補完（説明・画像） | ❌ | Gemini で説明文は生成済み。画像は未対応 |
+| 地図表示（Google Maps連携） | ❌ | 優先度高め |
+| 旅行プランの公開/非公開設定 | ❌ | 認証導入が前提 |
+| 他ユーザーの旅程閲覧（一覧ページ） | ❌ | `/explore` 的なページ |
+
+### Phase 3：バイラル・SEO強化 ❌未着手
+
+- 旅程のテンプレート化（「沖縄3日間モデルコース」等）
+- 人気プランランキング
+- タグ機能（カップル・グルメ・温泉など）
+- 旅行プランのコピー機能（他人の旅程をそのまま使える）
+- SEO用ページ自動生成（「○○ 2泊3日 モデルコース」）
+
+### Phase 4：UX強化 ❌未着手
+
+- チェックリスト自動生成（持ち物・やること）
+- しおり（PDF）自動生成
+- 日ごとのToDo管理機能
+- オフライン閲覧対応（簡易）
+
+### Phase 5：軽い収益化 ❌未着手
+
+- 高度AI機能を有料化（細かい条件指定・複数プラン提案）
+- 一部テンプレートを有料化
+- 広告導入（軽め）
+
+### Phase 6：本格収益化（最重要） ❌未着手
+
+- ホテル・航空券のアフィリエイト導線
+- 体験予約（ツアー・アクティビティ）への送客
+- 旅程内に予約リンクを自動挿入（AIで自然に組み込む）
+- 「このプランをそのまま予約」ボタン
+
+### Phase 7：差別化・拡張 ❌未着手
+
+- AIチャット型旅行相談機能
+- 予算最適化（最安日程提案）
+- 同行者との共同編集機能
+- 旅行履歴の蓄積・レコメンド
+- LINE連携（日本向けに強い）
+
+### Phase 8：上級機能 ❌後回しでOK
+
+- 予約メール自動解析
+- ビザ・必要書類チェック
+- 完全アプリ化（iOS/Android）
+
+### やらないこと・後回し
+
+- 最初から予約決済を内製する
+- 完璧なUI/デザインを目指す（MVP精神を維持）
+- 多機能化しすぎる
+- グローバル展開（まず日本特化）
+
+---
+
+## 次に取り組むべきこと（提案）
+
+Phase 1 の仕上げ → Phase 2 の残柱 → Phase 3 の入口、の順が自然。
+
+### 🔴 最優先（Phase 1 仕上げ）
+1. **スマホ対応** — カレンダーをスマホで使えるようにする。日単位タブ切替 or 横スクロール対応。現状のドラッグUIはモバイルでは動作しない。
+
+### 🟠 次の柱（Phase 2 残り）
+2. **旅程一覧ページ（/explore）** — ユーザーが他人の旅程を発見できる。SEO効果もある。認証なしで公開旅程だけ表示するシンプルな実装から始められる。
+3. **地図表示** — スポット詳細モーダルまたは旅程ページに地図を表示。Google Maps Embed API（無料枠あり）が最速。
+4. **スポット詳細の充実** — 予約要否フラグ・メモ欄・外部リンク（SpotDetailModal を拡張）
+
+### 🟡 その後（Phase 3 入口）
+5. **旅程のコピー機能** — 「このプランをベースに作る」ボタン。バイラル効果大。
+6. **公開/非公開設定** — 認証（NextAuth or Supabase Auth）を入れるタイミング。
+
+---
+
 ## ファイル構成と役割
 
 ```
@@ -61,8 +167,7 @@ src/
 - 高さ: **固定 480px**（内部スクロール方式）
 - `overflow: auto`, `overscrollBehavior: 'contain'`（ページへのスクロール連鎖を防止）
 - 外側ラッパーに `isolation: 'isolate'`（ドラッグ時のz-indexがページ要素に漏れないよう隔離）
-- `BASE_PPM = 1.0`（1分 = 1px の基準値）
-- 実際の ppm = `BASE_PPM * zoom`（zoom は ItineraryEditor から props で受け取る）
+- `BASE_PPM = 1.0`（1分 = 1px の基準値）、実際の ppm = `BASE_PPM * zoom`
 - 初期スクロール位置: マウント時にコンテンツ開始時刻の 1時間前に自動スクロール
 
 ### ドラッグ操作（マウスイベントベース）
@@ -88,8 +193,8 @@ interface Props {
     onSidebarDragMove?: (mouseY: number) => void
     onDoubleClickSpot?: (spot: Spot, dayIdx: number, spotIdx: number) => void
     sidebarRef?: React.RefObject<HTMLDivElement | null>
-    onDragStart?: (spot: Spot) => void   // move ドラッグ開始時に呼ばれる（ゴースト連携用）
-    onDragEnd?: () => void               // move ドラッグ終了時に呼ばれる
+    onDragStart?: (spot: Spot) => void
+    onDragEnd?: () => void
 }
 ```
 
@@ -111,7 +216,7 @@ interface Props {
 - `redoStack: Snapshot[]`: redoスタック
 - `zoom: number`: カレンダーのズーム倍率（ZOOM_MAX=3.0, ZOOM_STEP=0.2）
 - `saveStatus: 'saved' | 'saving' | 'unsaved'`
-- `receivingSidebar`: サイドバーがドラッグ受付中かどうか（破線ボーダー表示用）
+- `receivingSidebar`: サイドバーがドラッグ受付中かどうか
 - `sidebarInsertHint: number | null`: サイドバーの挿入位置インデックス
 - `draggingCalendarSpot`: ドラッグ中のスポット情報（サイドバープレビュー用）
 - `editingSpot`: ダブルクリックで開く SpotDetailModal 用
@@ -122,7 +227,6 @@ interface Props {
 ### Undo/Redo の注意点
 - history/redoStack は `Snapshot = { days, sidebarSpots }` を格納（両方まとめて復元）
 - `handleUpdateDays`（days のみ変更）でも Snapshot を保存する（サイドバーも含めた完全な履歴）
-- `handleUpdateBoth`（days + sidebarSpots 同時変更）でも同様
 
 ---
 
@@ -163,7 +267,6 @@ try { data = JSON.parse(text) } catch { throw new Error(`サーバーエラー: 
 
 ### タイムアウト対策
 - APIルートに `export const maxDuration = 60`
-- プロンプトを短くすることでGeminiの応答を高速化
 
 ### フォームボタンの必須ルール
 - `type="button"` + `onClick` のみ（`type="submit"` 禁止）
@@ -197,37 +300,6 @@ try { data = JSON.parse(text) } catch { throw new Error(`サーバーエラー: 
 - [x] 内部スクロール（overscroll-behavior: contain で連鎖防止）
 - [x] sidebar_spots の DB 保存（itinerary JSONB 内の `sidebar_spots` フィールド）
 - [x] GitHub Actions による Supabase keep-alive（3日ごと定期ping）
-
----
-
-## 未実装・今後のアイデア（優先度順）
-
-### 優先度 A: スポット詳細の充実
-- 予約要否フラグ・予約済みチェックボックス（SpotDetailModal に追加）
-- 公式サイト・食べログ等のリンク（AI自動取得 or 手動入力）
-- スポットへのメモ入力欄
-
-### 優先度 B: URLスポットの自動組み込み
-- スクレイプしたURLのスポットが時系列なら旅程に自動組み込み
-- 時系列でない場合はおすすめスポットパネルに縦並びで表示
-
-### 優先度 C: 日程カラム拡張
-- 各日カラムのヘッダーに追加情報を表示
-  - その日のテーマ（旅程のメイン）
-  - 宿泊先名（最終日または日帰りは空白）
-
-### 優先度 D: Todoリスト
-- カレンダー上部にTodoリスト
-- 予約必要スポットの予約チェック・海外ビザ取得チェック等
-- +ボタンでユーザー追加、削除ボタンあり
-
-### 優先度: 低
-- スクレイピング精度の改善（じゃらん/るるぶ/アメブロ対応）
-- 印刷・PDF出力
-- 旅程のコピー（1日目を複製等）
-- 共同編集機能
-- お気に入り保存
-- スマホ対応の改善
 
 ---
 
