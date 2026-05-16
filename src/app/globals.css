@@ -54,6 +54,56 @@ details:not([open]) .faq-toggle::before { content: "＋"; }
     .logo-text { display: none; }
 }
 
+/* ────────── しおり（Booklet）印刷最適化 ────────── */
+@media print {
+    /* グローバルヘッダー・フッター・ナビは非表示 */
+    body > header, body > footer, .no-print {
+        display: none !important;
+    }
+    /* 背景色はそのまま印刷（ブラウザに任せず） */
+    .booklet-root {
+        background: white !important;
+        padding: 0 !important;
+    }
+    /* 各「ページ」を新しい紙ページに */
+    .booklet-page {
+        page-break-inside: avoid;
+        break-inside: avoid;
+        margin-bottom: 0 !important;
+        box-shadow: none !important;
+    }
+    .booklet-cover {
+        page-break-after: always;
+        break-after: page;
+    }
+    .booklet-day {
+        page-break-after: always;
+        break-after: page;
+    }
+    .booklet-day:last-of-type {
+        page-break-after: auto;
+        break-after: auto;
+    }
+    /* A4 余白 */
+    @page {
+        size: A4;
+        margin: 12mm 10mm;
+    }
+    /* リンクの URL を出さない */
+    a[href]::after {
+        content: "" !important;
+    }
+}
+
+/* NOW バッジの軽いパルス */
+@keyframes now-pulse {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(1.06); }
+}
+.now-badge {
+    animation: now-pulse 1.6s ease-in-out infinite;
+}
+
 /* ローディングアニメーション */
 @keyframes spin-ring {
     to { transform: rotate(360deg); }

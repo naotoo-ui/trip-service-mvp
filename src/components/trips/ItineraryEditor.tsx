@@ -8,6 +8,7 @@ import SpotDetailModal from './SpotDetailModal'
 import HotelDetailModal from './HotelDetailModal'
 import ShareButton from './ShareButton'
 import CopyButton from './CopyButton'
+import Link from 'next/link'
 import { getDestinationEmoji } from '@/lib/destinationEmoji'
 import { useIsMobile } from '@/hooks/useIsMobile'
 
@@ -499,6 +500,23 @@ export default function ItineraryEditor({
                     </>
                 )}
 
+                <Link
+                    href={editable && editToken
+                        ? `/trips/${trip.share_id}/booklet?edit=${editToken}`
+                        : `/trips/${trip.share_id}/booklet`}
+                    style={{
+                        display: 'flex', alignItems: 'center', gap: 4,
+                        padding: '5px 12px', borderRadius: 8,
+                        background: 'linear-gradient(135deg, #ea580c 0%, #f59e0b 100%)',
+                        color: 'white', fontSize: 12, fontWeight: 700,
+                        textDecoration: 'none', whiteSpace: 'nowrap',
+                        boxShadow: '0 2px 6px rgba(234, 88, 12, 0.3)',
+                        flexShrink: 0,
+                    }}
+                    title="完成した旅程をしおり形式で表示・印刷"
+                >
+                    📖 しおり
+                </Link>
                 <CopyButton shareId={trip.share_id} />
                 <ShareButton shareId={trip.share_id} />
             </div>
