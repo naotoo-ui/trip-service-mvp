@@ -38,7 +38,7 @@
 | **Phase 1** MVP | ✅ 完了 | 6 / 6 |
 | **Phase 2** 初期改善 | 🔨 80% | 4 / 5 |
 | **Phase 3** バイラル・SEO | 🔨 20% | 1 / 5（+派生実装多数） |
-| **Phase 4** UX強化 | ❌ 未着手 | 0 / 4 |
+| **Phase 4** UX強化 | 🔨 25% | 1 / 4（しおり実装済） |
 | **Phase 5** 軽い収益化 | ❌ 未着手 | 0 / 3 |
 | **Phase 6** 本格収益化 | ❌ 未着手 | 0 / 4 |
 | **Phase 7** 差別化拡張 | ❌ 未着手 | 0 / 5 |
@@ -80,9 +80,9 @@
 - [x] LP強化（ヒーロー統合フォーム・How it works・みんなのプラン・Features・FAQ・最終CTA）
 - [x] モダンヘッダー（ガラスモーフィズム・グラデーションロゴ・将来のアバター用スロット）
 
-### Phase 4 — UX強化（未着手）
+### Phase 4 — UX強化（25%完了）
+- [x] **しおり（Web + 印刷 / PDF）自動生成** — `/trips/[id]/booklet`・3テーマ・NOW/NEXT バッジ・A4印刷最適化
 - [ ] チェックリスト自動生成（持ち物・やること）
-- [ ] しおり（PDF）自動生成
 - [ ] 日ごとのToDo管理
 - [ ] オフライン閲覧対応（PWA・読み取り専用キャッシュ）
 
@@ -125,6 +125,8 @@
 - [x] **HotelDetailModal**（CI/CO時刻・料金・予約URL・メモ・Google Maps）
 - [x] カレンダー sticky ヘッダー（日付＋宿泊帯がスクロール時も固定表示）
 - [x] スポット詳細モーダル（種別・所要時間・予約・リンク・メモ・発着時刻・地図）
+- [x] **日まとめラベル**（label を列ヘッダーに表示・ダブルクリックで編集・AI が説明的なテーマを生成）
+- [x] カレンダー横スクロール無効化（可視領域に常にフィット）
 
 #### 信頼性・権限
 - [x] **edit_token による編集権限分離**（閲覧URL ≠ 編集URL・403 forbidden 検証）
@@ -215,14 +217,17 @@
 - インストール可能・オフライン読み取り
 - ホーム画面追加で再訪率向上
 
-#### 12. しおり PDF 生成（1〜2日）
-- `@react-pdf/renderer` で旅程を PDF 化
-- 「印刷用しおり」「家族にメール送付」用途
-- マネタイズ拡張ポイント（有料テンプレ等）
-
-#### 13. チェックリスト機能（1日）
+#### 12. チェックリスト機能（1日）
 - 旅程ごとに「持ち物・やること」リスト
 - 行き先・季節・グループ種別から AI が初期リストを提案
+- しおり表紙にも反映
+
+#### 13. しおり機能の拡張（1〜2日）
+- スポットへの画像添付（Wikimedia Commons or Supabase Storage）
+- 持ち物・連絡先メモを表紙裏に
+- QR コードでしおり URL を埋め込み（紙→スマホ復帰）
+- 和風など追加テーマ
+- 真の PDF 出力（`@react-pdf/renderer`）— 現状は window.print() ベース
 
 ---
 
@@ -361,6 +366,7 @@ src/
 │   ├── trips/[id]/page.tsx               # 旅程詳細（OGP動的・?edit=token 判定）
 │   ├── trips/[id]/opengraph-image.tsx    # 動的 OG 画像生成（1200×630）
 │   ├── trips/[id]/loading.tsx            # 旅程詳細ロード中
+│   ├── trips/[id]/booklet/page.tsx       # ★しおりページ（A4印刷対応・3テーマ）
 │   └── api/
 │       ├── plan/route.ts                 # POST: 統合フォーム→並行スクレイプ→AI生成→保存
 │       ├── generate/route.ts             # POST: 条件→AI生成
@@ -382,6 +388,12 @@ src/
 │   ├── CopyButton.tsx                    # 旅程コピー→ edit_token 付きURLへ
 │   ├── TripViewTracker.tsx               # 閲覧履歴を localStorage に保存
 │   └── RecentTripsButton.tsx             # ヘッダー🕘最近ボタン（ドロップダウン）
+├── components/booklet/
+│   ├── BookletView.tsx                   # ルートコンテナ・テーマ管理（localStorage 保存）
+│   ├── BookletNav.tsx                    # 上部ツールバー（戻る・テーマ・シェア・印刷）
+│   ├── BookletCover.tsx                  # 表紙ページ（タイトル・目的地・日程）
+│   ├── BookletDayPage.tsx                # 日別ページ（時系列タイムライン・宿泊）
+│   └── bookletThemes.ts                  # テーマ定義（Classic / Warm / Mono）
 ├── hooks/
 │   ├── useIsMobile.ts                    # window.matchMedia ベース判定
 │   └── useRecentTrips.ts                 # localStorage「最近の旅程」フック
@@ -467,6 +479,43 @@ docs/
   - ランタイム: `nodejs`（Supabase SDK が動作するため）
   - デザイン: 青グラデーション背景・旅程タイトル・目的地・日数
 
+### しおり機能の設計（/trips/[id]/booklet）
+**コンセプト**: カレンダーで完成した旅程を「持ち歩ける・印刷できるしおり」に変換するビュー。
+
+**ファイル**:
+- `src/app/trips/[id]/booklet/page.tsx` — サーバーコンポーネント（trip取得・edit_token引継）
+- `src/components/booklet/BookletView.tsx` — ルートクライアント（テーマ管理・localStorage 保存）
+- `src/components/booklet/BookletNav.tsx` — 上部ツールバー（戻る・テーマ・シェア・印刷）
+- `src/components/booklet/BookletCover.tsx` — 表紙（タイトル・目的地・日程・装飾円）
+- `src/components/booklet/BookletDayPage.tsx` — 日別ページ（時系列タイムライン・宿泊先・NOW/NEXT 判定）
+- `src/components/booklet/bookletThemes.ts` — テーマ定義（Classic / Warm / Mono）
+
+**テーマ**:
+| 名前 | 用途 | カラー |
+|------|------|--------|
+| Classic | 定番 | 青→紫グラデーション |
+| Warm    | 温かみ | オレンジ系グラデーション |
+| Mono    | 印刷向き | モノクロ・コントラスト強 |
+
+`localStorage` キー: `tripgen.bookletTheme.v1`
+
+**NOW / NEXT 判定**（旅行当日のみ動作）:
+- `useEffect` でマウント後のみ `setInterval(60s)` で現在時刻を更新（SSR 差異回避）
+- 進行中の予定 = NOW（青パルス・🔵 NOW バッジ）
+- 次の予定（進行中なし時）= NEXT（⏭ NEXT バッジ）
+- TODAY バッジを日付ヘッダーにも表示
+
+**印刷対応**（`globals.css` の `@media print`）:
+- `body > header`, `body > footer`, `.no-print` を非表示
+- `.booklet-cover` `.booklet-day` に `page-break-after: always`
+- `@page { size: A4; margin: 12mm 10mm }`
+- リンクの `::after` URL 表示を抑止
+- 真の PDF 出力は未実装（`window.print()` ベース・将来 `@react-pdf/renderer` 検討）
+
+**ItineraryEditor からの遷移**:
+- ツールバーに「📖 しおり」ボタン（オレンジグラデ）
+- `editable && editToken` なら `?edit=token` を引継ぎ、しおりからカレンダーに戻った時も編集モードを維持
+
 ### 移動ブロックの設計方針（ギャップ注釈方式）
 - AI はスポット間に空き時間を設けるだけ（移動ブロック非生成）
 - カレンダー上の空き時間を「XX分」ラベルで表示
@@ -516,3 +565,6 @@ try { data = JSON.parse(text) } catch {
 - **details/summary**: globals.css でデフォルトマーカー非表示、`.faq-toggle` で ＋/− 切替
 - **ヘッダー**: inline styles + `.nav-hover` `.cta-hover` ホバー、`.nav-label` `.logo-text` でモバイル省略
 - **edit_token 32文字**: a-zA-Z0-9 から `generateEditToken()` で生成（lib/db/trips.ts）
+- **しおり印刷**: `@media print` で `body > header`・`body > footer`・`.no-print` を全て非表示。`.booklet-cover` `.booklet-day` に `page-break-after: always`
+- **しおりテーマ**: `tripgen.bookletTheme.v1` キーで localStorage 保存・SSR ハイドレーション差異を避けるため初期値は 'classic' 固定
+- **しおり NOW 判定**: `useEffect` でマウント後のみ `setInterval(60_000)`、SSR では計算しない
