@@ -164,10 +164,11 @@ interface Props {
     onDragEnd?: () => void
     onGapClick?: (dayIdx: number, time: string, duration: number) => void
     onDoubleClickHotel?: (hotel: HotelInfo | undefined, dayIdx: number) => void
+    editable?: boolean
 }
 
 // ────────── コンポーネント ──────────
-export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDropSuggestedSpot, onDropFreeBlock, onMoveToSidebar, onDraggingToSidebarChange, onSidebarDragMove, onDoubleClickSpot, sidebarRef, onDragStart, onDragEnd, onGapClick, onDoubleClickHotel }: Props) {
+export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDropSuggestedSpot, onDropFreeBlock, onMoveToSidebar, onDraggingToSidebarChange, onSidebarDragMove, onDoubleClickSpot, sidebarRef, onDragStart, onDragEnd, onGapClick, onDoubleClickHotel, editable = true }: Props) {
     const containerRef = useRef<HTMLDivElement>(null)
     const gridBodyRef  = useRef<HTMLDivElement>(null)
     const isMobile     = useIsMobile()
@@ -188,8 +189,19 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDr
 
     const [colW, setColW] = useState(160)
     const [mobileDayIdx, setMobileDayIdx] = useState(0)
+    const [editingLabelIdx, setEditingLabelIdx] = useState<number | null>(null)
+    const [labelDraft, setLabelDraft] = useState('')
     const lastTapRef = useRef<{ time: number; key: string }>({ time: 0, key: '' })
     const ppm        = BASE_PPM * zoom
+
+    function commitLabel(dayIdx: number) {
+        const trimmed = labelDraft.trim() || days[dayIdx]?.label || `${dayIdx + 1}日目`
+        setEditingLabelIdx(null)
+        if (onUpdateDays) {
+            const next = days.map((d, i) => i === dayIdx ? { ...d, label: trimmed } : d)
+            onUpdateDays(next)
+        }
+    }
 
     const [drag, setDrag]                   = useState<Drag | null>(null)
     const [temp, setTemp]                   = useState<Temp | null>(null)
@@ -218,15 +230,23 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDr
     }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
     // 列幅計算（モバイルは1列全幅、デスクトップは days.length 分割）
+    // 横スクロールは想定しないため、可視領域に収まる幅のみ採用
     useEffect(() => {
         const doCalc = () => {
             if (!containerRef.current) return
             const available = containerRef.current.clientWidth - TIME_COL
-            setColW(Math.max(110, isMobile ? available : available / days.length))
+            setColW(isMobile ? available : Math.max(40, available / days.length))
         }
         const id = requestAnimationFrame(doCalc)
         window.addEventListener('resize', doCalc)
-        return () => { cancelAnimationFrame(id); window.removeEventListener('resize', doCalc) }
+        // ResizeObserver で親幅変化にも追従
+        const ro = new ResizeObserver(doCalc)
+        if (containerRef.current) ro.observe(containerRef.current)
+        return () => {
+            cancelAnimationFrame(id)
+            window.removeEventListener('resize', doCalc)
+            ro.disconnect()
+        }
     }, [days.length, isMobile])
 
     // モバイルでは常に mobileDayIdx、デスクトップは X 座標から日付を計算
@@ -448,7 +468,6 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDr
     }
 
     const numCols = isMobile ? 1 : days.length
-    const minW    = TIME_COL + colW * numCols
     const nowTop  = (nowMins - GRID_START * 60) * ppm
     const showNow = nowMins >= GRID_START * 60 && nowMins <= GRID_END * 60
     const todayIdx = startDate
@@ -569,18 +588,20 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDr
                 </div>
             )}
 
-            {/* カレンダー本体（内部スクロールコンテナ・サイドバー高さに合わせて拡大）*/}
+            {/* カレンダー本体（内部スクロールコンテナ・縦スクロール専用）*/}
             <div
                 ref={containerRef}
                 style={{
-                    overflow: 'auto',
+                    overflowY: 'auto',
+                    overflowX: 'hidden',
                     userSelect: 'none',
                     height: 'min(720px, calc(100vh - 220px))',
                     minHeight: 480,
                     overscrollBehavior: 'contain',
+                    width: '100%',
                 }}
             >
-                <div style={{ minWidth: minW }}>
+                <div style={{ width: '100%' }}>
 
                     {/* 列ヘッダー + 宿泊帯（両方を一括 sticky で固定） */}
                     <div
@@ -591,36 +612,91 @@ export default function CalendarView({ days, startDate, zoom, onUpdateDays, onDr
                         }}
                     >
                     <div
-                        style={{ display: 'flex', minWidth: minW, borderBottom: '2px solid #e5e7eb' }}
+                        style={{ display: 'flex', width: '100%', borderBottom: '2px solid #e5e7eb' }}
                     >
                         <div style={{ width: TIME_COL, flexShrink: 0, borderRight: '1px solid #e2e8f0' }} />
                         {days.map((_, i) => {
                             if (isMobile && i !== mobileDayIdx) return null
                             const h = colHeader(i)
+                            const labelText = days[i]?.label ?? `${i + 1}日目`
+                            const isEditing = editingLabelIdx === i
+                            const canEdit   = editable
                             return (
                                 <div key={i} style={{
-                                    width: colW, flexShrink: 0,
+                                    width: colW, flexShrink: 0, minWidth: 0,
                                     borderRight: !isMobile && i < days.length - 1 ? '1px solid #f1f5f9' : 'none',
                                     backgroundColor: h.isToday ? '#eff6ff' : 'transparent',
-                                    padding: '8px 4px', textAlign: 'center',
+                                    padding: '8px 6px 10px', textAlign: 'center',
                                 }}>
                                     {startDate ? (
                                         <>
                                             <p style={{ fontSize: 11, color: WEEKDAY_COLORS[h.weekday] ?? '#374151', fontWeight: 600, margin: 0 }}>{h.bottom}</p>
                                             <p style={{ fontSize: 18, fontWeight: 700, color: h.isToday ? '#2563eb' : '#111827', lineHeight: 1.2, margin: '2px 0' }}>{h.top}</p>
-                                            <p style={{ fontSize: 10, color: '#94a3b8', margin: 0 }}>{'sub' in h ? h.sub : ''}</p>
                                         </>
                                     ) : (
-                                        <p style={{ fontSize: 14, fontWeight: 700, color: '#374151', margin: 0, lineHeight: '40px' }}>{h.top}</p>
+                                        <p style={{ fontSize: 13, fontWeight: 600, color: '#6b7280', margin: 0, lineHeight: 1.2 }}>{`${i + 1}日目`}</p>
                                     )}
-                                    {h.isToday && <div style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#2563eb', margin: '0 auto' }} />}
+                                    {h.isToday && <div style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#2563eb', margin: '0 auto 4px' }} />}
+
+                                    {/* 日まとめ（label）— ダブルクリックで編集 */}
+                                    {isEditing ? (
+                                        <input
+                                            autoFocus
+                                            value={labelDraft}
+                                            onChange={e => setLabelDraft(e.target.value)}
+                                            onBlur={() => commitLabel(i)}
+                                            onKeyDown={e => {
+                                                if (e.key === 'Enter') { e.preventDefault(); commitLabel(i) }
+                                                if (e.key === 'Escape') { setEditingLabelIdx(null) }
+                                            }}
+                                            placeholder="この日のテーマ"
+                                            style={{
+                                                marginTop: 4,
+                                                width: '100%', boxSizing: 'border-box',
+                                                fontSize: 12, fontWeight: 600,
+                                                color: '#1d4ed8',
+                                                background: 'white',
+                                                border: '1.5px solid #93c5fd',
+                                                borderRadius: 6,
+                                                padding: '3px 6px',
+                                                outline: 'none',
+                                                textAlign: 'center',
+                                                fontFamily: 'inherit',
+                                            }}
+                                        />
+                                    ) : (
+                                        <p
+                                            onDoubleClick={() => {
+                                                if (!canEdit) return
+                                                setLabelDraft(labelText)
+                                                setEditingLabelIdx(i)
+                                            }}
+                                            title={canEdit ? 'ダブルクリックで編集' : undefined}
+                                            style={{
+                                                marginTop: 4,
+                                                fontSize: 12, fontWeight: 600,
+                                                color: h.isToday ? '#1d4ed8' : '#475569',
+                                                background: h.isToday ? '#dbeafe' : '#f1f5f9',
+                                                borderRadius: 6,
+                                                padding: '3px 6px',
+                                                lineHeight: 1.3,
+                                                margin: '4px 0 0',
+                                                cursor: canEdit ? 'text' : 'default',
+                                                overflow: 'hidden',
+                                                textOverflow: 'ellipsis',
+                                                whiteSpace: 'nowrap',
+                                            }}
+                                        >
+                                            {labelText}
+                                        </p>
+                                    )}
                                 </div>
                             )
                         })}
                     </div>
 
                     {/* 宿泊帯（列ヘッダー直下）*/}
-                    <div style={{ display: 'flex', minWidth: minW, borderBottom: '1px solid #e5e7eb', backgroundColor: 'white' }}>
+                    <div style={{ display: 'flex', width: '100%', borderBottom: '1px solid #e5e7eb', backgroundColor: 'white' }}>
                         <div style={{
                             width: TIME_COL, flexShrink: 0, borderRight: '1px solid #e2e8f0',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',

@@ -559,6 +559,7 @@ export default function ItineraryEditor({
                         days={days}
                         startDate={startDate}
                         zoom={zoom}
+                        editable={editable}
                         onUpdateDays={handleUpdateDays}
                         onDropSuggestedSpot={editable ? handleDropSuggestedSpot : undefined}
                         onDropFreeBlock={editable ? handleDropFreeBlock : undefined}

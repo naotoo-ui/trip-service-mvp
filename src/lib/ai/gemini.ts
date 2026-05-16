@@ -49,9 +49,10 @@ export function buildGeneratePrompt(input: GenerateInput): string {
 - 8〜9時スタート、実在する店名・スポット名を使用
 - trip_styleは一貫させる
 - 各スポットにaddress（市区町村＋町名レベル、例:「那覇市首里金城町」「京都市東山区」）を付与
+- 各日のlabelは「その日のテーマ」を端的に表す8〜14文字（例:「首里・那覇市内観光」「美ら海エリア満喫」「国際通りグルメ巡り」）。「1日目」のような単純番号は禁止。
 
 出力フォーマット:
-{"title":"...","trip_style":"rental_car","trip_style_reason":"...","days":[{"day":1,"label":"1日目","spots":[{"time":"09:00","name":"...","description":"...","duration_minutes":60,"type":"観光","address":"那覇市首里金城町"},{"time":"11:00","name":"...","description":"...","duration_minutes":90,"type":"グルメ","address":"那覇市牧志"}]}]}
+{"title":"...","trip_style":"rental_car","trip_style_reason":"...","days":[{"day":1,"label":"首里・那覇市内観光","spots":[{"time":"09:00","name":"...","description":"...","duration_minutes":60,"type":"観光","address":"那覇市首里金城町"},{"time":"11:00","name":"...","description":"...","duration_minutes":90,"type":"グルメ","address":"那覇市牧志"}]}]}
 
 typeは「観光」「グルメ」「宿泊」「その他」のいずれか（移動は含めない）。`
 }
@@ -67,9 +68,10 @@ ${articleText.slice(0, 6000)}
 - 記事の交通手段をtrip_styleに反映
 - 移動時間を考慮してスポット間に十分な空き時間を設ける（移動ブロックは生成しない）
 - 各スポットにaddress（市区町村＋町名レベル、例:「那覇市首里金城町」「京都市東山区」）を付与
+- 各日のlabelは「その日のテーマ」を端的に表す8〜14文字（例:「首里・那覇市内観光」「美ら海エリア満喫」）。「1日目」のような単純番号は禁止。
 
 出力フォーマット:
-{"title":"...","destination":"...","duration_days":3,"trip_style":"rental_car","trip_style_reason":"...","days":[{"day":1,"label":"1日目","spots":[{"time":"09:00","name":"...","description":"...","duration_minutes":60,"type":"観光","address":"那覇市首里金城町"},{"time":"11:00","name":"...","description":"...","duration_minutes":90,"type":"グルメ","address":"那覇市牧志"}]}]}
+{"title":"...","destination":"...","duration_days":3,"trip_style":"rental_car","trip_style_reason":"...","days":[{"day":1,"label":"首里・那覇市内観光","spots":[{"time":"09:00","name":"...","description":"...","duration_minutes":60,"type":"観光","address":"那覇市首里金城町"},{"time":"11:00","name":"...","description":"...","duration_minutes":90,"type":"グルメ","address":"那覇市牧志"}]}]}
 
 typeは「観光」「グルメ」「宿泊」「その他」のいずれか（移動は含めない）。`
 }
@@ -141,9 +143,10 @@ ${articleSection}
 - 旅程に組み込めなかったスポット（混雑・時間不足・記事掲載の未採用スポット）はsidebar_spotsに追加（最大10件、popularity 1-5）
 - 予約が必要なスポット（人気観光地・レストラン・体験アクティビティ・チケット制施設等）にはneeds_booking:trueを付与（不要なら省略）
 - 各スポットにaddress（市区町村＋町名レベル、例:「那覇市首里金城町」「京都市東山区」）を付与
+- 各日のlabelは「その日のテーマ」を端的に表す8〜14文字（例:「首里・那覇市内観光」「美ら海エリア満喫」「国際通りグルメ巡り」）。「1日目」のような単純番号は禁止。
 
 出力フォーマット:
-{"title":"...","trip_style":"rental_car","trip_style_reason":"...","days":[{"day":1,"label":"1日目","spots":[{"time":"09:00","name":"...","description":"...","duration_minutes":60,"type":"観光","address":"那覇市首里金城町","needs_booking":true},{"time":"11:00","name":"...","description":"...","duration_minutes":90,"type":"グルメ","address":"那覇市牧志"}]}],"sidebar_spots":[{"name":"...","description":"...","type":"観光","duration_minutes":90,"popularity":4}]}
+{"title":"...","trip_style":"rental_car","trip_style_reason":"...","days":[{"day":1,"label":"首里・那覇市内観光","spots":[{"time":"09:00","name":"...","description":"...","duration_minutes":60,"type":"観光","address":"那覇市首里金城町","needs_booking":true},{"time":"11:00","name":"...","description":"...","duration_minutes":90,"type":"グルメ","address":"那覇市牧志"}]}],"sidebar_spots":[{"name":"...","description":"...","type":"観光","duration_minutes":90,"popularity":4}]}
 
 typeは「観光」「グルメ」「宿泊」「その他」のいずれか（移動は含めない）。`
 }
