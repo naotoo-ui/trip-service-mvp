@@ -1,9 +1,10 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import DatePicker from './DatePicker'
 import type { GroupType } from '@/types'
 import GeneratingOverlay from './GeneratingOverlay'
+import { isClientRateLimited, incrementRateLimit, getRemainingCount, DAILY_MAX } from '@/lib/rateLimit'
 
 // ────────── サブコンポーネント ──────────
 function Counter({
@@ -111,6 +112,11 @@ export default function PlanForm() {
     const [loading, setLoading]     = useState(false)
     const [error, setError]         = useState('')
     const [isRateLimit, setIsRateLimit] = useState(false)
+    const [remaining, setRemaining] = useState(DAILY_MAX)
+
+    useEffect(() => {
+        setRemaining(getRemainingCount())
+    }, [])
 
     function addDestination() {
         const d = destInput.trim()
@@ -122,6 +128,11 @@ export default function PlanForm() {
 
     async function handleSubmit() {
         if (destinations.length === 0) { setError('目的地を1つ以上入力してください'); return }
+        if (isClientRateLimited()) {
+            setIsRateLimit(true)
+            setError('本日の旅程生成回数の上限（10回）に達しました。明日またお試しください。')
+            return
+        }
         setLoading(true)
         setError('')
         setIsRateLimit(false)
@@ -151,6 +162,8 @@ export default function PlanForm() {
                 return
             }
             if (!res.ok) throw new Error(data.error ?? '生成失敗')
+            incrementRateLimit()
+            setRemaining(getRemainingCount())
             const url = data.edit_token
                 ? `/trips/${data.share_id}?edit=${data.edit_token}`
                 : `/trips/${data.share_id}`
@@ -367,24 +380,35 @@ export default function PlanForm() {
                 )
             )}
 
+            {/* ── 残り生成回数 ── */}
+            {remaining < DAILY_MAX && (
+                <p style={{
+                    textAlign: 'right', fontSize: 11,
+                    color: remaining <= 2 ? '#f59e0b' : '#9ca3af',
+                    margin: '-12px 0 -8px',
+                }}>
+                    本日の残り生成回数: {remaining} / {DAILY_MAX}
+                </p>
+            )}
+
             {/* ── 送信ボタン ── */}
             <button
                 type="button"
                 onClick={handleSubmit}
-                disabled={loading}
+                disabled={loading || remaining <= 0}
                 style={{
                     width: '100%', padding: '15px',
                     borderRadius: 12, border: 'none',
-                    background: loading
+                    background: (loading || remaining <= 0)
                         ? '#93c5fd'
                         : 'linear-gradient(135deg, #2563eb 0%, #4338ca 100%)',
                     color: 'white', fontSize: 16, fontWeight: 700,
-                    cursor: loading ? 'not-allowed' : 'pointer',
-                    boxShadow: loading ? 'none' : '0 4px 14px rgba(37,99,235,0.35)',
+                    cursor: (loading || remaining <= 0) ? 'not-allowed' : 'pointer',
+                    boxShadow: (loading || remaining <= 0) ? 'none' : '0 4px 14px rgba(37,99,235,0.35)',
                     transition: 'all 0.2s',
                 }}
             >
-                {loading ? '✈️ AIが旅程を生成中... (最大60秒)' : '✈️ 旅程を生成する'}
+                {loading ? '✈️ AIが旅程を生成中... (最大60秒)' : remaining <= 0 ? '本日の上限に達しました' : '✈️ 旅程を生成する'}
             </button>
         </div>
         </>
