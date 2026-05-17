@@ -47,6 +47,12 @@ export async function POST(req: NextRequest) {
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
         console.error('plan error:', message)
+        if (message.startsWith('RATE_LIMIT:')) {
+            return NextResponse.json(
+                { error: message.replace('RATE_LIMIT: ', '') },
+                { status: 429 }
+            )
+        }
         return NextResponse.json(
             { error: `旅程の生成に失敗しました: ${message}` },
             { status: 500 }

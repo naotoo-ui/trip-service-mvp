@@ -108,8 +108,9 @@ export default function PlanForm() {
     const [wishes, setWishes] = useState('')
     const [urls, setUrls]     = useState<string[]>([])
 
-    const [loading, setLoading] = useState(false)
-    const [error, setError]     = useState('')
+    const [loading, setLoading]     = useState(false)
+    const [error, setError]         = useState('')
+    const [isRateLimit, setIsRateLimit] = useState(false)
 
     function addDestination() {
         const d = destInput.trim()
@@ -123,6 +124,7 @@ export default function PlanForm() {
         if (destinations.length === 0) { setError('目的地を1つ以上入力してください'); return }
         setLoading(true)
         setError('')
+        setIsRateLimit(false)
         try {
             const validUrls = urls.filter(u => u.trim())
             const res = await fetch('/api/plan', {
@@ -143,6 +145,11 @@ export default function PlanForm() {
             const text = await res.text()
             let data: { share_id?: string; edit_token?: string; error?: string }
             try { data = JSON.parse(text) } catch { throw new Error(`サーバーエラー（タイムアウトの可能性）: ${text.slice(0, 120)}`) }
+            if (res.status === 429) {
+                setIsRateLimit(true)
+                setError(data.error ?? 'AIの生成上限に達しました')
+                return
+            }
             if (!res.ok) throw new Error(data.error ?? '生成失敗')
             const url = data.edit_token
                 ? `/trips/${data.share_id}?edit=${data.edit_token}`
@@ -336,13 +343,28 @@ export default function PlanForm() {
 
             {/* ── エラー ── */}
             {error && (
-                <div style={{
-                    padding: '10px 14px', background: '#fef2f2',
-                    border: '1px solid #fecaca', borderRadius: 10,
-                    fontSize: 13, color: '#dc2626',
-                }}>
-                    {error}
-                </div>
+                isRateLimit ? (
+                    <div style={{
+                        padding: '14px 16px', background: '#fffbeb',
+                        border: '1px solid #fcd34d', borderRadius: 10,
+                        fontSize: 13, color: '#92400e',
+                        display: 'flex', flexDirection: 'column', gap: 6,
+                    }}>
+                        <p style={{ margin: 0, fontWeight: 700 }}>⏳ AI生成の上限に達しました</p>
+                        <p style={{ margin: 0 }}>{error}</p>
+                        <p style={{ margin: 0, fontSize: 11, color: '#b45309' }}>
+                            無料プランは1日20回まで。明日の日本時間 17:00 にリセットされます。
+                        </p>
+                    </div>
+                ) : (
+                    <div style={{
+                        padding: '10px 14px', background: '#fef2f2',
+                        border: '1px solid #fecaca', borderRadius: 10,
+                        fontSize: 13, color: '#dc2626',
+                    }}>
+                        {error}
+                    </div>
+                )
             )}
 
             {/* ── 送信ボタン ── */}

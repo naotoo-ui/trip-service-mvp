@@ -98,11 +98,24 @@ export function parseTripJson(raw: string): {
     }
 }
 
+async function callGemini(prompt: string): Promise<string> {
+    try {
+        const result = await getModel().generateContent(prompt)
+        return result.response.text()
+    } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        if (msg.includes('429') || msg.toLowerCase().includes('quota') || msg.toLowerCase().includes('rate limit')) {
+            throw new Error('RATE_LIMIT: AIの1日あたりの生成上限に達しました。しばらく時間をおいてから再度お試しください。')
+        }
+        throw err
+    }
+}
+
 export async function generateTripFromInput(
     input: GenerateInput
 ): Promise<{ title: string; itinerary: Itinerary }> {
-    const result = await getModel().generateContent(buildGeneratePrompt(input))
-    const { title, itinerary } = parseTripJson(result.response.text())
+    const raw = await callGemini(buildGeneratePrompt(input))
+    const { title, itinerary } = parseTripJson(raw)
     return { title, itinerary }
 }
 
@@ -155,8 +168,8 @@ export async function generateTripFromPlan(
     input: PlanInput,
     articleTexts: string[]
 ): Promise<{ title: string; itinerary: Itinerary }> {
-    const result = await getModel().generateContent(buildPlanPrompt(input, articleTexts))
-    const { title, itinerary } = parseTripJson(result.response.text())
+    const raw = await callGemini(buildPlanPrompt(input, articleTexts))
+    const { title, itinerary } = parseTripJson(raw)
     return { title, itinerary }
 }
 
@@ -166,8 +179,8 @@ export async function generateTripFromArticle(articleText: string): Promise<{
     duration_days: number
     itinerary: Itinerary
 }> {
-    const result = await getModel().generateContent(buildScrapePrompt(articleText))
-    const { title, destination, duration_days, itinerary } = parseTripJson(result.response.text())
+    const raw = await callGemini(buildScrapePrompt(articleText))
+    const { title, destination, duration_days, itinerary } = parseTripJson(raw)
     return {
         title,
         destination: destination ?? '不明',
