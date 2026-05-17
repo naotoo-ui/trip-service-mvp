@@ -50,6 +50,8 @@ export function buildGeneratePrompt(input: GenerateInput): string {
 - trip_styleは一貫させる
 - 各スポットにaddress（市区町村＋町名レベル、例:「那覇市首里金城町」「京都市東山区」）を付与
 - 各日のlabelは「その日のテーマ」を端的に表す8〜14文字（例:「首里・那覇市内観光」「美ら海エリア満喫」「国際通りグルメ巡り」）。「1日目」のような単純番号は禁止。
+- 【必須】同一スポット名を全日程で重複させない
+- 【必須】各日のスポットはtime順に並べ、前のスポットの time + duration_minutes を超えてから次のスポットを開始すること（時間の重複・逆転禁止）
 
 出力フォーマット:
 {"title":"...","trip_style":"rental_car","trip_style_reason":"...","days":[{"day":1,"label":"首里・那覇市内観光","spots":[{"time":"09:00","name":"...","description":"...","duration_minutes":60,"type":"観光","address":"那覇市首里金城町"},{"time":"11:00","name":"...","description":"...","duration_minutes":90,"type":"グルメ","address":"那覇市牧志"}]}]}
@@ -69,6 +71,8 @@ ${articleText.slice(0, 6000)}
 - 移動時間を考慮してスポット間に十分な空き時間を設ける（移動ブロックは生成しない）
 - 各スポットにaddress（市区町村＋町名レベル、例:「那覇市首里金城町」「京都市東山区」）を付与
 - 各日のlabelは「その日のテーマ」を端的に表す8〜14文字（例:「首里・那覇市内観光」「美ら海エリア満喫」）。「1日目」のような単純番号は禁止。
+- 【必須】同一スポット名を全日程で重複させない
+- 【必須】各日のスポットはtime順に並べ、前のスポットの time + duration_minutes を超えてから次のスポットを開始すること（時間の重複・逆転禁止）
 
 出力フォーマット:
 {"title":"...","destination":"...","duration_days":3,"trip_style":"rental_car","trip_style_reason":"...","days":[{"day":1,"label":"首里・那覇市内観光","spots":[{"time":"09:00","name":"...","description":"...","duration_minutes":60,"type":"観光","address":"那覇市首里金城町"},{"time":"11:00","name":"...","description":"...","duration_minutes":90,"type":"グルメ","address":"那覇市牧志"}]}]}
@@ -98,6 +102,50 @@ export function parseTripJson(raw: string): {
     }
 }
 
+function toMins(time: string): number {
+    const [h, m] = time.split(':').map(Number)
+    return isNaN(h) ? 0 : h * 60 + (m || 0)
+}
+
+export function sanitizeItinerary(itinerary: Itinerary): Itinerary {
+    const seenNames = new Set<string>()
+
+    const days = itinerary.days.map(day => {
+        // 重複スポットを除外
+        const uniqueSpots = day.spots.filter(spot => {
+            const key = spot.name.trim().toLowerCase()
+            if (seenNames.has(key)) return false
+            seenNames.add(key)
+            return true
+        })
+
+        // 時間の重複・逆転を修正（前のスポット終了後に開始するよう補正）
+        let lastEndMins = -1
+        const fixedSpots = uniqueSpots.map(spot => {
+            const startMins = toMins(spot.time)
+            const dur = Math.max(20, spot.duration_minutes || 60)
+
+            let adjStart = startMins
+            if (adjStart < lastEndMins) {
+                adjStart = lastEndMins + 15
+            }
+            lastEndMins = adjStart + dur
+
+            const h = Math.floor(adjStart / 60)
+            const m = adjStart % 60
+            return {
+                ...spot,
+                time: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`,
+                duration_minutes: dur,
+            }
+        })
+
+        return { ...day, spots: fixedSpots }
+    })
+
+    return { ...itinerary, days }
+}
+
 async function callGemini(prompt: string): Promise<string> {
     try {
         const result = await getModel().generateContent(prompt)
@@ -116,7 +164,7 @@ export async function generateTripFromInput(
 ): Promise<{ title: string; itinerary: Itinerary }> {
     const raw = await callGemini(buildGeneratePrompt(input))
     const { title, itinerary } = parseTripJson(raw)
-    return { title, itinerary }
+    return { title, itinerary: sanitizeItinerary(itinerary) }
 }
 
 export function buildPlanPrompt(input: PlanInput, articleTexts: string[]): string {
@@ -157,6 +205,8 @@ ${articleSection}
 - 予約が必要なスポット（人気観光地・レストラン・体験アクティビティ・チケット制施設等）にはneeds_booking:trueを付与（不要なら省略）
 - 各スポットにaddress（市区町村＋町名レベル、例:「那覇市首里金城町」「京都市東山区」）を付与
 - 各日のlabelは「その日のテーマ」を端的に表す8〜14文字（例:「首里・那覇市内観光」「美ら海エリア満喫」「国際通りグルメ巡り」）。「1日目」のような単純番号は禁止。
+- 【必須】同一スポット名を全日程で重複させない
+- 【必須】各日のスポットはtime順に並べ、前のスポットの time + duration_minutes を超えてから次のスポットを開始すること（時間の重複・逆転禁止）
 
 出力フォーマット:
 {"title":"...","trip_style":"rental_car","trip_style_reason":"...","days":[{"day":1,"label":"首里・那覇市内観光","spots":[{"time":"09:00","name":"...","description":"...","duration_minutes":60,"type":"観光","address":"那覇市首里金城町","needs_booking":true},{"time":"11:00","name":"...","description":"...","duration_minutes":90,"type":"グルメ","address":"那覇市牧志"}]}],"sidebar_spots":[{"name":"...","description":"...","type":"観光","duration_minutes":90,"popularity":4}]}
@@ -170,7 +220,7 @@ export async function generateTripFromPlan(
 ): Promise<{ title: string; itinerary: Itinerary }> {
     const raw = await callGemini(buildPlanPrompt(input, articleTexts))
     const { title, itinerary } = parseTripJson(raw)
-    return { title, itinerary }
+    return { title, itinerary: sanitizeItinerary(itinerary) }
 }
 
 export async function generateTripFromArticle(articleText: string): Promise<{
@@ -185,6 +235,6 @@ export async function generateTripFromArticle(articleText: string): Promise<{
         title,
         destination: destination ?? '不明',
         duration_days: duration_days ?? 1,
-        itinerary,
+        itinerary: sanitizeItinerary(itinerary),
     }
 }
