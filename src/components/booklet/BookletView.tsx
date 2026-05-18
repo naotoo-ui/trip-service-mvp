@@ -4,20 +4,20 @@ import type { Trip } from '@/types'
 import BookletNav from './BookletNav'
 import BookletCover from './BookletCover'
 import BookletDayPage from './BookletDayPage'
-import { getTheme, type ThemeName } from './bookletThemes'
+import { getTheme, themes, type ThemeName } from './bookletThemes'
 
 const THEME_KEY = 'tripgen.bookletTheme.v1'
 
 export default function BookletView({ trip, editToken }: { trip: Trip; editToken?: string }) {
-    const [themeName, setThemeName] = useState<ThemeName>('classic')
+    const [themeName, setThemeName] = useState<ThemeName>('sakura')
     const [mounted, setMounted]     = useState(false)
 
     // localStorage からテーマ読込
     useEffect(() => {
         setMounted(true)
         try {
-            const saved = window.localStorage.getItem(THEME_KEY) as ThemeName | null
-            if (saved === 'classic' || saved === 'warm' || saved === 'mono') setThemeName(saved)
+            const saved = window.localStorage.getItem(THEME_KEY)
+            if (saved && saved in themes) setThemeName(saved as ThemeName)
         } catch {}
     }, [])
 

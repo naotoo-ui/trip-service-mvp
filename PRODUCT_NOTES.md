@@ -226,8 +226,96 @@
 - スポットへの画像添付（Wikimedia Commons or Supabase Storage）
 - 持ち物・連絡先メモを表紙裏に
 - QR コードでしおり URL を埋め込み（紙→スマホ復帰）
-- 和風など追加テーマ
 - 真の PDF 出力（`@react-pdf/renderer`）— 現状は window.print() ベース
+
+---
+
+## 🎨 しおりテーマ拡張仕様（数十パターン・一部有料） — Phase 4 / Phase 5 横断
+
+### コンセプト
+「旅のしおり = 自分らしく可愛くカスタマイズできる紙のアルバム」として、**最低 20〜30 パターン**のテーマを用意し、ユーザーが自由に選べる。**無料は10パターン程度、それ以外は有料**（プレミアム解放 or 単体購入）。
+
+### ターゲット層別テーマ群
+| カテゴリ | テーマ例 | ターゲット |
+|---------|---------|-----------|
+| 🌸 ガーリー（無料3＋有料） | Sakura・Pink Ribbon・Strawberry・Romantic Rose | 10代〜20代女性 |
+| ☕ ナチュラル（無料2＋有料） | Cream Latte・Botanical・Linen Beige・Dusty Rose | 20代〜30代女性 |
+| 🌿 ミント・清涼（無料1＋有料） | Mint Soda・Sky Journal・Ocean Breeze | 全年代女性 |
+| 💜 ファンタジー（無料1＋有料） | Lavender Dream・Galaxy・Twilight | 10代〜20代 |
+| 📷 ヴィンテージ（無料1＋有料） | Polaroid・Vintage Paper・Retro Travel・Y2K | 20代女性・トレンド層 |
+| 🇰🇷 韓国風（有料） | Korean Beige・Minimal Ivory・Seoul Cafe | 10代〜20代女性 |
+| 🎄 季節・イベント（有料） | Christmas・Halloween・夏祭り・Valentine | 期間限定 |
+| 🏯 和風（有料） | Wagara・Sakura Wa・Edo | 30代以上・海外ユーザー |
+| 🖤 シック（無料1＋有料） | Mono・Noir・Charcoal | 男性・大人向け |
+
+### 各テーマに含めるべき要素
+1. **配色**（背景・紙・カバー・アクセント・テキスト・サブテキスト）
+2. **装飾モチーフ** — washi tape / polka dot / 花柄 / 星 / ハート / 雲 / なし
+3. **タイポグラフィ** — 丸ゴシック / セリフ / 手書き風 / クラシック
+4. **カードスタイル** — flat / shadow / sticker / polaroid / ribbon
+5. **バッジ装飾** — 種別タグの形状（rounded / pill / sticker）
+6. **表紙レイアウト** — minimalist / scrapbook / collage / postcard
+7. **絵文字アクセント** — テーマに合わせた装飾絵文字（🌸🍓☁️🌙🪴 など）
+
+### データモデル拡張
+```typescript
+type ThemeCategory = 'girly' | 'natural' | 'mint' | 'fantasy' | 'vintage' | 'korean' | 'seasonal' | 'wa' | 'chic'
+
+type Theme = {
+    name: ThemeName
+    label: string
+    description: string         // 「ピンクの可愛いさくら柄しおり」
+    category: ThemeCategory
+    isPremium: boolean          // false = 無料 / true = 有料
+    isLimited?: boolean         // 期間限定（クリスマス等）
+    previewEmoji: string        // テーマ選択UIで表示する代表絵文字
+
+    // 配色
+    pageBg, paperBg, paperBorder, coverBg, coverText, accent, subAccent, text, subText, timelineBar, typeColors
+
+    // 装飾
+    decoration: 'washi' | 'dots' | 'flowers' | 'stars' | 'hearts' | 'clouds' | 'polaroid' | 'sakura' | 'none'
+    fontFamily: 'rounded' | 'serif' | 'casual' | 'classic'
+    cardStyle: 'flat' | 'shadow' | 'sticker' | 'polaroid'
+    badgeStyle: 'classic' | 'soft' | 'sticker'
+    coverLayout: 'minimalist' | 'scrapbook' | 'postcard'
+    coverEmoji?: string         // 表紙に散らす装飾絵文字（例: '🌸🌸🌸'）
+}
+```
+
+### 課金モデル候補
+1. **テーマパック（買い切り）**: 500〜800円で「ガーリーパック5種類」「韓国風パック4種類」など
+2. **月額プレミアム**: 月額480円で全テーマ使い放題 + 新作テーマも順次解放
+3. **単体購入**: 1テーマ150〜200円（試しやすい）
+4. **季節限定無料配布**: イベント時にプレミアムテーマを期間限定で無料解放（流入施策）
+
+→ **MVP 最初は単体購入のみ**を Stripe で実装、後に月額プラン拡張
+
+### UI 設計
+- **テーマピッカー**: ナビバーから「🎨 テーマ」ボタン → モーダルでカテゴリ別グリッド表示
+- **プレビュー**: 各テーマのサムネ（カバー風小カード）をホバー or タップで拡大プレビュー
+- **ロックUI**: 有料テーマは右上に 🔒 アイコン、選択時に「プレミアム解放」モーダルへ
+- **おすすめ表示**: 旅行先・季節から相性のいいテーマを「あなたへのおすすめ」として上部に
+- **適用後**: 「テーマ適用済み: Sakura」を localStorage に保存（`tripgen.bookletTheme.v1`）
+
+### 実装ロードマップ
+1. **Phase A（今すぐ）**: テーマ拡張インフラ整備（Theme 型拡張・10種類の無料テーマ実装・装飾レンダリング） ← **本セッションで着手**
+2. **Phase B**: 有料テーマ10種類追加・テーマピッカーUIの刷新（カテゴリ別グリッド）
+3. **Phase C**: Stripe Checkout 統合・購入済みテーマの localStorage 管理
+4. **Phase D**: 認証導入後にユーザー単位の購入履歴へ移行（Supabase users テーブル拡張）
+
+### 装飾レンダリング実装のヒント
+- **washi tape**: CSS gradient 帯を表紙の角に rotated で配置（例: `transform: rotate(-15deg)`）
+- **polka dot**: `background-image: radial-gradient(circle, ${color} 1px, transparent 1px)` で密度調整
+- **sakura/flowers**: 角や余白に絵文字を `position: absolute` で点在
+- **polaroid**: スポットカードを `box-shadow + rotate(0.5deg)` でランダムに傾ける
+- **handwritten font**: Google Fonts の "Kosugi Maru" / "Klee One" / "Yusei Magic" を読み込み
+- **stars**: `::before/::after` で✨絵文字を配置 or SVG パターン
+
+### 注意事項
+- `@media print` 対応: 装飾は印刷時にも崩れないようテスト必須
+- パフォーマンス: テーマ切替時の再レンダリング負荷を localStorage キャッシュで軽減
+- アクセシビリティ: コントラスト比 4.5:1 以上を確保（特にパステル系）
 
 ---
 

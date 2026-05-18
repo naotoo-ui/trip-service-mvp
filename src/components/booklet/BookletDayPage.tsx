@@ -2,6 +2,8 @@
 import { useState, useEffect } from 'react'
 import type { ItineraryDay, Spot } from '@/types'
 import type { Theme } from './bookletThemes'
+import { PageDecoration } from './BookletDecorations'
+import { getFontFamily } from './bookletFont'
 
 const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土']
 const WEEKDAY_COLORS = ['#dc2626', '#475569', '#475569', '#475569', '#475569', '#475569', '#2563eb']
@@ -24,7 +26,6 @@ type Props = {
 export default function BookletDayPage({ day, dayIdx, startDate, theme, enableNow }: Props) {
     const [now, setNow] = useState<Date | null>(null)
 
-    // クライアントマウント後のみ NOW 計算（SSR ハイドレーション差異を避ける）
     useEffect(() => {
         if (!enableNow) return
         const tick = () => setNow(new Date())
@@ -33,7 +34,6 @@ export default function BookletDayPage({ day, dayIdx, startDate, theme, enableNo
         return () => clearInterval(id)
     }, [enableNow])
 
-    // 日付計算
     const dateObj = startDate ? (() => {
         const d = new Date(startDate)
         d.setDate(d.getDate() + dayIdx)
@@ -41,7 +41,6 @@ export default function BookletDayPage({ day, dayIdx, startDate, theme, enableNo
     })() : null
     const isToday = !!dateObj && now && dateObj.toDateString() === now.toDateString()
 
-    // この日の中で「次の予定」を特定（今日のみ）
     const nextSpotIdx = (() => {
         if (!isToday || !now) return -1
         const nowMin = now.getHours() * 60 + now.getMinutes()
@@ -52,7 +51,6 @@ export default function BookletDayPage({ day, dayIdx, startDate, theme, enableNo
         return -1
     })()
 
-    // 「いま進行中」の予定
     const currentSpotIdx = (() => {
         if (!isToday || !now) return -1
         const nowMin = now.getHours() * 60 + now.getMinutes()
@@ -65,9 +63,59 @@ export default function BookletDayPage({ day, dayIdx, startDate, theme, enableNo
     })()
 
     const labelText = day.label || `${dayIdx + 1}日目`
-
-    // 時系列順にソート
     const sortedSpots = [...day.spots].sort((a, b) => toMins(a.time) - toMins(b.time))
+    const titleFont = getFontFamily(theme.fontStyle)
+
+    // カードスタイル → 共通スタイル
+    const cardWrapStyle = (typeStyle: { bg: string; border: string; text: string }, highlight: boolean): React.CSSProperties => {
+        const base: React.CSSProperties = {
+            background: highlight ? theme.accent + '14' : typeStyle.bg,
+            border: highlight
+                ? `2px solid ${theme.accent}`
+                : `1.5px solid ${typeStyle.border}`,
+            borderRadius: theme.cardStyle === 'polaroid' ? 4 : theme.cardStyle === 'soft' ? 16 : 12,
+            padding: '12px 14px',
+            position: 'relative',
+        }
+        if (theme.cardStyle === 'soft') {
+            base.boxShadow = highlight
+                ? `0 4px 18px ${theme.accent}22`
+                : '0 2px 8px rgba(15, 23, 42, 0.06)'
+        }
+        if (theme.cardStyle === 'sticker') {
+            base.boxShadow = '0 3px 0 rgba(0,0,0,0.08)'
+            base.transform = 'rotate(-0.3deg)'
+        }
+        if (theme.cardStyle === 'polaroid') {
+            base.background = 'white'
+            base.boxShadow = '0 6px 18px rgba(0,0,0,0.12)'
+            base.padding = '14px 14px 18px'
+        }
+        return base
+    }
+
+    // バッジスタイル
+    const badgeChip = (typeStyle: { bg: string; border: string; text: string }): React.CSSProperties => {
+        const base: React.CSSProperties = {
+            fontSize: 10, fontWeight: 700,
+            color: typeStyle.text,
+            background: theme.paperBg,
+            padding: '2px 8px',
+            border: `1px solid ${typeStyle.border}`,
+        }
+        if (theme.badgeStyle === 'sticker') {
+            base.borderRadius = 6
+            base.boxShadow = '0 2px 0 rgba(0,0,0,0.08)'
+            base.transform = 'rotate(-2deg)'
+            base.display = 'inline-block'
+        } else if (theme.badgeStyle === 'soft') {
+            base.borderRadius = 99
+            base.padding = '2px 10px'
+        } else {
+            base.borderRadius = 99
+        }
+        return base
+    }
 
     return (
         <article
@@ -75,16 +123,24 @@ export default function BookletDayPage({ day, dayIdx, startDate, theme, enableNo
             style={{
                 background: theme.paperBg,
                 border: theme.paperBorder,
-                borderRadius: 20,
+                borderRadius: theme.cardStyle === 'polaroid' ? 8 : 20,
                 padding: '32px 28px',
                 marginBottom: 24,
-                boxShadow: '0 2px 12px rgba(15, 23, 42, 0.04)',
+                boxShadow: theme.cardStyle === 'soft'
+                    ? '0 4px 20px rgba(15, 23, 42, 0.06)'
+                    : '0 2px 12px rgba(15, 23, 42, 0.04)',
                 position: 'relative',
+                overflow: 'hidden',
+                fontFamily: titleFont,
             }}
         >
+            {/* ─── 装飾レイヤー ─── */}
+            <PageDecoration kind={theme.decoration} />
+
             {/* 日付ヘッダー */}
             <header
                 style={{
+                    position: 'relative', zIndex: 2,
                     display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between',
                     gap: 16, paddingBottom: 16, marginBottom: 20,
                     borderBottom: `2px solid ${theme.accent}`,
@@ -98,7 +154,7 @@ export default function BookletDayPage({ day, dayIdx, startDate, theme, enableNo
                         Day {dayIdx + 1}
                     </p>
                     <h2 style={{
-                        fontSize: 22, fontWeight: 800, color: theme.text,
+                        fontSize: 24, fontWeight: 800, color: theme.text,
                         margin: 0, letterSpacing: '-0.01em',
                     }}>
                         {labelText}
@@ -125,9 +181,10 @@ export default function BookletDayPage({ day, dayIdx, startDate, theme, enableNo
                     {isToday && (
                         <span style={{
                             display: 'inline-block', marginTop: 6,
-                            padding: '2px 8px', borderRadius: 99,
+                            padding: '2px 10px', borderRadius: 99,
                             background: theme.accent, color: 'white',
                             fontSize: 10, fontWeight: 700, letterSpacing: '0.05em',
+                            boxShadow: `0 2px 8px ${theme.accent}55`,
                         }}>TODAY</span>
                     )}
                 </div>
@@ -135,11 +192,11 @@ export default function BookletDayPage({ day, dayIdx, startDate, theme, enableNo
 
             {/* タイムライン */}
             {sortedSpots.length === 0 ? (
-                <p style={{ textAlign: 'center', color: theme.subText, padding: '20px 0' }}>
+                <p style={{ textAlign: 'center', color: theme.subText, padding: '20px 0', position: 'relative', zIndex: 2 }}>
                     予定がありません
                 </p>
             ) : (
-                <div style={{ position: 'relative', paddingLeft: 80 }}>
+                <div style={{ position: 'relative', paddingLeft: 80, zIndex: 2 }}>
                     {/* 縦タイムラインバー */}
                     <div
                         style={{
@@ -159,7 +216,7 @@ export default function BookletDayPage({ day, dayIdx, startDate, theme, enableNo
                                 key={i}
                                 style={{
                                     position: 'relative',
-                                    marginBottom: 16,
+                                    marginBottom: 18,
                                     paddingBottom: 4,
                                 }}
                             >
@@ -171,7 +228,7 @@ export default function BookletDayPage({ day, dayIdx, startDate, theme, enableNo
                                     }}
                                 >
                                     <p style={{
-                                        fontSize: 16, fontWeight: 700, color: theme.text,
+                                        fontSize: 17, fontWeight: 800, color: theme.text,
                                         margin: 0, lineHeight: 1.1,
                                         fontVariantNumeric: 'tabular-nums',
                                     }}>
@@ -189,58 +246,46 @@ export default function BookletDayPage({ day, dayIdx, startDate, theme, enableNo
                                 <div
                                     style={{
                                         position: 'absolute', left: -19, top: 6,
-                                        width: 12, height: 12, borderRadius: '50%',
+                                        width: 14, height: 14, borderRadius: '50%',
                                         background: highlight ? theme.accent : typeStyle.text,
                                         border: `3px solid ${theme.paperBg}`,
-                                        boxShadow: highlight ? `0 0 0 3px ${theme.accent}33` : 'none',
+                                        boxShadow: highlight
+                                            ? `0 0 0 3px ${theme.accent}33`
+                                            : `0 0 0 1px ${theme.timelineBar}`,
                                     }}
                                 />
 
                                 {/* スポットカード */}
-                                <div
-                                    style={{
-                                        background: highlight ? theme.accent + '0d' : typeStyle.bg,
-                                        border: highlight
-                                            ? `2px solid ${theme.accent}`
-                                            : `1.5px solid ${typeStyle.border}`,
-                                        borderRadius: 12,
-                                        padding: '10px 14px',
-                                        position: 'relative',
-                                    }}
-                                >
+                                <div style={cardWrapStyle(typeStyle, highlight)}>
                                     {/* NOW / NEXT バッジ */}
                                     {(isCurrent || isNext) && (
                                         <span
                                             className="now-badge"
                                             style={{
-                                                position: 'absolute', top: -8, right: 12,
+                                                position: 'absolute', top: -10, right: 14,
                                                 background: theme.accent, color: 'white',
                                                 fontSize: 10, fontWeight: 800,
-                                                padding: '2px 8px', borderRadius: 99,
+                                                padding: '3px 10px', borderRadius: 99,
                                                 letterSpacing: '0.08em',
-                                                boxShadow: '0 1px 4px rgba(0,0,0,0.15)',
+                                                boxShadow: '0 2px 8px rgba(0,0,0,0.18)',
                                             }}
                                         >
                                             {isCurrent ? '🔵 NOW' : '⏭ NEXT'}
                                         </span>
                                     )}
 
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                                        <span
-                                            style={{
-                                                fontSize: 10, fontWeight: 700,
-                                                color: typeStyle.text,
-                                                background: theme.paperBg,
-                                                padding: '1px 7px', borderRadius: 99,
-                                                border: `1px solid ${typeStyle.border}`,
-                                            }}
-                                        >
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
+                                        <span style={badgeChip(typeStyle)}>
                                             {spot.type}
                                         </span>
                                         {spot.needs_booking && (
                                             <span style={{
                                                 fontSize: 10, fontWeight: 700,
                                                 color: spot.booking_confirmed ? '#10b981' : '#dc2626',
+                                                background: spot.booking_confirmed ? '#ecfdf5' : '#fef2f2',
+                                                padding: '2px 8px',
+                                                borderRadius: 99,
+                                                border: `1px solid ${spot.booking_confirmed ? '#a7f3d0' : '#fecaca'}`,
                                             }}>
                                                 {spot.booking_confirmed ? '✓ 予約済' : '⚠ 要予約'}
                                             </span>
@@ -248,8 +293,8 @@ export default function BookletDayPage({ day, dayIdx, startDate, theme, enableNo
                                     </div>
 
                                     <h3 style={{
-                                        fontSize: 15, fontWeight: 700, color: theme.text,
-                                        margin: '0 0 4px', lineHeight: 1.4,
+                                        fontSize: 16, fontWeight: 700, color: theme.text,
+                                        margin: '0 0 6px', lineHeight: 1.4,
                                     }}>
                                         {spot.name}
                                     </h3>
@@ -257,7 +302,7 @@ export default function BookletDayPage({ day, dayIdx, startDate, theme, enableNo
                                     {spot.description && (
                                         <p style={{
                                             fontSize: 12, color: theme.subText,
-                                            margin: '0 0 4px', lineHeight: 1.55,
+                                            margin: '0 0 4px', lineHeight: 1.6,
                                         }}>
                                             {spot.description}
                                         </p>
@@ -275,8 +320,9 @@ export default function BookletDayPage({ day, dayIdx, startDate, theme, enableNo
                                     {spot.memo && (
                                         <p style={{
                                             fontSize: 11, color: theme.subText,
-                                            margin: '4px 0 0', padding: '6px 8px',
-                                            background: theme.pageBg, borderRadius: 6,
+                                            margin: '6px 0 0', padding: '7px 10px',
+                                            background: theme.pageBg, borderRadius: 8,
+                                            borderLeft: `3px solid ${theme.accent}`,
                                         }}>
                                             📝 {spot.memo}
                                         </p>
@@ -284,8 +330,8 @@ export default function BookletDayPage({ day, dayIdx, startDate, theme, enableNo
 
                                     {spot.user_links && spot.user_links.length > 0 && (
                                         <div className="no-print" style={{
-                                            marginTop: 6,
-                                            display: 'flex', flexDirection: 'column', gap: 2,
+                                            marginTop: 8,
+                                            display: 'flex', flexDirection: 'column', gap: 3,
                                         }}>
                                             {spot.user_links.map((link, li) => (
                                                 <a
@@ -316,16 +362,20 @@ export default function BookletDayPage({ day, dayIdx, startDate, theme, enableNo
             {day.hotel && (
                 <div
                     style={{
-                        marginTop: 24, padding: '16px 18px',
+                        position: 'relative', zIndex: 2,
+                        marginTop: 24, padding: '18px 20px',
                         background: theme.typeColors['宿泊'].bg,
                         border: `1.5px solid ${theme.typeColors['宿泊'].border}`,
-                        borderRadius: 12,
+                        borderRadius: 14,
+                        boxShadow: theme.cardStyle === 'soft'
+                            ? '0 2px 12px rgba(15,23,42,0.05)'
+                            : 'none',
                     }}
                 >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                        <span style={{ fontSize: 18 }}>🏨</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                        <span style={{ fontSize: 20 }}>🏨</span>
                         <span style={{
-                            fontSize: 11, fontWeight: 700, letterSpacing: '0.1em',
+                            fontSize: 11, fontWeight: 700, letterSpacing: '0.12em',
                             color: theme.typeColors['宿泊'].text,
                         }}>
                             STAY
@@ -333,11 +383,13 @@ export default function BookletDayPage({ day, dayIdx, startDate, theme, enableNo
                         {day.hotel.booking_confirmed && (
                             <span style={{
                                 fontSize: 10, fontWeight: 700, color: '#10b981',
+                                background: '#ecfdf5', padding: '2px 8px',
+                                borderRadius: 99, border: '1px solid #a7f3d0',
                             }}>✓ 予約済</span>
                         )}
                     </div>
                     <h3 style={{
-                        fontSize: 15, fontWeight: 700, color: theme.text,
+                        fontSize: 16, fontWeight: 700, color: theme.text,
                         margin: '0 0 4px',
                     }}>
                         {day.hotel.name}
@@ -349,7 +401,7 @@ export default function BookletDayPage({ day, dayIdx, startDate, theme, enableNo
                     )}
                     {(day.hotel.check_in || day.hotel.check_out) && (
                         <p style={{
-                            fontSize: 12, color: theme.text, margin: '4px 0 0',
+                            fontSize: 12, color: theme.text, margin: '6px 0 0',
                             fontVariantNumeric: 'tabular-nums',
                         }}>
                             {day.hotel.check_in && <>IN <strong>{day.hotel.check_in}</strong></>}
