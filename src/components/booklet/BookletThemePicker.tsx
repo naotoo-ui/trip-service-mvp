@@ -10,7 +10,6 @@ type Props = {
 }
 
 export default function BookletThemePicker({ open, onClose, selected, onSelect }: Props) {
-    // Escape で閉じる
     useEffect(() => {
         if (!open) return
         const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
@@ -18,7 +17,6 @@ export default function BookletThemePicker({ open, onClose, selected, onSelect }
         return () => window.removeEventListener('keydown', onKey)
     }, [open, onClose])
 
-    // body スクロールロック
     useEffect(() => {
         if (!open) return
         const prev = document.body.style.overflow
@@ -28,7 +26,6 @@ export default function BookletThemePicker({ open, onClose, selected, onSelect }
 
     if (!open) return null
 
-    // カテゴリ別にグループ化
     const grouped = new Map<ThemeCategory, ThemeName[]>()
     themeOrder.forEach(n => {
         const cat = themes[n].category
@@ -39,7 +36,6 @@ export default function BookletThemePicker({ open, onClose, selected, onSelect }
     function handleSelect(name: ThemeName) {
         const theme = themes[name]
         if (theme.isPremium) {
-            // 暫定：プレミアム解放モーダル（未実装）
             alert('このテーマは有料です。プレミアム解放は近日対応予定です。')
             return
         }
@@ -71,19 +67,18 @@ export default function BookletThemePicker({ open, onClose, selected, onSelect }
                     boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
                 }}
             >
-                {/* ヘッダー */}
                 <header style={{
                     padding: '18px 22px',
                     borderBottom: '1px solid #e2e8f0',
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    background: 'linear-gradient(135deg, #fdf2f8 0%, #fef3c7 100%)',
+                    background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
                 }}>
                     <div>
                         <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#0f172a' }}>
-                            🎨 しおりテーマを選ぶ
+                            しおりテーマを選ぶ
                         </h2>
                         <p style={{ margin: '3px 0 0', fontSize: 12, color: '#64748b' }}>
-                            気分に合わせて選んでね（🔒 マークは有料・準備中）
+                            気分に合わせて選んでね（PREMIUM マークは有料・準備中）
                         </p>
                     </div>
                     <button
@@ -99,7 +94,6 @@ export default function BookletThemePicker({ open, onClose, selected, onSelect }
                     >×</button>
                 </header>
 
-                {/* グリッド本体 */}
                 <div style={{
                     overflow: 'auto',
                     padding: '20px 22px 28px',
@@ -155,38 +149,27 @@ export default function BookletThemePicker({ open, onClose, selected, onSelect }
                                                 height: 96,
                                                 background: t.coverBg,
                                                 position: 'relative',
-                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
                                             }}>
-                                                <span style={{
-                                                    fontSize: 36,
-                                                    filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.2))',
-                                                }}>
-                                                    {t.coverEmoji || t.previewEmoji}
-                                                </span>
-                                                {/* 装飾エミュレーション（小さく散らす） */}
-                                                {t.decoration === 'sakura' && (
-                                                    <>
-                                                        <span style={{ position: 'absolute', top: 6, left: 8, fontSize: 14, opacity: 0.7 }}>🌸</span>
-                                                        <span style={{ position: 'absolute', bottom: 6, right: 8, fontSize: 12, opacity: 0.6 }}>🌸</span>
-                                                    </>
+                                                {/* 装飾CSS パターンを薄く重ねる */}
+                                                {t.decoration === 'dots' && (
+                                                    <div style={{
+                                                        position: 'absolute', inset: 0,
+                                                        backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.25) 1.5px, transparent 2px)',
+                                                        backgroundSize: '14px 14px',
+                                                    }} />
                                                 )}
-                                                {t.decoration === 'stars' && (
-                                                    <>
-                                                        <span style={{ position: 'absolute', top: 6, left: 8, fontSize: 12, opacity: 0.8 }}>✨</span>
-                                                        <span style={{ position: 'absolute', bottom: 6, right: 8, fontSize: 12, opacity: 0.7 }}>⭐</span>
-                                                    </>
+                                                {t.decoration === 'lines' && (
+                                                    <div style={{
+                                                        position: 'absolute', inset: 0,
+                                                        backgroundImage: 'repeating-linear-gradient(135deg, rgba(255,255,255,0.18) 0, rgba(255,255,255,0.18) 1px, transparent 1px, transparent 10px)',
+                                                    }} />
                                                 )}
-                                                {t.decoration === 'hearts' && (
-                                                    <>
-                                                        <span style={{ position: 'absolute', top: 6, left: 8, fontSize: 12, opacity: 0.7 }}>💕</span>
-                                                        <span style={{ position: 'absolute', bottom: 6, right: 8, fontSize: 12, opacity: 0.7 }}>💗</span>
-                                                    </>
-                                                )}
-                                                {t.decoration === 'clouds' && (
-                                                    <>
-                                                        <span style={{ position: 'absolute', top: 4, left: 6, fontSize: 16, opacity: 0.6 }}>☁️</span>
-                                                        <span style={{ position: 'absolute', bottom: 4, right: 6, fontSize: 14, opacity: 0.5 }}>☁️</span>
-                                                    </>
+                                                {t.decoration === 'grid' && (
+                                                    <div style={{
+                                                        position: 'absolute', inset: 0,
+                                                        backgroundImage: 'linear-gradient(rgba(255,255,255,0.16) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.16) 1px, transparent 1px)',
+                                                        backgroundSize: '20px 20px',
+                                                    }} />
                                                 )}
 
                                                 {/* 有料バッジ */}
@@ -198,7 +181,7 @@ export default function BookletThemePicker({ open, onClose, selected, onSelect }
                                                         padding: '2px 7px', borderRadius: 99,
                                                         letterSpacing: '0.06em',
                                                     }}>
-                                                        🔒 PREMIUM
+                                                        PREMIUM
                                                     </span>
                                                 )}
 
@@ -215,7 +198,6 @@ export default function BookletThemePicker({ open, onClose, selected, onSelect }
                                                     </span>
                                                 )}
                                             </div>
-                                            {/* テキスト */}
                                             <div style={{ padding: '10px 12px 12px', background: t.pageBg }}>
                                                 <p style={{
                                                     margin: 0, fontSize: 13, fontWeight: 700,

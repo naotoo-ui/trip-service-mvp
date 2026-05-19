@@ -8,8 +8,7 @@ export type ThemeCategory =
     | 'vintage' | 'korean' | 'wa' | 'chic'
 
 export type DecorationKind =
-    | 'none' | 'sakura' | 'dots' | 'stars' | 'hearts'
-    | 'clouds' | 'polaroid' | 'washi'
+    | 'none' | 'dots' | 'washi' | 'lines' | 'grid' | 'wave'
 
 export type CardStyle = 'flat' | 'soft' | 'sticker' | 'polaroid'
 export type BadgeStyle = 'classic' | 'soft' | 'sticker'
@@ -21,7 +20,6 @@ export type Theme = {
     description: string
     category: ThemeCategory
     isPremium: boolean
-    previewEmoji: string
 
     // 配色
     pageBg: string
@@ -36,15 +34,14 @@ export type Theme = {
     timelineBar: string
     typeColors: Record<string, { bg: string; border: string; text: string }>
 
-    // 装飾
+    // 装飾（CSSパターンのみ・絵文字なし）
     decoration: DecorationKind
     cardStyle: CardStyle
     badgeStyle: BadgeStyle
     fontStyle: FontStyle
-    coverEmoji: string
 }
 
-// ──────────── 無料テーマ（9種類） ────────────
+// ──────────── 無料テーマ ────────────
 
 const classic: Theme = {
     name: 'classic',
@@ -52,7 +49,6 @@ const classic: Theme = {
     description: '青と白の定番。落ち着いた印象でビジネス旅行にも',
     category: 'chic',
     isPremium: false,
-    previewEmoji: '✈️',
     pageBg: '#f1f5f9',
     paperBg: 'white',
     paperBorder: '1px solid #e2e8f0',
@@ -74,16 +70,14 @@ const classic: Theme = {
     cardStyle: 'flat',
     badgeStyle: 'classic',
     fontStyle: 'classic',
-    coverEmoji: '',
 }
 
 const sakura: Theme = {
     name: 'sakura',
     label: 'Sakura',
-    description: '春爛漫のピンクパステル。花びらが舞う可愛い系',
+    description: '春爛漫のピンクパステル。柔らかな印象',
     category: 'girly',
     isPremium: false,
-    previewEmoji: '🌸',
     pageBg: '#fef5f7',
     paperBg: '#fffafa',
     paperBorder: '1.5px solid #fbcfe8',
@@ -101,11 +95,10 @@ const sakura: Theme = {
         宿泊:   { bg: '#f5f3ff', border: '#ddd6fe', text: '#7c3aed' },
         その他: { bg: '#ecfeff', border: '#a5f3fc', text: '#0891b2' },
     },
-    decoration: 'sakura',
+    decoration: 'dots',
     cardStyle: 'soft',
     badgeStyle: 'soft',
     fontStyle: 'rounded',
-    coverEmoji: '🌸',
 }
 
 const cream: Theme = {
@@ -114,7 +107,6 @@ const cream: Theme = {
     description: '温かみのあるベージュ。カフェ巡りの旅に最適',
     category: 'natural',
     isPremium: false,
-    previewEmoji: '☕',
     pageBg: '#faf3eb',
     paperBg: '#fffaf0',
     paperBorder: '1.5px solid #e8d5b7',
@@ -132,11 +124,10 @@ const cream: Theme = {
         宿泊:   { bg: '#fdf4ff', border: '#e9d5ff', text: '#7c3aed' },
         その他: { bg: '#f7fee7', border: '#d9f99d', text: '#65a30d' },
     },
-    decoration: 'none',
+    decoration: 'lines',
     cardStyle: 'soft',
     badgeStyle: 'soft',
     fontStyle: 'rounded',
-    coverEmoji: '☕',
 }
 
 const mint: Theme = {
@@ -145,7 +136,6 @@ const mint: Theme = {
     description: '爽やかなミントグリーン。夏の旅行にぴったり',
     category: 'mint',
     isPremium: false,
-    previewEmoji: '🌿',
     pageBg: '#effaf5',
     paperBg: '#ffffff',
     paperBorder: '1.5px solid #a8e6cf',
@@ -167,7 +157,6 @@ const mint: Theme = {
     cardStyle: 'soft',
     badgeStyle: 'soft',
     fontStyle: 'rounded',
-    coverEmoji: '🌿',
 }
 
 const lavender: Theme = {
@@ -176,7 +165,6 @@ const lavender: Theme = {
     description: '夢見るような紫パステル。ロマンチック',
     category: 'fantasy',
     isPremium: false,
-    previewEmoji: '💜',
     pageBg: '#faf6ff',
     paperBg: '#ffffff',
     paperBorder: '1.5px solid #ddd6fe',
@@ -194,11 +182,10 @@ const lavender: Theme = {
         宿泊:   { bg: '#fef3c7', border: '#fde68a', text: '#a16207' },
         その他: { bg: '#ecfdf5', border: '#a7f3d0', text: '#059669' },
     },
-    decoration: 'stars',
+    decoration: 'dots',
     cardStyle: 'soft',
     badgeStyle: 'soft',
     fontStyle: 'rounded',
-    coverEmoji: '🌙',
 }
 
 const sky: Theme = {
@@ -207,7 +194,6 @@ const sky: Theme = {
     description: 'どこまでも青い空。さっぱりとした清涼感',
     category: 'mint',
     isPremium: false,
-    previewEmoji: '☁️',
     pageBg: '#f0f9ff',
     paperBg: '#ffffff',
     paperBorder: '1.5px solid #bae6fd',
@@ -225,11 +211,10 @@ const sky: Theme = {
         宿泊:   { bg: '#f5f3ff', border: '#ddd6fe', text: '#6d28d9' },
         その他: { bg: '#ecfdf5', border: '#a7f3d0', text: '#047857' },
     },
-    decoration: 'clouds',
+    decoration: 'wave',
     cardStyle: 'soft',
     badgeStyle: 'soft',
     fontStyle: 'rounded',
-    coverEmoji: '☁️',
 }
 
 const polaroid: Theme = {
@@ -238,7 +223,6 @@ const polaroid: Theme = {
     description: 'スクラップブック風。写真を貼ったような味わい',
     category: 'vintage',
     isPremium: false,
-    previewEmoji: '📷',
     pageBg: '#f5f3eb',
     paperBg: '#ffffff',
     paperBorder: '1.5px solid #d6d3d1',
@@ -256,11 +240,10 @@ const polaroid: Theme = {
         宿泊:   { bg: '#fefce8', border: '#fde68a', text: '#a16207' },
         その他: { bg: '#f5f3ff', border: '#ddd6fe', text: '#6d28d9' },
     },
-    decoration: 'polaroid',
+    decoration: 'washi',
     cardStyle: 'polaroid',
     badgeStyle: 'sticker',
     fontStyle: 'classic',
-    coverEmoji: '📷',
 }
 
 const korean: Theme = {
@@ -269,7 +252,6 @@ const korean: Theme = {
     description: '韓国カフェ風ミニマル。落ち着いた大人の旅に',
     category: 'korean',
     isPremium: false,
-    previewEmoji: '🤍',
     pageBg: '#f7f3ec',
     paperBg: '#fffdf9',
     paperBorder: '1.5px solid #e8d5b7',
@@ -291,7 +273,6 @@ const korean: Theme = {
     cardStyle: 'flat',
     badgeStyle: 'soft',
     fontStyle: 'serif',
-    coverEmoji: '🤍',
 }
 
 const warm: Theme = {
@@ -300,7 +281,6 @@ const warm: Theme = {
     description: 'オレンジの温かい雰囲気。家族旅行にも',
     category: 'natural',
     isPremium: false,
-    previewEmoji: '🍊',
     pageBg: '#fef9f3',
     paperBg: '#fffdf9',
     paperBorder: '1px solid #fde7c8',
@@ -322,7 +302,6 @@ const warm: Theme = {
     cardStyle: 'flat',
     badgeStyle: 'classic',
     fontStyle: 'classic',
-    coverEmoji: '',
 }
 
 const mono: Theme = {
@@ -331,7 +310,6 @@ const mono: Theme = {
     description: 'モノクロ。コピー機での印刷にも最適',
     category: 'chic',
     isPremium: false,
-    previewEmoji: '🖤',
     pageBg: '#ffffff',
     paperBg: 'white',
     paperBorder: '1px solid #d1d5db',
@@ -353,10 +331,9 @@ const mono: Theme = {
     cardStyle: 'flat',
     badgeStyle: 'classic',
     fontStyle: 'classic',
-    coverEmoji: '',
 }
 
-// ──────────── 有料テーマ（4種類） ────────────
+// ──────────── 有料テーマ ────────────
 
 const rose: Theme = {
     name: 'rose',
@@ -364,7 +341,6 @@ const rose: Theme = {
     description: 'ピンク × ゴールドの華やか系。記念日の旅に',
     category: 'girly',
     isPremium: true,
-    previewEmoji: '🌹',
     pageBg: '#fff5f8',
     paperBg: '#fffafc',
     paperBorder: '1.5px solid #f5b8c8',
@@ -382,11 +358,10 @@ const rose: Theme = {
         宿泊:   { bg: '#fef2f2', border: '#fecaca', text: '#dc2626' },
         その他: { bg: '#f0fdf4', border: '#bbf7d0', text: '#15803d' },
     },
-    decoration: 'hearts',
+    decoration: 'dots',
     cardStyle: 'soft',
     badgeStyle: 'sticker',
     fontStyle: 'serif',
-    coverEmoji: '🌹',
 }
 
 const galaxy: Theme = {
@@ -395,7 +370,6 @@ const galaxy: Theme = {
     description: '宇宙のような深い紺と紫。神秘的な旅に',
     category: 'fantasy',
     isPremium: true,
-    previewEmoji: '🌌',
     pageBg: '#0f0e1c',
     paperBg: '#1a1830',
     paperBorder: '1.5px solid #3730a3',
@@ -413,20 +387,18 @@ const galaxy: Theme = {
         宿泊:   { bg: '#2e1065', border: '#7c3aed', text: '#ddd6fe' },
         その他: { bg: '#064e3b', border: '#059669', text: '#a7f3d0' },
     },
-    decoration: 'stars',
+    decoration: 'dots',
     cardStyle: 'soft',
     badgeStyle: 'sticker',
     fontStyle: 'classic',
-    coverEmoji: '✨',
 }
 
 const wa: Theme = {
     name: 'wa',
     label: '和柄 -Wagara-',
-    description: '紅色と桜の和風。海外旅行のお土産にも',
+    description: '紅色と桜色の和風。海外旅行のお土産にも',
     category: 'wa',
     isPremium: true,
-    previewEmoji: '🎴',
     pageBg: '#fef7f0',
     paperBg: '#fffaf3',
     paperBorder: '1.5px solid #d4a574',
@@ -444,11 +416,10 @@ const wa: Theme = {
         宿泊:   { bg: '#fdf4ff', border: '#f5d0fe', text: '#86198f' },
         その他: { bg: '#ecfdf5', border: '#a7f3d0', text: '#047857' },
     },
-    decoration: 'sakura',
+    decoration: 'lines',
     cardStyle: 'soft',
     badgeStyle: 'soft',
     fontStyle: 'serif',
-    coverEmoji: '🌸',
 }
 
 const y2k: Theme = {
@@ -457,7 +428,6 @@ const y2k: Theme = {
     description: '2000年代のキラキラ。ホログラム風で流行り',
     category: 'vintage',
     isPremium: true,
-    previewEmoji: '✨',
     pageBg: '#fde6f5',
     paperBg: '#ffffff',
     paperBorder: '1.5px solid #c4b5fd',
@@ -475,11 +445,10 @@ const y2k: Theme = {
         宿泊:   { bg: '#ede9fe', border: '#c4b5fd', text: '#6d28d9' },
         その他: { bg: '#fce7f3', border: '#fbcfe8', text: '#be185d' },
     },
-    decoration: 'stars',
+    decoration: 'grid',
     cardStyle: 'sticker',
     badgeStyle: 'sticker',
     fontStyle: 'rounded',
-    coverEmoji: '✨',
 }
 
 // ──────────── エクスポート ────────────
@@ -489,21 +458,13 @@ export const themes: Record<ThemeName, Theme> = {
     rose, galaxy, wa, y2k,
 }
 
-// 表示順序（テーマピッカーで使用）
 export const themeOrder: ThemeName[] = [
-    // ガーリー
     'sakura', 'rose',
-    // ナチュラル
     'cream', 'warm',
-    // ミント・清涼
     'mint', 'sky',
-    // ファンタジー
     'lavender', 'galaxy',
-    // ヴィンテージ
     'polaroid', 'y2k',
-    // 韓国・和
     'korean', 'wa',
-    // シック
     'classic', 'mono',
 ]
 
@@ -519,14 +480,13 @@ export function getPremiumThemes(): Theme[] {
     return themeOrder.map(n => themes[n]).filter(t => t.isPremium)
 }
 
-// カテゴリ表示用ラベル
 export const categoryLabels: Record<ThemeCategory, string> = {
-    girly:   '🌸 ガーリー',
-    natural: '☕ ナチュラル',
-    mint:    '🌿 ミント',
-    fantasy: '🌙 ファンタジー',
-    vintage: '📷 ヴィンテージ',
-    korean:  '🤍 韓国風',
-    wa:      '🎴 和風',
-    chic:    '🖤 シック',
+    girly:   'ガーリー',
+    natural: 'ナチュラル',
+    mint:    'ミント',
+    fantasy: 'ファンタジー',
+    vintage: 'ヴィンテージ',
+    korean:  '韓国風',
+    wa:      '和風',
+    chic:    'シック',
 }

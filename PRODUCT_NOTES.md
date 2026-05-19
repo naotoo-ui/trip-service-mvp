@@ -1,7 +1,7 @@
 # tripServiceMVP プロダクトノート
 
 > Claude Code が毎回このファイルを読み込みます。
-> 最終更新: 2026-05-16
+> 最終更新: 2026-05-19
 
 ---
 
@@ -477,11 +477,18 @@ src/
 │   ├── TripViewTracker.tsx               # 閲覧履歴を localStorage に保存
 │   └── RecentTripsButton.tsx             # ヘッダー🕘最近ボタン（ドロップダウン）
 ├── components/booklet/
-│   ├── BookletView.tsx                   # ルートコンテナ・テーマ管理（localStorage 保存）
-│   ├── BookletNav.tsx                    # 上部ツールバー（戻る・テーマ・シェア・印刷）
-│   ├── BookletCover.tsx                  # 表紙ページ（タイトル・目的地・日程）
-│   ├── BookletDayPage.tsx                # 日別ページ（時系列タイムライン・宿泊）
-│   └── bookletThemes.ts                  # テーマ定義（Classic / Warm / Mono）
+│   ├── BookletView.tsx                   # ルートコンテナ・config 管理・ページ並び順生成
+│   ├── BookletNav.tsx                    # 上部ツールバー（戻る・モード切替・テーマ・設定・シェア・印刷）
+│   ├── BookletCover.tsx                  # 表紙ページ（絵文字なし・装飾CSSパターン）
+│   ├── BookletBackCover.tsx              # 背表紙ページ（カバー対称デザイン）
+│   ├── BookletDayPage.tsx                # 日別ページ（時系列タイムライン・宿泊・メモ追加）
+│   ├── BookletOptionalPage.tsx           # オプショナルページ汎用（メンバー/集合/持ち物/緊急/メモ/金額/自由）
+│   ├── BookletSettings.tsx               # 設定モーダル（モード切替・ページ番号・追加ページ・挿入位置）
+│   ├── BookletThemePicker.tsx            # テーマピッカー（カテゴリ別グリッド）
+│   ├── BookletDecorations.tsx            # 装飾レイヤー（CSSパターンのみ・絵文字なし）
+│   ├── bookletFont.ts                    # フォント family ヘルパー（丸ゴシック/明朝/標準）
+│   ├── bookletConfig.ts                  # BookletConfig 型・localStorage IO・ページ並び順計算
+│   └── bookletThemes.ts                  # テーマ定義（13テーマ・絵文字なし）
 ├── hooks/
 │   ├── useIsMobile.ts                    # window.matchMedia ベース判定
 │   └── useRecentTrips.ts                 # localStorage「最近の旅程」フック
@@ -572,20 +579,95 @@ docs/
 
 **ファイル**:
 - `src/app/trips/[id]/booklet/page.tsx` — サーバーコンポーネント（trip取得・edit_token引継）
-- `src/components/booklet/BookletView.tsx` — ルートクライアント（テーマ管理・localStorage 保存）
-- `src/components/booklet/BookletNav.tsx` — 上部ツールバー（戻る・テーマ・シェア・印刷）
-- `src/components/booklet/BookletCover.tsx` — 表紙（タイトル・目的地・日程・装飾円）
-- `src/components/booklet/BookletDayPage.tsx` — 日別ページ（時系列タイムライン・宿泊先・NOW/NEXT 判定）
-- `src/components/booklet/bookletThemes.ts` — テーマ定義（Classic / Warm / Mono）
+- `src/components/booklet/BookletView.tsx` — ルートクライアント（config 管理・ページ並び順生成）
+- `src/components/booklet/BookletNav.tsx` — 上部ツールバー（戻る・モード切替・テーマ・設定・シェア・印刷）
+- `src/components/booklet/BookletCover.tsx` — 表紙（絵文字なし・CSS装飾パターンのみ）
+- `src/components/booklet/BookletBackCover.tsx` — 背表紙（カバーと対称デザイン・締めのメッセージ）
+- `src/components/booklet/BookletDayPage.tsx` — 日別ページ（時系列タイムライン・宿泊先・NOW/NEXT判定・メモ追加機能）
+- `src/components/booklet/BookletOptionalPage.tsx` — オプショナルページ汎用（メンバー/集合/持ち物/緊急/メモ/金額/自由）
+- `src/components/booklet/BookletSettings.tsx` — 設定モーダル（画面/印刷モード・ページ番号・追加ページ・挿入位置）
+- `src/components/booklet/BookletThemePicker.tsx` — テーマピッカー（カテゴリ別グリッド・絵文字レンダリングなし）
+- `src/components/booklet/BookletDecorations.tsx` — 装飾レイヤー（CSSパターンのみ：dots/lines/grid/wave/washi）
+- `src/components/booklet/bookletThemes.ts` — テーマ定義（13テーマ・絵文字プロパティ削除済）
+- `src/components/booklet/bookletConfig.ts` — BookletConfig 型・localStorage IO・ページ並び順計算
+- `src/components/booklet/bookletFont.ts` — フォント family ヘルパー
 
-**テーマ**:
-| 名前 | 用途 | カラー |
-|------|------|--------|
-| Classic | 定番 | 青→紫グラデーション |
-| Warm    | 温かみ | オレンジ系グラデーション |
-| Mono    | 印刷向き | モノクロ・コントラスト強 |
+### しおりテーマ（絵文字削除版）
+全テーマから `coverEmoji` `previewEmoji` プロパティおよび絵文字ベースの装飾（sakura/stars/hearts/clouds）を削除。装飾は CSS パターンのみ：
 
-`localStorage` キー: `tripgen.bookletTheme.v1`
+| DecorationKind | 効果 |
+|----------------|------|
+| `none` | 装飾なし |
+| `dots` | 細かいポルカドット（radial-gradient） |
+| `lines` | 斜めストライプ（repeating-linear-gradient） |
+| `grid` | 細い格子 |
+| `wave` | 控えめなウェーブパターン |
+| `washi` | washi tape 風の斜め帯（表紙の角に配置） |
+
+### BookletConfig（しおり構成データ・localStorage管理）
+**ファイル**: `src/components/booklet/bookletConfig.ts`
+**localStorage キー**: `tripgen.booklet.config.${shareId}` — trip 単位で別個に保存
+
+```typescript
+type BookletConfig = {
+    screen: ModeConfig      // 画面表示モードの構成
+    print: ModeConfig       // 印刷モードの構成（独立して編集可能）
+    showPageNumbers: boolean
+    activeMode: 'screen' | 'print'
+    themeName: ThemeName
+}
+
+type ModeConfig = {
+    optionalPages: Record<OptionalPageKind, OptionalPageEntry>
+    dayMemos: Record<number, string[]>  // dayIdx → メモ配列
+}
+
+type OptionalPageEntry = {
+    enabled: boolean
+    position: InsertPosition
+    content: string
+}
+
+type InsertPosition =
+    | { kind: 'after-cover' }
+    | { kind: 'after-day', dayIdx: number }
+    | { kind: 'before-back-cover' }
+```
+
+`computePageOrder(config, daysCount, mode)` が `PageKey[]` を返し、`BookletView` がそれを順に描画。表紙→（任意ページ）→1日目→（任意ページ）→2日目…→背表紙の順で組み立てる。
+
+### 画面表示モード / 印刷モードの独立編集
+- `BookletNav` の上部にトグル（画面用／印刷用）
+- `config.activeMode` を切替えると `config[mode]` 内の `optionalPages` と `dayMemos` が切り替わる
+- 用途例: 画面では「メモ」「金額」を表示し、印刷時は省く / 印刷時のみ「持ち物」を含める
+
+### ページ番号
+- `config.showPageNumbers` で表示/非表示を切替
+- 表紙・背表紙以外のページに通し番号を振る（1, 2, 3, ...）
+- 表示形式: `— N —`（控えめなセンタリング）
+- 印刷時も同じスタイルで残る
+
+### オプショナルページ（チェックボックスで追加）
+| ページ | デフォルト位置 | プレースホルダー例 |
+|--------|--------------|------------------|
+| 編集メンバー | 表紙の直後 | 田中太郎（リーダー）/ 佐藤花子 |
+| 集合時間・場所 | 表紙の直後 | 日時 / 場所 / 備考 |
+| 持ち物リスト | 表紙の直後 | パスポート / 充電器 / 常備薬 |
+| 緊急連絡先 | 背表紙の直前 | ホテル番号 / 保険会社 / 家族 |
+| メモ | 背表紙の直前 | 自由記述 |
+| 金額メモ | 背表紙の直前 | 交通費 / 宿泊費 / 食費 |
+| 自由ページ | 背表紙の直前 | 自由記述 |
+
+- 各ページの中身（content）はモード単位で独立保存
+- 挿入位置は「表紙の直後」「N日目の後」「背表紙の直前」から選択可能
+- ページ本体に直接 textarea があり、`onBlur` で localStorage に反映（編集権限がある時のみ編集可）
+
+### 各日ページのメモ機能
+- 日別ページの末尾に「MEMO」セクション
+- 「＋ メモを追加」ボタンで textarea が追加（複数可）
+- 各メモには × ボタンで削除可能
+- 編集権限（`editToken` あり）の時のみボタン表示・編集可能。閲覧モードでは入力済みメモのみ表示
+- `config[mode].dayMemos[dayIdx]` に文字列配列として保存
 
 **NOW / NEXT 判定**（旅行当日のみ動作）:
 - `useEffect` でマウント後のみ `setInterval(60s)` で現在時刻を更新（SSR 差異回避）
@@ -595,7 +677,7 @@ docs/
 
 **印刷対応**（`globals.css` の `@media print`）:
 - `body > header`, `body > footer`, `.no-print` を非表示
-- `.booklet-cover` `.booklet-day` に `page-break-after: always`
+- `.booklet-cover` `.booklet-day` `.booklet-optional` `.booklet-back-cover` に `page-break-after / before: always`
 - `@page { size: A4; margin: 12mm 10mm }`
 - リンクの `::after` URL 表示を抑止
 - 真の PDF 出力は未実装（`window.print()` ベース・将来 `@react-pdf/renderer` 検討）
@@ -603,6 +685,7 @@ docs/
 **ItineraryEditor からの遷移**:
 - ツールバーに「📖 しおり」ボタン（オレンジグラデ）
 - `editable && editToken` なら `?edit=token` を引継ぎ、しおりからカレンダーに戻った時も編集モードを維持
+- 編集権限がある時のみメモ・オプショナルページの編集UIが表示される
 
 ### 移動ブロックの設計方針（ギャップ注釈方式）
 - AI はスポット間に空き時間を設けるだけ（移動ブロック非生成）

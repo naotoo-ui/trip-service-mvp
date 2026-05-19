@@ -21,9 +21,12 @@ type Props = {
     startDate?: string
     theme: Theme
     enableNow: boolean
+    memos: string[]
+    editable: boolean
+    onMemosChange: (memos: string[]) => void
 }
 
-export default function BookletDayPage({ day, dayIdx, startDate, theme, enableNow }: Props) {
+export default function BookletDayPage({ day, dayIdx, startDate, theme, enableNow, memos, editable, onMemosChange }: Props) {
     const [now, setNow] = useState<Date | null>(null)
 
     useEffect(() => {
@@ -416,6 +419,164 @@ export default function BookletDayPage({ day, dayIdx, startDate, theme, enableNo
                     )}
                 </div>
             )}
+
+            {/* メモ一覧 + 追加ボタン */}
+            <DayMemoSection
+                memos={memos}
+                editable={editable}
+                theme={theme}
+                onMemosChange={onMemosChange}
+            />
         </article>
+    )
+}
+
+// ──────────── DayMemoSection ────────────
+
+function DayMemoSection({
+    memos, editable, theme, onMemosChange,
+}: {
+    memos: string[]
+    editable: boolean
+    theme: Theme
+    onMemosChange: (memos: string[]) => void
+}) {
+    const hasMemos = memos.length > 0
+    if (!hasMemos && !editable) return null
+
+    function addMemo() {
+        onMemosChange([...memos, ''])
+    }
+
+    function updateMemo(idx: number, value: string) {
+        const next = memos.map((m, i) => i === idx ? value : m)
+        onMemosChange(next)
+    }
+
+    function removeMemo(idx: number) {
+        onMemosChange(memos.filter((_, i) => i !== idx))
+    }
+
+    return (
+        <section
+            style={{
+                position: 'relative', zIndex: 2,
+                marginTop: 20,
+                padding: '14px 16px',
+                background: theme.pageBg,
+                borderRadius: 12,
+                border: `1.5px dashed ${theme.timelineBar}`,
+            }}
+        >
+            <p style={{
+                fontSize: 11, fontWeight: 700, letterSpacing: '0.12em',
+                color: theme.accent, margin: '0 0 10px',
+            }}>
+                MEMO
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {memos.map((memo, i) => (
+                    <DayMemoItem
+                        key={i}
+                        initial={memo}
+                        editable={editable}
+                        theme={theme}
+                        onCommit={value => updateMemo(i, value)}
+                        onRemove={() => removeMemo(i)}
+                    />
+                ))}
+            </div>
+            {editable && (
+                <button
+                    type="button"
+                    onClick={addMemo}
+                    className="no-print"
+                    style={{
+                        marginTop: memos.length > 0 ? 10 : 0,
+                        width: '100%',
+                        padding: '9px 12px',
+                        background: 'white',
+                        border: `1.5px dashed ${theme.accent}`,
+                        borderRadius: 10,
+                        color: theme.accent,
+                        fontSize: 13, fontWeight: 600,
+                        cursor: 'pointer',
+                    }}
+                >
+                    ＋ メモを追加
+                </button>
+            )}
+        </section>
+    )
+}
+
+function DayMemoItem({
+    initial, editable, theme, onCommit, onRemove,
+}: {
+    initial: string
+    editable: boolean
+    theme: Theme
+    onCommit: (value: string) => void
+    onRemove: () => void
+}) {
+    const [draft, setDraft] = useState(initial)
+
+    useEffect(() => { setDraft(initial) }, [initial])
+
+    if (!editable) {
+        if (!initial.trim()) return null
+        return (
+            <p style={{
+                margin: 0, padding: '8px 10px',
+                background: 'white', borderRadius: 8,
+                fontSize: 13, color: theme.text, lineHeight: 1.6,
+                whiteSpace: 'pre-wrap',
+                borderLeft: `3px solid ${theme.accent}`,
+            }}>
+                {initial}
+            </p>
+        )
+    }
+
+    return (
+        <div style={{ display: 'flex', gap: 6, alignItems: 'flex-start' }}>
+            <textarea
+                value={draft}
+                onChange={e => setDraft(e.target.value)}
+                onBlur={() => { if (draft !== initial) onCommit(draft) }}
+                placeholder="自由にメモを書く..."
+                rows={2}
+                style={{
+                    flex: 1,
+                    padding: '8px 10px',
+                    background: 'white',
+                    border: `1px solid ${theme.timelineBar}`,
+                    borderRadius: 8,
+                    fontSize: 13,
+                    color: theme.text,
+                    fontFamily: 'inherit',
+                    lineHeight: 1.6,
+                    resize: 'vertical',
+                    outline: 'none',
+                    minHeight: 40,
+                    boxSizing: 'border-box',
+                }}
+            />
+            <button
+                type="button"
+                onClick={onRemove}
+                aria-label="メモを削除"
+                className="no-print"
+                style={{
+                    width: 28, height: 28,
+                    border: 'none', background: 'transparent',
+                    color: theme.subText, fontSize: 18,
+                    cursor: 'pointer', flexShrink: 0,
+                    borderRadius: 6,
+                }}
+            >
+                ×
+            </button>
+        </div>
     )
 }

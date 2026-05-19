@@ -87,6 +87,18 @@ details:not([open]) .faq-toggle::before { content: "＋"; }
         page-break-after: auto;
         break-after: auto;
     }
+    .booklet-optional {
+        page-break-after: always;
+        break-after: page;
+    }
+    .booklet-back-cover {
+        page-break-before: always;
+        break-before: page;
+    }
+    /* ページ番号は最下部に固定表示 */
+    .booklet-page-number {
+        margin-top: 12px !important;
+    }
     /* A4 余白 */
     @page {
         size: A4;

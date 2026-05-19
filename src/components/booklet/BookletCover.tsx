@@ -1,11 +1,9 @@
 import type { Trip } from '@/types'
-import { getDestinationEmoji } from '@/lib/destinationEmoji'
 import type { Theme } from './bookletThemes'
 import { CoverDecoration } from './BookletDecorations'
 import { getFontFamily } from './bookletFont'
 
 export default function BookletCover({ trip, theme }: { trip: Trip; theme: Theme }) {
-    const emoji = getDestinationEmoji(trip.destination)
     const startDate = trip.itinerary.start_date
     const startObj  = startDate ? new Date(startDate) : null
     const endObj    = startObj
@@ -20,11 +18,9 @@ export default function BookletCover({ trip, theme }: { trip: Trip; theme: Theme
         return `${d.getMonth() + 1}/${d.getDate()}(${wd})`
     }
 
-    // テーマ装飾用の判定
     const isDark = theme.coverText === 'white' || theme.coverText === '#ffffff'
     const titleFont = getFontFamily(theme.fontStyle)
 
-    // バッジスタイル（タイトル上のラベル）
     const labelBgColor = isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.08)'
     const labelBorderColor = isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.15)'
 
@@ -46,10 +42,10 @@ export default function BookletCover({ trip, theme }: { trip: Trip; theme: Theme
                 fontFamily: titleFont,
             }}
         >
-            {/* ─── 装飾レイヤー ─── */}
+            {/* 装飾レイヤー（CSSパターンのみ） */}
             <CoverDecoration kind={theme.decoration} accent={theme.accent} />
 
-            {/* 装飾円（既存・薄く維持） */}
+            {/* 装飾円（薄く維持） */}
             <div style={{
                 position: 'absolute', top: -80, right: -60,
                 width: 240, height: 240, borderRadius: '50%',
@@ -63,33 +59,33 @@ export default function BookletCover({ trip, theme }: { trip: Trip; theme: Theme
                 pointerEvents: 'none',
             }} />
 
-            {/* ─── ヘッド ─── */}
+            {/* ヘッド */}
             <div style={{ position: 'relative', zIndex: 2 }}>
                 <span style={{
                     display: 'inline-block',
-                    fontSize: 10, fontWeight: 700, letterSpacing: '0.2em',
+                    fontSize: 10, fontWeight: 700, letterSpacing: '0.22em',
                     textTransform: 'uppercase',
                     background: labelBgColor,
                     border: `1px solid ${labelBorderColor}`,
-                    padding: '5px 12px',
+                    padding: '5px 14px',
                     borderRadius: 99,
-                    marginBottom: 14,
+                    marginBottom: 16,
                 }}>
-                    ✈ Travel Booklet
+                    Travel Booklet
                 </span>
-                <p style={{
-                    fontSize: 80, lineHeight: 1, margin: 0,
-                    filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.18))',
-                }}>
-                    {theme.coverEmoji || emoji}
-                </p>
+                {/* 装飾ライン（絵文字の代わり） */}
+                <div style={{
+                    width: 64, height: 4, borderRadius: 4,
+                    background: isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.35)',
+                    marginTop: 8, marginBottom: 4,
+                }} />
             </div>
 
-            {/* ─── タイトル ─── */}
+            {/* タイトル */}
             <div style={{ position: 'relative', zIndex: 2, margin: '24px 0' }}>
                 <h1 style={{
-                    fontSize: 'clamp(28px, 5vw, 44px)', fontWeight: 800,
-                    lineHeight: 1.25, margin: '0 0 20px',
+                    fontSize: 'clamp(28px, 5.5vw, 48px)', fontWeight: 800,
+                    lineHeight: 1.2, margin: '0 0 24px',
                     letterSpacing: theme.fontStyle === 'rounded' ? '0' : '-0.02em',
                     textShadow: isDark
                         ? '0 2px 8px rgba(0,0,0,0.25)'
@@ -100,7 +96,7 @@ export default function BookletCover({ trip, theme }: { trip: Trip; theme: Theme
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                     <div style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 15,
+                        display: 'inline-flex', alignItems: 'center', gap: 10, fontSize: 15,
                         background: labelBgColor,
                         border: `1px solid ${labelBorderColor}`,
                         padding: '8px 14px',
@@ -108,11 +104,14 @@ export default function BookletCover({ trip, theme }: { trip: Trip; theme: Theme
                         width: 'fit-content',
                         backdropFilter: 'blur(4px)',
                     }}>
-                        <span>📍</span>
+                        <span style={{
+                            display: 'inline-block', width: 6, height: 6, borderRadius: '50%',
+                            background: 'currentColor', opacity: 0.6,
+                        }} />
                         <span style={{ fontWeight: 700 }}>{trip.destination}</span>
                     </div>
                     <div style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 14,
+                        display: 'inline-flex', alignItems: 'center', gap: 10, fontSize: 14,
                         background: labelBgColor,
                         border: `1px solid ${labelBorderColor}`,
                         padding: '7px 14px',
@@ -120,7 +119,10 @@ export default function BookletCover({ trip, theme }: { trip: Trip; theme: Theme
                         width: 'fit-content',
                         backdropFilter: 'blur(4px)',
                     }}>
-                        <span>🗓️</span>
+                        <span style={{
+                            display: 'inline-block', width: 6, height: 6, borderRadius: '50%',
+                            background: 'currentColor', opacity: 0.6,
+                        }} />
                         {startObj && endObj ? (
                             <span>{fmtDate(startObj)} 〜 {fmtShort(endObj)}（{trip.duration_days}日間）</span>
                         ) : (
@@ -130,14 +132,14 @@ export default function BookletCover({ trip, theme }: { trip: Trip; theme: Theme
                 </div>
             </div>
 
-            {/* ─── フッター ─── */}
+            {/* フッター */}
             <div style={{
                 position: 'relative', zIndex: 2,
                 paddingTop: 20, borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)'}`,
                 fontSize: 11, opacity: 0.85, letterSpacing: '0.05em',
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
             }}>
-                <span>🎀 旅程ジェネレーターで作成</span>
+                <span>旅程ジェネレーターで作成</span>
                 <span style={{ fontSize: 10, opacity: 0.6 }}>— よい旅を —</span>
             </div>
         </article>
