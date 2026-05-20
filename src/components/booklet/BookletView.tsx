@@ -82,6 +82,21 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
         })
     }
 
+    function handleOptionalColumnsChange(kind: OptionalPageKind, columns: 1 | 2 | 3) {
+        const c = config!
+        const entry = c[c.activeMode].optionalPages[kind]
+        updateConfig({
+            ...c,
+            [c.activeMode]: {
+                ...c[c.activeMode],
+                optionalPages: {
+                    ...c[c.activeMode].optionalPages,
+                    [kind]: { ...entry, columns },
+                },
+            },
+        })
+    }
+
     // ページ番号計算：表紙・背表紙以外に通し番号を振る
     const pageNumbers = new Map<string, number>()
     let pageNo = 0
@@ -189,6 +204,8 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
                     theme={theme}
                     content={entry.content}
                     editable={editable}
+                    columns={(entry.columns ?? 1) as 1 | 2 | 3}
+                    onColumnsChange={cols => handleOptionalColumnsChange(page.pageKind, cols)}
                     onChange={content => handleOptionalContentChange(page.pageKind, content)}
                 />
             )

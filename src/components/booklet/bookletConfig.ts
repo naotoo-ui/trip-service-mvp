@@ -50,6 +50,7 @@ export type OptionalPageEntry = {
     enabled: boolean
     position: InsertPosition
     content: string
+    columns?: 1 | 2 | 3   // 持ち物リスト用の列数（他ページでは無視）
 }
 
 export type ModeConfig = {
@@ -144,6 +145,7 @@ function mergeModeConfig(def: ModeConfig, partial?: Partial<ModeConfig>): ModeCo
             enabled: incoming?.enabled ?? def.optionalPages[k].enabled,
             position: incoming?.position ?? def.optionalPages[k].position,
             content: incoming?.content ?? def.optionalPages[k].content,
+            columns: incoming?.columns ?? def.optionalPages[k].columns,
         }
     })
     return {
