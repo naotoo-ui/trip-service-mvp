@@ -134,11 +134,14 @@ export default function BookletCover({ trip, theme, editable, editToken }: Props
     function openDateEdit() {
         setDraftStart(localStartDate)
         setDraftEnd(localEndDate)
-        // flushSync でレンダリングを同期実行し、ユーザージェスチャー内で showPicker() を呼べるようにする
+        // flushSync でDOMを即時更新し、rAF でレイアウト確定後に showPicker() を呼ぶ
+        // （レイアウト計算前に呼ぶと入力欄座標が (0,0) になりページ左上にポップアップが出る）
         flushSync(() => setEditingDate(true))
-        try {
-            (startInputRef.current as (HTMLInputElement & { showPicker?: () => void }) | null)?.showPicker?.()
-        } catch {}
+        requestAnimationFrame(() => {
+            try {
+                (startInputRef.current as (HTMLInputElement & { showPicker?: () => void }) | null)?.showPicker?.()
+            } catch {}
+        })
     }
 
     const titleStyle: React.CSSProperties = {
