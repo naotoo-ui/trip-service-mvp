@@ -291,7 +291,7 @@ export default function BookletCover({ trip, theme, editable, editToken }: Props
                             onClick={openDateEdit}
                             style={{
                                 margin: 0,
-                                fontSize: 13,
+                                fontSize: 16,
                                 opacity: 0.7,
                                 color: theme.coverText,
                                 cursor: 'pointer',
