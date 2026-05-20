@@ -58,6 +58,7 @@ export interface Itinerary {
     trip_style?: TripStyle
     trip_style_reason?: string
     start_date?: string   // ISO date string e.g. "2026-05-05"
+    end_date?: string     // ISO date string（未設定時は start_date + duration_days - 1 で算出）
     sidebar_spots?: SidebarSpot[]
 }
 

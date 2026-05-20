@@ -729,7 +729,7 @@ try { data = JSON.parse(text) } catch {
 
 - **Next.js params**: `params: Promise<{ id: string }>` → `const { id } = await params`
 - **Tailwind v4**: 設定ファイル不要。**重要なレイアウトは inline styles**（v4 で一部ユーティリティが効かない場合があるため）
-- **itinerary の型**: `{ days, trip_style?, trip_style_reason?, start_date?, sidebar_spots? }`
+- **itinerary の型**: `{ days, trip_style?, trip_style_reason?, start_date?, end_date?, sidebar_spots? }`
 - **hotel の格納場所**: `itinerary.days[i].hotel`（JSONB内・DBスキーマ変更不要）
 - **CalendarView PPM**: `BASE_PPM = 1.0`。ppm = BASE_PPM * zoom
 - **isolation: isolate**: CalendarView 外側ラッパーに必須
@@ -745,7 +745,7 @@ try { data = JSON.parse(text) } catch {
 - **しおりテーマ**: `tripgen.bookletTheme.v1` キーで localStorage 保存・SSR ハイドレーション差異を避けるため初期値は 'classic' 固定
 - **しおり NOW 判定**: `useEffect` でマウント後のみ `setInterval(60_000)`、SSR では計算しない
 - **しおり表紙タイトル編集**: `BookletCover` は `'use client'`。クリックで `<input>` に切替・Enter/blur で PATCH。`{ itinerary, title, edit_token }` をそのまま送信（itinerary は必須フィールドのため）
-- **しおり表紙日程表示**: `itinerary.start_date` + `trip.duration_days` から終了日を自動計算して日本語表示。同月「5月5日（火）〜 7日（木）」・月跨ぎ・年跨ぎ・日帰り（1日）に対応。クリックで `<input type="date">` に切替（開始日のみ入力・終了日は自動計算）。未設定時は編集権限ありなら「＋ 日程を追加」表示。保存時はタイトルと start_date を同一 PATCH リクエストで送信
+- **しおり表紙日程表示**: `itinerary.start_date` / `end_date` から日本語表示。同月「5月5日（火）〜 7日（木）」・月跨ぎ・年跨ぎ・日帰りに対応。`end_date` 未設定時は `start_date + duration_days - 1` で初期値を算出。クリックで FROM / TO 2つの `<input type="date">` に切替（コンテナ外 blur または Enter で保存・Escape でキャンセル）。未設定時は編集権限ありなら「＋ 日程を追加」（opacity 0.7）を表示。保存時はタイトル・start_date・end_date を同一 PATCH リクエストで送信
 - **しおりメモ分割**: `MEMOS_PER_PAGE=8`・超えたら続き記事を React Fragment で返す（`BookletDayPage`）
 - **持ち物チェックボックス分割**: `ITEMS_PER_COL=14`・列×行数で超えたら続き記事（`BookletOptionalPage`）
 - **BookletConfig マイグレーション**: 旧 `screen/print` 構造を `loadBookletConfig` で自動変換（`parsed.screen` を source とする）
