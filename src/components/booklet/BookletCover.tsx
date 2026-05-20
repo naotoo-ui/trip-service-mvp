@@ -1,5 +1,6 @@
 'use client'
 import { useState, useRef, useEffect } from 'react'
+import { flushSync } from 'react-dom'
 import type { Trip } from '@/types'
 import type { Theme } from './bookletThemes'
 import { CoverDecoration } from './BookletDecorations'
@@ -66,6 +67,7 @@ export default function BookletCover({ trip, theme, editable, editToken }: Props
     const [draftStart, setDraftStart] = useState(initStart)
     const [draftEnd, setDraftEnd] = useState(initEnd)
     const dateContainerRef = useRef<HTMLDivElement>(null)
+    const startInputRef = useRef<HTMLInputElement>(null)
 
     const isDark = theme.coverText === 'white' || theme.coverText === '#ffffff'
     const titleFont = getFontFamily(theme.fontStyle)
@@ -132,7 +134,11 @@ export default function BookletCover({ trip, theme, editable, editToken }: Props
     function openDateEdit() {
         setDraftStart(localStartDate)
         setDraftEnd(localEndDate)
-        setEditingDate(true)
+        // flushSync でレンダリングを同期実行し、ユーザージェスチャー内で showPicker() を呼べるようにする
+        flushSync(() => setEditingDate(true))
+        try {
+            (startInputRef.current as (HTMLInputElement & { showPicker?: () => void }) | null)?.showPicker?.()
+        } catch {}
     }
 
     const titleStyle: React.CSSProperties = {
@@ -252,6 +258,7 @@ export default function BookletCover({ trip, theme, editable, editToken }: Props
                             }}
                         >
                             <input
+                                ref={startInputRef}
                                 type="date"
                                 value={draftStart}
                                 onChange={e => setDraftStart(e.target.value)}

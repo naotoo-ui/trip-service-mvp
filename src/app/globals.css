@@ -169,8 +169,7 @@ details:not([open]) .faq-toggle::before { content: "＋"; }
     color-scheme: light;   /* カレンダーポップアップを白基調に */
 }
 .booklet-cover input[type="date"]::-webkit-calendar-picker-indicator {
-    cursor: pointer;
-    opacity: 0.7;
+    display: none;   /* アイコン非表示・テキスト範囲クリックでピッカーを開く */
 }
 /* 入力フィールド内テキストのサイズ合わせ */
 .booklet-cover input[type="date"]::-webkit-datetime-edit,
