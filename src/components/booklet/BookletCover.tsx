@@ -241,7 +241,7 @@ export default function BookletCover({ trip, theme, editable, editToken }: Props
                 )}
 
                 {/* 旅行日程 */}
-                <div style={{ marginTop: 18 }}>
+                <div style={{ marginTop: 28 }}>
                     {editingDate ? (
                         <div
                             ref={dateContainerRef}
@@ -291,7 +291,7 @@ export default function BookletCover({ trip, theme, editable, editToken }: Props
                             onClick={openDateEdit}
                             style={{
                                 margin: 0,
-                                fontSize: 16,
+                                fontSize: 22,
                                 opacity: 0.7,
                                 color: theme.coverText,
                                 cursor: 'pointer',
