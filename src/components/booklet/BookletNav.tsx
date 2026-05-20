@@ -3,21 +3,17 @@ import Link from 'next/link'
 import { useState } from 'react'
 import { themes, type ThemeName } from './bookletThemes'
 import BookletThemePicker from './BookletThemePicker'
-import type { ViewMode } from './bookletConfig'
 
 type Props = {
     shareId: string
     editToken?: string
     themeName: ThemeName
     onThemeChange: (t: ThemeName) => void
-    mode: ViewMode
-    onModeChange: (m: ViewMode) => void
     onOpenSettings: () => void
 }
 
 export default function BookletNav({
-    shareId, editToken, themeName, onThemeChange,
-    mode, onModeChange, onOpenSettings,
+    shareId, editToken, themeName, onThemeChange, onOpenSettings,
 }: Props) {
     const [copied, setCopied] = useState(false)
     const [pickerOpen, setPickerOpen] = useState(false)
@@ -58,59 +54,19 @@ export default function BookletNav({
                         gap: 8, flexWrap: 'wrap',
                     }}
                 >
-                    {/* 左：戻る + モード切替 */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                        <Link
-                            href={calendarUrl}
-                            style={{
-                                display: 'flex', alignItems: 'center', gap: 6,
-                                padding: '7px 12px', borderRadius: 10,
-                                background: '#f1f5f9', color: '#475569',
-                                textDecoration: 'none', fontSize: 13, fontWeight: 600,
-                                whiteSpace: 'nowrap',
-                            }}
-                        >
-                            ← 戻る
-                        </Link>
-
-                        {/* 画面/印刷 トグル */}
-                        <div
-                            style={{
-                                display: 'inline-flex',
-                                background: '#f1f5f9',
-                                padding: 3, borderRadius: 9,
-                                gap: 3,
-                            }}
-                            role="tablist"
-                            aria-label="表示モード"
-                        >
-                            {(['screen', 'print'] as const).map(m => {
-                                const active = mode === m
-                                return (
-                                    <button
-                                        key={m}
-                                        type="button"
-                                        role="tab"
-                                        aria-selected={active}
-                                        onClick={() => onModeChange(m)}
-                                        style={{
-                                            padding: '5px 10px',
-                                            borderRadius: 7,
-                                            border: 'none',
-                                            background: active ? 'white' : 'transparent',
-                                            color: active ? '#0f172a' : '#64748b',
-                                            fontSize: 12, fontWeight: 700,
-                                            cursor: 'pointer',
-                                            boxShadow: active ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
-                                            whiteSpace: 'nowrap',
-                                        }}
-                                    >
-                                        {m === 'screen' ? '画面用' : '印刷用'}
-                                    </button>
-                                )
-                            })}
-                        </div>
-                    </div>
+                    {/* 左：戻るボタン */}
+                    <Link
+                        href={calendarUrl}
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: 6,
+                            padding: '7px 12px', borderRadius: 10,
+                            background: '#f1f5f9', color: '#475569',
+                            textDecoration: 'none', fontSize: 13, fontWeight: 600,
+                            whiteSpace: 'nowrap',
+                        }}
+                    >
+                        ← 戻る
+                    </Link>
 
                     {/* 右：アクション群 */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
@@ -121,8 +77,7 @@ export default function BookletNav({
                             style={{
                                 display: 'flex', alignItems: 'center', gap: 6,
                                 padding: '7px 12px', borderRadius: 10,
-                                background: 'white',
-                                color: '#475569',
+                                background: 'white', color: '#475569',
                                 border: '1.5px solid #e2e8f0',
                                 fontSize: 13, fontWeight: 600,
                                 cursor: 'pointer', whiteSpace: 'nowrap',
@@ -137,7 +92,7 @@ export default function BookletNav({
                             {currentTheme.label}
                         </button>
 
-                        {/* 設定 */}
+                        {/* 設定（ページ番号） */}
                         <button
                             type="button"
                             onClick={onOpenSettings}
@@ -145,8 +100,7 @@ export default function BookletNav({
                             style={{
                                 display: 'flex', alignItems: 'center', gap: 5,
                                 padding: '7px 12px', borderRadius: 10,
-                                background: 'white',
-                                color: '#475569',
+                                background: 'white', color: '#475569',
                                 border: '1.5px solid #e2e8f0',
                                 fontSize: 13, fontWeight: 600,
                                 cursor: 'pointer', whiteSpace: 'nowrap',

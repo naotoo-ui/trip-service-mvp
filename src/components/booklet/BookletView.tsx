@@ -6,11 +6,13 @@ import BookletCover from './BookletCover'
 import BookletBackCover from './BookletBackCover'
 import BookletDayPage from './BookletDayPage'
 import BookletOptionalPage from './BookletOptionalPage'
+import BookletGapControl from './BookletGapControl'
 import BookletSettings from './BookletSettings'
 import { getTheme, themes, type ThemeName } from './bookletThemes'
 import {
     loadBookletConfig, saveBookletConfig, computePageOrder,
-    type BookletConfig, type OptionalPageKind, type ViewMode, type PageKey,
+    enabledPagesAt, positionLabel,
+    type BookletConfig, type OptionalPageKind, type InsertPosition,
 } from './bookletConfig'
 
 export default function BookletView({ trip, editToken }: { trip: Trip; editToken?: string }) {
@@ -19,7 +21,6 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
     const [settingsOpen, setSettingsOpen] = useState(false)
     const [mounted, setMounted] = useState(false)
 
-    // 初回マウント：localStorage 読込
     useEffect(() => {
         setMounted(true)
         setConfig(loadBookletConfig(trip.share_id))
@@ -30,7 +31,6 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
         saveBookletConfig(trip.share_id, next)
     }
 
-    // 初期状態（SSR / 読込前）
     if (!config) {
         const fallbackTheme = getTheme('sakura')
         return (
@@ -44,121 +44,172 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
 
     const themeName = (config.themeName in themes ? config.themeName : 'sakura') as ThemeName
     const theme = getTheme(themeName)
-    const daysCount = trip.itinerary.days.length
-    const pageOrder = computePageOrder(config, daysCount, config.activeMode)
-    const modeCfg = config[config.activeMode]
+    const days = trip.itinerary.days
 
     function handleThemeChange(t: ThemeName) {
         updateConfig({ ...config!, themeName: t })
     }
 
-    function handleModeChange(m: ViewMode) {
-        updateConfig({ ...config!, activeMode: m })
-    }
-
-    function handleMemosChange(dayIdx: number, memos: string[]) {
+    function handleToggleOptionalPage(kind: OptionalPageKind, position: InsertPosition, enabled: boolean) {
         const c = config!
         updateConfig({
             ...c,
-            [c.activeMode]: {
-                ...c[c.activeMode],
-                dayMemos: { ...c[c.activeMode].dayMemos, [dayIdx]: memos },
+            optionalPages: {
+                ...c.optionalPages,
+                [kind]: { ...c.optionalPages[kind], enabled, position },
             },
         })
     }
 
     function handleOptionalContentChange(kind: OptionalPageKind, content: string) {
         const c = config!
-        const entry = c[c.activeMode].optionalPages[kind]
         updateConfig({
             ...c,
-            [c.activeMode]: {
-                ...c[c.activeMode],
-                optionalPages: {
-                    ...c[c.activeMode].optionalPages,
-                    [kind]: { ...entry, content },
-                },
+            optionalPages: {
+                ...c.optionalPages,
+                [kind]: { ...c.optionalPages[kind], content },
             },
         })
     }
 
     function handleOptionalColumnsChange(kind: OptionalPageKind, columns: 1 | 2 | 3) {
         const c = config!
-        const entry = c[c.activeMode].optionalPages[kind]
         updateConfig({
             ...c,
-            [c.activeMode]: {
-                ...c[c.activeMode],
-                optionalPages: {
-                    ...c[c.activeMode].optionalPages,
-                    [kind]: { ...entry, columns },
-                },
+            optionalPages: {
+                ...c.optionalPages,
+                [kind]: { ...c.optionalPages[kind], columns },
             },
         })
     }
 
-    // ページ番号計算：表紙・背表紙以外に通し番号を振る
-    const pageNumbers = new Map<string, number>()
-    let pageNo = 0
+    function handleMemosChange(dayIdx: number, memos: string[]) {
+        updateConfig({
+            ...config!,
+            dayMemos: { ...config!.dayMemos, [dayIdx]: memos },
+        })
+    }
+
+    // ページ番号の事前計算
+    const pageOrder = computePageOrder(config, days.length)
+    const pageNumMap = new Map<string, number>()
+    let pCounter = 0
     pageOrder.forEach(p => {
         if (p === 'cover' || p === 'back-cover') return
-        pageNo += 1
-        pageNumbers.set(pageKeyToString(p), pageNo)
+        const key = typeof p === 'string' ? p
+            : p.kind === 'day' ? `day-${p.idx}`
+            : `opt-${p.pageKind}`
+        pageNumMap.set(key, ++pCounter)
     })
+
+    function pageNum(key: string): number | undefined {
+        return config!.showPageNumbers ? pageNumMap.get(key) : undefined
+    }
+
+    const pageNumberStyle = {
+        textAlign: 'center' as const,
+        fontSize: 11,
+        color: theme.subText,
+        margin: '-8px 0 16px',
+        letterSpacing: '0.1em',
+        fontVariantNumeric: 'tabular-nums' as const,
+    }
+
+    function renderOptionalPages(pos: InsertPosition) {
+        return enabledPagesAt(config!, pos).map(kind => {
+            const entry = config!.optionalPages[kind]
+            const n = pageNum(`opt-${kind}`)
+            return (
+                <div key={kind} style={{ position: 'relative' }}>
+                    <BookletOptionalPage
+                        pageKind={kind}
+                        theme={theme}
+                        content={entry.content}
+                        editable={editable}
+                        columns={(entry.columns ?? 1) as 1 | 2 | 3}
+                        onColumnsChange={cols => handleOptionalColumnsChange(kind, cols)}
+                        onChange={content => handleOptionalContentChange(kind, content)}
+                    />
+                    {n !== undefined && (
+                        <p className="booklet-page-number" style={pageNumberStyle}>— {n} —</p>
+                    )}
+                </div>
+            )
+        })
+    }
+
+    function renderGap(pos: InsertPosition) {
+        if (!editable) return null
+        return (
+            <BookletGapControl
+                position={pos}
+                label={positionLabel(pos, days.length)}
+                config={config!}
+                onToggle={handleToggleOptionalPage}
+            />
+        )
+    }
 
     return (
         <div
-            className={`booklet-root booklet-mode-${config.activeMode}`}
-            style={{
-                minHeight: '100vh',
-                background: theme.pageBg,
-                paddingBottom: 60,
-            }}
+            className="booklet-root"
+            style={{ minHeight: '100vh', background: theme.pageBg, paddingBottom: 60 }}
         >
             <BookletNav
                 shareId={trip.share_id}
                 editToken={editToken}
                 themeName={themeName}
                 onThemeChange={handleThemeChange}
-                mode={config.activeMode}
-                onModeChange={handleModeChange}
                 onOpenSettings={() => setSettingsOpen(true)}
             />
 
             <main style={{ maxWidth: 800, margin: '0 auto', padding: '24px 16px' }}>
-                {pageOrder.map((page, i) => {
-                    const pageNum = pageNumbers.get(pageKeyToString(page))
-                    const showNumber = config.showPageNumbers && pageNum !== undefined
+                {/* 表紙 */}
+                <BookletCover trip={trip} theme={theme} />
+
+                {/* 表紙の後 */}
+                {renderGap({ kind: 'after-cover' })}
+                {renderOptionalPages({ kind: 'after-cover' })}
+
+                {/* 各日のページ */}
+                {days.map((day, idx) => {
+                    const memos = config.dayMemos[idx] ?? []
+                    const n = pageNum(`day-${idx}`)
                     return (
-                        <div key={pageKeyToString(page) + '@' + i} style={{ position: 'relative' }}>
-                            {renderPage(page)}
-                            {showNumber && (
-                                <p
-                                    className="booklet-page-number"
-                                    style={{
-                                        textAlign: 'center',
-                                        fontSize: 11,
-                                        color: theme.subText,
-                                        margin: '-8px 0 16px',
-                                        letterSpacing: '0.1em',
-                                        fontVariantNumeric: 'tabular-nums',
-                                    }}
-                                >
-                                    — {pageNum} —
-                                </p>
-                            )}
+                        <div key={idx}>
+                            <div style={{ position: 'relative' }}>
+                                <BookletDayPage
+                                    day={day}
+                                    dayIdx={idx}
+                                    startDate={trip.itinerary.start_date}
+                                    theme={theme}
+                                    enableNow={mounted}
+                                    memos={memos}
+                                    editable={editable}
+                                    onMemosChange={ms => handleMemosChange(idx, ms)}
+                                />
+                                {n !== undefined && (
+                                    <p className="booklet-page-number" style={pageNumberStyle}>— {n} —</p>
+                                )}
+                            </div>
+                            {renderGap({ kind: 'after-day', dayIdx: idx })}
+                            {renderOptionalPages({ kind: 'after-day', dayIdx: idx })}
                         </div>
                     )
                 })}
 
+                {/* 背表紙の前 */}
+                {renderGap({ kind: 'before-back-cover' })}
+                {renderOptionalPages({ kind: 'before-back-cover' })}
+
+                {/* 背表紙 */}
+                <BookletBackCover trip={trip} theme={theme} />
+
                 <footer
                     className="no-print"
                     style={{
-                        marginTop: 36,
-                        padding: '20px 16px',
-                        textAlign: 'center',
-                        fontSize: 11,
-                        color: theme.subText,
+                        marginTop: 36, padding: '20px 16px',
+                        textAlign: 'center', fontSize: 11, color: theme.subText,
                     }}
                 >
                     <p style={{ margin: 0 }}>
@@ -171,51 +222,8 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
                 open={settingsOpen}
                 onClose={() => setSettingsOpen(false)}
                 config={config}
-                daysCount={daysCount}
                 onUpdate={updateConfig}
             />
         </div>
     )
-
-    function renderPage(page: PageKey) {
-        if (page === 'cover') return <BookletCover trip={trip} theme={theme} />
-        if (page === 'back-cover') return <BookletBackCover trip={trip} theme={theme} />
-        if (page.kind === 'day') {
-            const day = trip.itinerary.days[page.idx]
-            const memos = modeCfg.dayMemos[page.idx] ?? []
-            return (
-                <BookletDayPage
-                    day={day}
-                    dayIdx={page.idx}
-                    startDate={trip.itinerary.start_date}
-                    theme={theme}
-                    enableNow={mounted}
-                    memos={memos}
-                    editable={editable}
-                    onMemosChange={ms => handleMemosChange(page.idx, ms)}
-                />
-            )
-        }
-        if (page.kind === 'optional') {
-            const entry = modeCfg.optionalPages[page.pageKind]
-            return (
-                <BookletOptionalPage
-                    pageKind={page.pageKind}
-                    theme={theme}
-                    content={entry.content}
-                    editable={editable}
-                    columns={(entry.columns ?? 1) as 1 | 2 | 3}
-                    onColumnsChange={cols => handleOptionalColumnsChange(page.pageKind, cols)}
-                    onChange={content => handleOptionalContentChange(page.pageKind, content)}
-                />
-            )
-        }
-        return null
-    }
-}
-
-function pageKeyToString(p: PageKey): string {
-    if (typeof p === 'string') return p
-    if (p.kind === 'day') return `day-${p.idx}`
-    return `opt-${p.pageKind}`
 }
