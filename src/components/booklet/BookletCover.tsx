@@ -12,11 +12,51 @@ type Props = {
     editToken?: string
 }
 
+const WEEKDAY_JA = ['日', '月', '火', '水', '木', '金', '土']
+
+function addDays(dateStr: string, days: number): string {
+    const d = new Date(dateStr + 'T00:00:00')
+    d.setDate(d.getDate() + days)
+    return d.toISOString().slice(0, 10)
+}
+
+function formatDateRange(startStr: string, durationDays: number): string {
+    const start = new Date(startStr + 'T00:00:00')
+    const sy = start.getFullYear()
+    const sm = start.getMonth() + 1
+    const sd = start.getDate()
+    const sw = WEEKDAY_JA[start.getDay()]
+
+    if (durationDays <= 1) {
+        return `${sy}年${sm}月${sd}日（${sw}）`
+    }
+
+    const endStr = addDays(startStr, durationDays - 1)
+    const end = new Date(endStr + 'T00:00:00')
+    const ey = end.getFullYear()
+    const em = end.getMonth() + 1
+    const ed = end.getDate()
+    const ew = WEEKDAY_JA[end.getDay()]
+
+    if (sy === ey && sm === em) {
+        return `${sy}年${sm}月${sd}日（${sw}）〜 ${ed}日（${ew}）`
+    }
+    if (sy === ey) {
+        return `${sy}年${sm}月${sd}日（${sw}）〜 ${em}月${ed}日（${ew}）`
+    }
+    return `${sy}年${sm}月${sd}日（${sw}）〜 ${ey}年${em}月${ed}日（${ew}）`
+}
+
 export default function BookletCover({ trip, theme, editable, editToken }: Props) {
     const [localTitle, setLocalTitle] = useState(trip.title)
     const [editing, setEditing] = useState(false)
     const [draft, setDraft] = useState(trip.title)
     const inputRef = useRef<HTMLInputElement>(null)
+
+    const [localStartDate, setLocalStartDate] = useState(trip.itinerary.start_date ?? '')
+    const [editingDate, setEditingDate] = useState(false)
+    const [draftDate, setDraftDate] = useState(trip.itinerary.start_date ?? '')
+    const dateInputRef = useRef<HTMLInputElement>(null)
 
     const isDark = theme.coverText === 'white' || theme.coverText === '#ffffff'
     const titleFont = getFontFamily(theme.fontStyle)
@@ -28,28 +68,46 @@ export default function BookletCover({ trip, theme, editable, editToken }: Props
         }
     }, [editing])
 
+    useEffect(() => {
+        if (editingDate) dateInputRef.current?.focus()
+    }, [editingDate])
+
+    async function patch(title: string, startDate: string) {
+        await fetch(`/api/trips/${trip.share_id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                itinerary: { ...trip.itinerary, start_date: startDate || undefined },
+                title,
+                edit_token: editToken,
+            }),
+        })
+    }
+
     async function saveTitle() {
         const trimmed = draft.trim() || localTitle
         setDraft(trimmed)
         setEditing(false)
         if (trimmed === localTitle) return
         setLocalTitle(trimmed)
-        try {
-            await fetch(`/api/trips/${trip.share_id}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    itinerary: trip.itinerary,
-                    title: trimmed,
-                    edit_token: editToken,
-                }),
-            })
-        } catch {}
+        try { await patch(trimmed, localStartDate) } catch {}
+    }
+
+    async function saveStartDate() {
+        setEditingDate(false)
+        if (draftDate === localStartDate) return
+        setLocalStartDate(draftDate)
+        try { await patch(localTitle, draftDate) } catch {}
     }
 
     function handleKeyDown(e: React.KeyboardEvent) {
         if (e.key === 'Enter') { e.preventDefault(); saveTitle() }
         if (e.key === 'Escape') { setDraft(localTitle); setEditing(false) }
+    }
+
+    function handleDateKeyDown(e: React.KeyboardEvent) {
+        if (e.key === 'Enter') { e.preventDefault(); saveStartDate() }
+        if (e.key === 'Escape') { setDraftDate(localStartDate); setEditingDate(false) }
     }
 
     const titleStyle: React.CSSProperties = {
@@ -61,6 +119,9 @@ export default function BookletCover({ trip, theme, editable, editToken }: Props
             ? '0 2px 8px rgba(0,0,0,0.25)'
             : '0 1px 2px rgba(255,255,255,0.4)',
     }
+
+    const underlineColor = isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.3)'
+    const dateRangeLabel = localStartDate ? formatDateRange(localStartDate, trip.duration_days) : null
 
     return (
         <article
@@ -97,8 +158,9 @@ export default function BookletCover({ trip, theme, editable, editToken }: Props
                 background: 'rgba(255,255,255,0.06)', pointerEvents: 'none',
             }} />
 
-            {/* タイトル */}
+            {/* タイトル + 日程 */}
             <div style={{ position: 'relative', zIndex: 2, width: '100%', maxWidth: 560 }}>
+                {/* タイトル */}
                 {editing ? (
                     <input
                         ref={inputRef}
@@ -111,7 +173,7 @@ export default function BookletCover({ trip, theme, editable, editToken }: Props
                             width: '100%',
                             background: 'transparent',
                             border: 'none',
-                            borderBottom: `2px solid ${isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.3)'}`,
+                            borderBottom: `2px solid ${underlineColor}`,
                             color: theme.coverText,
                             outline: 'none',
                             textAlign: 'center',
@@ -137,7 +199,65 @@ export default function BookletCover({ trip, theme, editable, editToken }: Props
                     </h1>
                 )}
 
-                {editable && !editing && (
+                {/* 旅行日程 */}
+                <div style={{ marginTop: 18 }}>
+                    {editingDate ? (
+                        <input
+                            ref={dateInputRef}
+                            type="date"
+                            value={draftDate}
+                            onChange={e => setDraftDate(e.target.value)}
+                            onBlur={saveStartDate}
+                            onKeyDown={handleDateKeyDown}
+                            style={{
+                                background: 'transparent',
+                                border: 'none',
+                                borderBottom: `2px solid ${underlineColor}`,
+                                color: theme.coverText,
+                                outline: 'none',
+                                textAlign: 'center',
+                                fontFamily: 'inherit',
+                                fontSize: 16,
+                                padding: '4px 8px',
+                                colorScheme: isDark ? 'dark' : 'light',
+                            }}
+                        />
+                    ) : dateRangeLabel ? (
+                        <p
+                            onClick={editable ? () => { setDraftDate(localStartDate); setEditingDate(true) } : undefined}
+                            style={{
+                                margin: 0,
+                                fontSize: 15,
+                                letterSpacing: '0.04em',
+                                opacity: 0.85,
+                                color: theme.coverText,
+                                cursor: editable ? 'pointer' : 'default',
+                                padding: '4px 8px',
+                                borderRadius: 6,
+                            }}
+                            title={editable ? 'クリックして日程を編集' : undefined}
+                        >
+                            {dateRangeLabel}
+                        </p>
+                    ) : editable ? (
+                        <p
+                            className="no-print"
+                            onClick={() => { setDraftDate(''); setEditingDate(true) }}
+                            style={{
+                                margin: 0,
+                                fontSize: 13,
+                                opacity: 0.4,
+                                color: theme.coverText,
+                                cursor: 'pointer',
+                                padding: '4px 8px',
+                            }}
+                        >
+                            ＋ 日程を追加
+                        </p>
+                    ) : null}
+                </div>
+
+                {editable && !editing && !editingDate && (
                     <p
                         className="no-print"
                         style={{
