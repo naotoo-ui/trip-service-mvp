@@ -1,28 +1,66 @@
+'use client'
+import { useState, useRef, useEffect } from 'react'
 import type { Trip } from '@/types'
 import type { Theme } from './bookletThemes'
 import { CoverDecoration } from './BookletDecorations'
 import { getFontFamily } from './bookletFont'
 
-export default function BookletCover({ trip, theme }: { trip: Trip; theme: Theme }) {
-    const startDate = trip.itinerary.start_date
-    const startObj  = startDate ? new Date(startDate) : null
-    const endObj    = startObj
-        ? (() => { const d = new Date(startObj); d.setDate(d.getDate() + trip.duration_days - 1); return d })()
-        : null
+type Props = {
+    trip: Trip
+    theme: Theme
+    editable?: boolean
+    editToken?: string
+}
 
-    function fmtDate(d: Date) {
-        return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`
-    }
-    function fmtShort(d: Date) {
-        const wd = ['日', '月', '火', '水', '木', '金', '土'][d.getDay()]
-        return `${d.getMonth() + 1}/${d.getDate()}(${wd})`
-    }
+export default function BookletCover({ trip, theme, editable, editToken }: Props) {
+    const [localTitle, setLocalTitle] = useState(trip.title)
+    const [editing, setEditing] = useState(false)
+    const [draft, setDraft] = useState(trip.title)
+    const inputRef = useRef<HTMLInputElement>(null)
 
     const isDark = theme.coverText === 'white' || theme.coverText === '#ffffff'
     const titleFont = getFontFamily(theme.fontStyle)
 
-    const labelBgColor = isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.08)'
-    const labelBorderColor = isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.15)'
+    useEffect(() => {
+        if (editing) {
+            inputRef.current?.focus()
+            inputRef.current?.select()
+        }
+    }, [editing])
+
+    async function saveTitle() {
+        const trimmed = draft.trim() || localTitle
+        setDraft(trimmed)
+        setEditing(false)
+        if (trimmed === localTitle) return
+        setLocalTitle(trimmed)
+        try {
+            await fetch(`/api/trips/${trip.share_id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    itinerary: trip.itinerary,
+                    title: trimmed,
+                    edit_token: editToken,
+                }),
+            })
+        } catch {}
+    }
+
+    function handleKeyDown(e: React.KeyboardEvent) {
+        if (e.key === 'Enter') { e.preventDefault(); saveTitle() }
+        if (e.key === 'Escape') { setDraft(localTitle); setEditing(false) }
+    }
+
+    const titleStyle: React.CSSProperties = {
+        fontSize: 'clamp(28px, 5.5vw, 48px)',
+        fontWeight: 800,
+        lineHeight: 1.2,
+        letterSpacing: theme.fontStyle === 'rounded' ? '0' : '-0.02em',
+        textShadow: isDark
+            ? '0 2px 8px rgba(0,0,0,0.25)'
+            : '0 1px 2px rgba(255,255,255,0.4)',
+    }
 
     return (
         <article
@@ -36,111 +74,81 @@ export default function BookletCover({ trip, theme }: { trip: Trip; theme: Theme
                 overflow: 'hidden',
                 marginBottom: 28,
                 minHeight: 520,
-                display: 'flex', flexDirection: 'column',
-                justifyContent: 'space-between',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+                alignItems: 'center',
                 boxShadow: '0 8px 32px rgba(15, 23, 42, 0.15)',
                 fontFamily: titleFont,
+                textAlign: 'center',
             }}
         >
-            {/* 装飾レイヤー（CSSパターンのみ） */}
             <CoverDecoration kind={theme.decoration} accent={theme.accent} />
 
-            {/* 装飾円（薄く維持） */}
+            {/* 装飾円 */}
             <div style={{
                 position: 'absolute', top: -80, right: -60,
                 width: 240, height: 240, borderRadius: '50%',
-                background: 'rgba(255,255,255,0.10)',
-                pointerEvents: 'none',
+                background: 'rgba(255,255,255,0.10)', pointerEvents: 'none',
             }} />
             <div style={{
                 position: 'absolute', bottom: -60, left: -40,
                 width: 180, height: 180, borderRadius: '50%',
-                background: 'rgba(255,255,255,0.06)',
-                pointerEvents: 'none',
+                background: 'rgba(255,255,255,0.06)', pointerEvents: 'none',
             }} />
 
-            {/* ヘッド */}
-            <div style={{ position: 'relative', zIndex: 2 }}>
-                <span style={{
-                    display: 'inline-block',
-                    fontSize: 10, fontWeight: 700, letterSpacing: '0.22em',
-                    textTransform: 'uppercase',
-                    background: labelBgColor,
-                    border: `1px solid ${labelBorderColor}`,
-                    padding: '5px 14px',
-                    borderRadius: 99,
-                    marginBottom: 16,
-                }}>
-                    Travel Booklet
-                </span>
-                {/* 装飾ライン（絵文字の代わり） */}
-                <div style={{
-                    width: 64, height: 4, borderRadius: 4,
-                    background: isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.35)',
-                    marginTop: 8, marginBottom: 4,
-                }} />
-            </div>
-
             {/* タイトル */}
-            <div style={{ position: 'relative', zIndex: 2, margin: '24px 0' }}>
-                <h1 style={{
-                    fontSize: 'clamp(28px, 5.5vw, 48px)', fontWeight: 800,
-                    lineHeight: 1.2, margin: '0 0 24px',
-                    letterSpacing: theme.fontStyle === 'rounded' ? '0' : '-0.02em',
-                    textShadow: isDark
-                        ? '0 2px 8px rgba(0,0,0,0.25)'
-                        : '0 1px 2px rgba(255,255,255,0.4)',
-                }}>
-                    {trip.title}
-                </h1>
+            <div style={{ position: 'relative', zIndex: 2, width: '100%', maxWidth: 560 }}>
+                {editing ? (
+                    <input
+                        ref={inputRef}
+                        value={draft}
+                        onChange={e => setDraft(e.target.value)}
+                        onBlur={saveTitle}
+                        onKeyDown={handleKeyDown}
+                        style={{
+                            ...titleStyle,
+                            width: '100%',
+                            background: 'transparent',
+                            border: 'none',
+                            borderBottom: `2px solid ${isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.3)'}`,
+                            color: theme.coverText,
+                            outline: 'none',
+                            textAlign: 'center',
+                            fontFamily: 'inherit',
+                            padding: '4px 8px',
+                            boxSizing: 'border-box',
+                        }}
+                    />
+                ) : (
+                    <h1
+                        onClick={editable ? () => { setDraft(localTitle); setEditing(true) } : undefined}
+                        style={{
+                            ...titleStyle,
+                            margin: 0,
+                            cursor: editable ? 'pointer' : 'default',
+                            padding: '4px 8px',
+                            borderRadius: 8,
+                            transition: 'background 0.15s',
+                        }}
+                        title={editable ? 'クリックしてタイトルを編集' : undefined}
+                    >
+                        {localTitle}
+                    </h1>
+                )}
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    <div style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 10, fontSize: 15,
-                        background: labelBgColor,
-                        border: `1px solid ${labelBorderColor}`,
-                        padding: '8px 14px',
-                        borderRadius: 12,
-                        width: 'fit-content',
-                        backdropFilter: 'blur(4px)',
-                    }}>
-                        <span style={{
-                            display: 'inline-block', width: 6, height: 6, borderRadius: '50%',
-                            background: 'currentColor', opacity: 0.6,
-                        }} />
-                        <span style={{ fontWeight: 700 }}>{trip.destination}</span>
-                    </div>
-                    <div style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 10, fontSize: 14,
-                        background: labelBgColor,
-                        border: `1px solid ${labelBorderColor}`,
-                        padding: '7px 14px',
-                        borderRadius: 12,
-                        width: 'fit-content',
-                        backdropFilter: 'blur(4px)',
-                    }}>
-                        <span style={{
-                            display: 'inline-block', width: 6, height: 6, borderRadius: '50%',
-                            background: 'currentColor', opacity: 0.6,
-                        }} />
-                        {startObj && endObj ? (
-                            <span>{fmtDate(startObj)} 〜 {fmtShort(endObj)}（{trip.duration_days}日間）</span>
-                        ) : (
-                            <span>{trip.duration_days}日間</span>
-                        )}
-                    </div>
-                </div>
-            </div>
-
-            {/* フッター */}
-            <div style={{
-                position: 'relative', zIndex: 2,
-                paddingTop: 20, borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)'}`,
-                fontSize: 11, opacity: 0.85, letterSpacing: '0.05em',
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            }}>
-                <span>旅程ジェネレーターで作成</span>
-                <span style={{ fontSize: 10, opacity: 0.6 }}>— よい旅を —</span>
+                {editable && !editing && (
+                    <p
+                        className="no-print"
+                        style={{
+                            marginTop: 14, fontSize: 11,
+                            opacity: 0.5, letterSpacing: '0.06em',
+                            color: theme.coverText,
+                        }}
+                    >
+                        クリックして編集
+                    </p>
+                )}
             </div>
         </article>
     )

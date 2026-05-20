@@ -165,7 +165,7 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
 
             <main style={{ maxWidth: 800, margin: '0 auto', padding: '24px 16px' }}>
                 {/* 表紙 */}
-                <BookletCover trip={trip} theme={theme} />
+                <BookletCover trip={trip} theme={theme} editable={editable} editToken={editToken} />
 
                 {/* 表紙の後 */}
                 {renderGap({ kind: 'after-cover' })}
