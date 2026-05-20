@@ -89,6 +89,12 @@ details:not([open]) .faq-toggle::before { content: "＋"; }
         page-break-after: auto;
         break-after: auto;
     }
+    .booklet-memo-cont {
+        page-break-inside: avoid;
+        break-inside: avoid;
+        page-break-after: always;
+        break-after: page;
+    }
     .booklet-optional {
         page-break-after: always;
         break-after: page;
