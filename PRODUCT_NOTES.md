@@ -1,7 +1,7 @@
 # tripServiceMVP プロダクトノート
 
 > Claude Code が毎回このファイルを読み込みます。
-> 最終更新: 2026-05-19
+> 最終更新: 2026-05-20
 
 ---
 
@@ -478,12 +478,13 @@ src/
 │   └── RecentTripsButton.tsx             # ヘッダー🕘最近ボタン（ドロップダウン）
 ├── components/booklet/
 │   ├── BookletView.tsx                   # ルートコンテナ・config 管理・ページ並び順生成
-│   ├── BookletNav.tsx                    # 上部ツールバー（戻る・モード切替・テーマ・設定・シェア・印刷）
-│   ├── BookletCover.tsx                  # 表紙ページ（絵文字なし・装飾CSSパターン）
+│   ├── BookletNav.tsx                    # 上部ツールバー（戻る・テーマ・設定・シェア・印刷）
+│   ├── BookletCover.tsx                  # 表紙ページ（タイトルのみ・クライアントコンポーネント・インライン編集）
 │   ├── BookletBackCover.tsx              # 背表紙ページ（カバー対称デザイン）
-│   ├── BookletDayPage.tsx                # 日別ページ（時系列タイムライン・宿泊・メモ追加）
-│   ├── BookletOptionalPage.tsx           # オプショナルページ汎用（メンバー/集合/持ち物/緊急/メモ/金額/自由）
-│   ├── BookletSettings.tsx               # 設定モーダル（モード切替・ページ番号・追加ページ・挿入位置）
+│   ├── BookletDayPage.tsx                # 日別ページ（時系列タイムライン・宿泊・メモ/メモ続きを分割記事で出力）
+│   ├── BookletOptionalPage.tsx           # オプショナルページ汎用（持ち物→チェックボックス・1/2/3列・ページ分割）
+│   ├── BookletGapControl.tsx             # ページ間ギャップUI（オプショナルページをインラインで挿入位置指定）
+│   ├── BookletSettings.tsx               # 設定モーダル（ページ番号のみ）
 │   ├── BookletThemePicker.tsx            # テーマピッカー（カテゴリ別グリッド）
 │   ├── BookletDecorations.tsx            # 装飾レイヤー（CSSパターンのみ・絵文字なし）
 │   ├── bookletFont.ts                    # フォント family ヘルパー（丸ゴシック/明朝/標準）
@@ -580,16 +581,17 @@ docs/
 **ファイル**:
 - `src/app/trips/[id]/booklet/page.tsx` — サーバーコンポーネント（trip取得・edit_token引継）
 - `src/components/booklet/BookletView.tsx` — ルートクライアント（config 管理・ページ並び順生成）
-- `src/components/booklet/BookletNav.tsx` — 上部ツールバー（戻る・モード切替・テーマ・設定・シェア・印刷）
-- `src/components/booklet/BookletCover.tsx` — 表紙（絵文字なし・CSS装飾パターンのみ）
+- `src/components/booklet/BookletNav.tsx` — 上部ツールバー（戻る・テーマ・設定・シェア・印刷）
+- `src/components/booklet/BookletCover.tsx` — 表紙（タイトルのみ・'use client'・クリックでインライン編集・PATCH で DB 保存）
 - `src/components/booklet/BookletBackCover.tsx` — 背表紙（カバーと対称デザイン・締めのメッセージ）
-- `src/components/booklet/BookletDayPage.tsx` — 日別ページ（時系列タイムライン・宿泊先・NOW/NEXT判定・メモ追加機能）
-- `src/components/booklet/BookletOptionalPage.tsx` — オプショナルページ汎用（メンバー/集合/持ち物/緊急/メモ/金額/自由）
-- `src/components/booklet/BookletSettings.tsx` — 設定モーダル（画面/印刷モード・ページ番号・追加ページ・挿入位置）
+- `src/components/booklet/BookletDayPage.tsx` — 日別ページ（時系列タイムライン・宿泊先・NOW/NEXT判定・メモ分割記事）
+- `src/components/booklet/BookletOptionalPage.tsx` — オプショナルページ（持ち物→チェックボックス・1/2/3列・ページ分割）
+- `src/components/booklet/BookletGapControl.tsx` — ページ間ギャップUI（オプショナルページをインラインで挿入位置指定）
+- `src/components/booklet/BookletSettings.tsx` — 設定モーダル（ページ番号のみ）
 - `src/components/booklet/BookletThemePicker.tsx` — テーマピッカー（カテゴリ別グリッド・絵文字レンダリングなし）
 - `src/components/booklet/BookletDecorations.tsx` — 装飾レイヤー（CSSパターンのみ：dots/lines/grid/wave/washi）
 - `src/components/booklet/bookletThemes.ts` — テーマ定義（13テーマ・絵文字プロパティ削除済）
-- `src/components/booklet/bookletConfig.ts` — BookletConfig 型・localStorage IO・ページ並び順計算
+- `src/components/booklet/bookletConfig.ts` — BookletConfig 型・localStorage IO・ページ並び順計算（フラット統合構造）
 - `src/components/booklet/bookletFont.ts` — フォント family ヘルパー
 
 ### しおりテーマ（絵文字削除版）
@@ -610,22 +612,17 @@ docs/
 
 ```typescript
 type BookletConfig = {
-    screen: ModeConfig      // 画面表示モードの構成
-    print: ModeConfig       // 印刷モードの構成（独立して編集可能）
-    showPageNumbers: boolean
-    activeMode: 'screen' | 'print'
-    themeName: ThemeName
-}
-
-type ModeConfig = {
     optionalPages: Record<OptionalPageKind, OptionalPageEntry>
     dayMemos: Record<number, string[]>  // dayIdx → メモ配列
+    showPageNumbers: boolean
+    themeName: string
 }
 
 type OptionalPageEntry = {
     enabled: boolean
     position: InsertPosition
     content: string
+    columns?: 1 | 2 | 3    // 持ち物リストの列数
 }
 
 type InsertPosition =
@@ -634,12 +631,11 @@ type InsertPosition =
     | { kind: 'before-back-cover' }
 ```
 
-`computePageOrder(config, daysCount, mode)` が `PageKey[]` を返し、`BookletView` がそれを順に描画。表紙→（任意ページ）→1日目→（任意ページ）→2日目…→背表紙の順で組み立てる。
+`computePageOrder(config, daysCount)` が `PageKey[]` を返し、`BookletView` がそれを順に描画。表紙→（任意ページ）→1日目→（任意ページ）→2日目…→背表紙の順で組み立てる。
 
-### 画面表示モード / 印刷モードの独立編集
-- `BookletNav` の上部にトグル（画面用／印刷用）
-- `config.activeMode` を切替えると `config[mode]` 内の `optionalPages` と `dayMemos` が切り替わる
-- 用途例: 画面では「メモ」「金額」を表示し、印刷時は省く / 印刷時のみ「持ち物」を含める
+`enabledPagesAt(config, pos)` が指定位置で有効な `OptionalPageKind[]` を返す。`positionLabel(pos, daysCount)` が位置のラベル文字列を返す。
+
+旧 `screen/print` 二重構造は廃止。旧フォーマットを `loadBookletConfig` 内のマイグレーションで自動変換。
 
 ### ページ番号
 - `config.showPageNumbers` で表示/非表示を切替
@@ -647,7 +643,7 @@ type InsertPosition =
 - 表示形式: `— N —`（控えめなセンタリング）
 - 印刷時も同じスタイルで残る
 
-### オプショナルページ（チェックボックスで追加）
+### オプショナルページ（ページ間に挿入）
 | ページ | デフォルト位置 | プレースホルダー例 |
 |--------|--------------|------------------|
 | 編集メンバー | 表紙の直後 | 田中太郎（リーダー）/ 佐藤花子 |
@@ -658,16 +654,24 @@ type InsertPosition =
 | 金額メモ | 背表紙の直前 | 交通費 / 宿泊費 / 食費 |
 | 自由ページ | 背表紙の直前 | 自由記述 |
 
-- 各ページの中身（content）はモード単位で独立保存
-- 挿入位置は「表紙の直後」「N日目の後」「背表紙の直前」から選択可能
-- ページ本体に直接 textarea があり、`onBlur` で localStorage に反映（編集権限がある時のみ編集可）
+- 挿入位置はドロップダウンではなく、各ページの間に **BookletGapControl** を表示してその場で ON/OFF 切替
+- 他の位置で既に有効なページは灰色で表示（ツールチップで「○○で追加済み」表示）
+
+**持ち物リスト（packing）の特別挙動**:
+- チェックボックスリストで表示（常時）
+- 1 / 2 / 3 列表示を切替可能（ヘッダーの列数ボタン）
+- `ITEMS_PER_COL = 14` ── 1列14行を超える場合は続きページを自動追加
+- 編集モード: 各行を `<input type="text">` で直接編集・× で削除・「＋ 追加」ボタン
+- その他のページ（メンバー等）は textarea / pre 表示
 
 ### 各日ページのメモ機能
-- 日別ページの末尾に「MEMO」セクション
-- 「＋ メモを追加」ボタンで textarea が追加（複数可）
-- 各メモには × ボタンで削除可能
+- メモが 0 件の場合: 編集モードのみ「＋ メモを追加」ボタンを表示（MEMO コンテナは非表示）
+- 「＋ メモを追加」を押すと MEMO コンテナが現れ textarea が追加される
+- `MEMOS_PER_PAGE = 8` ── 8行を超える場合はメモ専用の続きページ（`booklet-memo-cont` 記事）を自動追加
+- 各メモには × ボタンで削除可能（最後の 1 件を消すと MEMO コンテナも非表示に戻る）
 - 編集権限（`editToken` あり）の時のみボタン表示・編集可能。閲覧モードでは入力済みメモのみ表示
-- `config[mode].dayMemos[dayIdx]` に文字列配列として保存
+- `config.dayMemos[dayIdx]` に文字列配列として保存
+- メモ記事は日別ページと独立した `<article className="booklet-page booklet-memo-cont">` で出力（Fragment の複数 article）
 
 **NOW / NEXT 判定**（旅行当日のみ動作）:
 - `useEffect` でマウント後のみ `setInterval(60s)` で現在時刻を更新（SSR 差異回避）
@@ -678,6 +682,7 @@ type InsertPosition =
 **印刷対応**（`globals.css` の `@media print`）:
 - `body > header`, `body > footer`, `.no-print` を非表示
 - `.booklet-cover` `.booklet-day` `.booklet-optional` `.booklet-back-cover` に `page-break-after / before: always`
+- `.booklet-memo-cont`（メモ続きページ・持ち物続きページ）に `page-break-after: always; break-inside: avoid`
 - `@page { size: A4; margin: 12mm 10mm }`
 - リンクの `::after` URL 表示を抑止
 - 真の PDF 出力は未実装（`window.print()` ベース・将来 `@react-pdf/renderer` 検討）
@@ -739,3 +744,8 @@ try { data = JSON.parse(text) } catch {
 - **しおり印刷**: `@media print` で `body > header`・`body > footer`・`.no-print` を全て非表示。`.booklet-cover` `.booklet-day` に `page-break-after: always`
 - **しおりテーマ**: `tripgen.bookletTheme.v1` キーで localStorage 保存・SSR ハイドレーション差異を避けるため初期値は 'classic' 固定
 - **しおり NOW 判定**: `useEffect` でマウント後のみ `setInterval(60_000)`、SSR では計算しない
+- **しおり表紙タイトル編集**: `BookletCover` は `'use client'`。クリックで `<input>` に切替・Enter/blur で PATCH。`{ itinerary, title, edit_token }` をそのまま送信（itinerary は必須フィールドのため）
+- **しおり表紙日程表示**: `itinerary.start_date` + `trip.duration_days` から終了日を自動計算して日本語表示。同月「5月5日（火）〜 7日（木）」・月跨ぎ・年跨ぎ・日帰り（1日）に対応。クリックで `<input type="date">` に切替（開始日のみ入力・終了日は自動計算）。未設定時は編集権限ありなら「＋ 日程を追加」表示。保存時はタイトルと start_date を同一 PATCH リクエストで送信
+- **しおりメモ分割**: `MEMOS_PER_PAGE=8`・超えたら続き記事を React Fragment で返す（`BookletDayPage`）
+- **持ち物チェックボックス分割**: `ITEMS_PER_COL=14`・列×行数で超えたら続き記事（`BookletOptionalPage`）
+- **BookletConfig マイグレーション**: 旧 `screen/print` 構造を `loadBookletConfig` で自動変換（`parsed.screen` を source とする）
