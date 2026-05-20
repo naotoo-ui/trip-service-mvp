@@ -745,7 +745,7 @@ try { data = JSON.parse(text) } catch {
 - **しおりテーマ**: `tripgen.bookletTheme.v1` キーで localStorage 保存・SSR ハイドレーション差異を避けるため初期値は 'classic' 固定
 - **しおり NOW 判定**: `useEffect` でマウント後のみ `setInterval(60_000)`、SSR では計算しない
 - **しおり表紙タイトル編集**: `BookletCover` は `'use client'`。クリックで `<input>` に切替・Enter/blur で PATCH。`{ itinerary, title, edit_token }` をそのまま送信（itinerary は必須フィールドのため）
-- **しおり表紙日程表示**: `itinerary.start_date` / `end_date` から日本語表示。同月「5月5日（火）〜 7日（木）」・月跨ぎ・年跨ぎ・日帰りに対応。`end_date` 未設定時は `start_date + duration_days - 1` で初期値を算出。クリックで FROM / TO 2つの `<input type="date">` に切替（コンテナ外 blur または Enter で保存・Escape でキャンセル）。未設定時は編集権限ありなら「＋ 日程を追加」（22px / opacity 0.7）を表示。タイトルとの間の余白は 28px。保存時はタイトル・start_date・end_date を同一 PATCH リクエストで送信
+- **しおり表紙日程表示**: `itinerary.start_date` / `end_date` から日本語表示。同月「5月5日（火）〜 7日（木）」・月跨ぎ・年跨ぎ・日帰りに対応。`end_date` 未設定時は `start_date + duration_days - 1` で初期値を算出。クリックで FROM / TO 2つの `<input type="date">` に切替（コンテナ外 blur または Enter で保存・Escape でキャンセル）。未設定時は編集権限ありなら「＋ 日程を追加」（22px / opacity 0.7）を表示。タイトルとの間の余白は 28px。編集時の FROM / TO 入力欄・「〜」は 22px・罫線なし・`color-scheme: light` でカレンダーポップアップを白基調に統一。保存時はタイトル・start_date・end_date を同一 PATCH リクエストで送信
 - **しおりメモ分割**: `MEMOS_PER_PAGE=8`・超えたら続き記事を React Fragment で返す（`BookletDayPage`）
 - **持ち物チェックボックス分割**: `ITEMS_PER_COL=14`・列×行数で超えたら続き記事（`BookletOptionalPage`）
 - **BookletConfig マイグレーション**: 旧 `screen/print` 構造を `loadBookletConfig` で自動変換（`parsed.screen` を source とする）

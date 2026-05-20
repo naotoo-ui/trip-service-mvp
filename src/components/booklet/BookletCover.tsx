@@ -153,15 +153,14 @@ export default function BookletCover({ trip, theme, editable, editToken }: Props
     const dateInputStyle: React.CSSProperties = {
         background: 'transparent',
         border: 'none',
-        borderBottom: `2px solid ${underlineColor}`,
         color: theme.coverText,
         outline: 'none',
         textAlign: 'center',
         fontFamily: 'inherit',
-        fontSize: 15,
-        padding: '2px 6px',
-        colorScheme: isDark ? 'dark' : 'light',
-        width: 140,
+        fontSize: 22,
+        padding: '2px 4px',
+        colorScheme: 'light',
+        width: 160,
     }
 
     return (
@@ -259,7 +258,7 @@ export default function BookletCover({ trip, theme, editable, editToken }: Props
                                 onKeyDown={handleDateKeyDown}
                                 style={dateInputStyle}
                             />
-                            <span style={{ opacity: 0.7, fontSize: 15 }}>〜</span>
+                            <span style={{ opacity: 0.7, fontSize: 22 }}>〜</span>
                             <input
                                 type="date"
                                 value={draftEnd}
