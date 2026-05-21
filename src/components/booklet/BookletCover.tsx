@@ -21,6 +21,11 @@ function addDays(dateStr: string, days: number): string {
     return d.toISOString().slice(0, 10)
 }
 
+function formatSingleDate(dateStr: string): string {
+    const d = new Date(dateStr + 'T00:00:00')
+    return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日（${WEEKDAY_JA[d.getDay()]}）`
+}
+
 function formatDateRange(startStr: string, endStr: string): string {
     const start = new Date(startStr + 'T00:00:00')
     const sy = start.getFullYear()
@@ -141,8 +146,6 @@ export default function BookletCover({ trip, theme, editable, editToken }: Props
     function openDateEdit() {
         setDraftStart(localStartDate)
         setDraftEnd(localEndDate)
-        // flushSync でDOMを即時更新し、rAF でレイアウト確定後に showPicker() を呼ぶ
-        // （レイアウト計算前に呼ぶと入力欄座標が (0,0) になりページ左上にポップアップが出る）
         flushSync(() => setEditingDate(true))
         requestAnimationFrame(() => showPicker(startInputRef))
     }
@@ -162,17 +165,56 @@ export default function BookletCover({ trip, theme, editable, editToken }: Props
         ? formatDateRange(localStartDate, localEndDate)
         : null
 
-    const dateInputStyle: React.CSSProperties = {
-        background: 'transparent',
-        border: 'none',
-        color: theme.coverText,
-        outline: 'none',
-        textAlign: 'center',
-        fontFamily: 'inherit',
-        fontSize: 22,
-        padding: '2px 4px',
-        colorScheme: 'light',
-        width: 160,
+    // 透明 input を可視テキストに重ねるラッパー
+    // - 可視テキスト（span）がレイアウトサイズを決定
+    // - opacity:0 の input が絶対配置でその上を覆い、クリックを受け取る
+    // - 年/月/日の個別セグメント問題・フォント・文字間隔をすべて自前制御
+    function DatePickerOverlay({
+        inputRef: ref,
+        value,
+        onChange,
+        label,
+    }: {
+        inputRef: React.RefObject<HTMLInputElement | null>
+        value: string
+        onChange: (v: string) => void
+        label: string
+    }) {
+        return (
+            <div style={{ position: 'relative', display: 'inline-block' }}>
+                <span style={{
+                    fontSize: 22,
+                    color: theme.coverText,
+                    whiteSpace: 'nowrap',
+                    padding: '4px 2px',
+                    display: 'block',
+                    letterSpacing: '0.02em',
+                }}>
+                    {value ? formatSingleDate(value) : label}
+                </span>
+                <input
+                    ref={ref}
+                    type="date"
+                    value={value}
+                    onChange={e => onChange(e.target.value)}
+                    onKeyDown={handleDateKeyDown}
+                    onClick={() => showPicker(ref)}
+                    tabIndex={0}
+                    style={{
+                        position: 'absolute',
+                        inset: 0,
+                        opacity: 0,
+                        cursor: 'pointer',
+                        border: 'none',
+                        background: 'transparent',
+                        outline: 'none',
+                        colorScheme: 'light',
+                        width: '100%',
+                        height: '100%',
+                    }}
+                />
+            </div>
+        )
     }
 
     return (
@@ -251,36 +293,32 @@ export default function BookletCover({ trip, theme, editable, editToken }: Props
                     </h1>
                 )}
 
-                {/* 旅行日程 */}
-                <div style={{ marginTop: 28 }}>
+                {/* 旅行日程 — 固定高さでレイアウトシフトを防ぐ */}
+                <div style={{
+                    marginTop: 28,
+                    minHeight: 44,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                }}>
                     {editingDate ? (
                         <div
                             ref={dateContainerRef}
                             onBlur={handleDateContainerBlur}
-                            style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: 8,
-                            }}
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}
                         >
-                            <input
-                                ref={startInputRef}
-                                type="date"
+                            <DatePickerOverlay
+                                inputRef={startInputRef}
                                 value={draftStart}
-                                onChange={e => setDraftStart(e.target.value)}
-                                onKeyDown={handleDateKeyDown}
-                                onClick={() => showPicker(startInputRef)}
-                                style={dateInputStyle}
+                                onChange={setDraftStart}
+                                label="FROM"
                             />
-                            <span style={{ opacity: 0.7, fontSize: 22 }}>〜</span>
-                            <input
-                                ref={endInputRef}
-                                type="date"
+                            <span style={{ opacity: 0.7, fontSize: 22, color: theme.coverText }}>〜</span>
+                            <DatePickerOverlay
+                                inputRef={endInputRef}
                                 value={draftEnd}
-                                onChange={e => setDraftEnd(e.target.value)}
-                                onKeyDown={handleDateKeyDown}
-                                onClick={() => showPicker(endInputRef)}
-                                style={dateInputStyle}
+                                onChange={setDraftEnd}
+                                label="TO"
                             />
                         </div>
                     ) : dateRangeLabel ? (
@@ -288,8 +326,8 @@ export default function BookletCover({ trip, theme, editable, editToken }: Props
                             onClick={editable ? openDateEdit : undefined}
                             style={{
                                 margin: 0,
-                                fontSize: 15,
-                                letterSpacing: '0.04em',
+                                fontSize: 22,
+                                letterSpacing: '0.02em',
                                 opacity: 0.85,
                                 color: theme.coverText,
                                 cursor: editable ? 'pointer' : 'default',

@@ -164,18 +164,7 @@ details:not([open]) .faq-toggle::before { content: "＋"; }
     40%            { transform: translateY(-6px); opacity: 1; }
 }
 
-/* しおり表紙の日付ピッカー */
+/* しおり表紙の日付ピッカー — input は opacity:0 で不可視・カレンダーポップアップを白基調に */
 .booklet-cover input[type="date"] {
-    color-scheme: light;   /* カレンダーポップアップを白基調に */
-}
-.booklet-cover input[type="date"]::-webkit-calendar-picker-indicator {
-    display: none;   /* アイコン非表示・テキスト範囲クリックでピッカーを開く */
-}
-/* 入力フィールド内テキストのサイズ合わせ */
-.booklet-cover input[type="date"]::-webkit-datetime-edit,
-.booklet-cover input[type="date"]::-webkit-datetime-edit-fields-wrapper,
-.booklet-cover input[type="date"]::-webkit-datetime-edit-year-field,
-.booklet-cover input[type="date"]::-webkit-datetime-edit-month-field,
-.booklet-cover input[type="date"]::-webkit-datetime-edit-day-field {
-    font-size: 22px;
+    color-scheme: light;
 }
