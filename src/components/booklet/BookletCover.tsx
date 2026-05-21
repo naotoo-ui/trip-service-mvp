@@ -72,38 +72,21 @@ type OverlayProps = {
 }
 function DatePickerOverlay({ inputRef, value, color, label, onChange, onKeyDown, onClickPicker }: OverlayProps) {
     return (
-        <div style={{ position: 'relative', display: 'inline-block' }}>
-            {/* input をノーマルフローで配置しコンテナ幅を固定 */}
-            <input
-                ref={inputRef}
-                type="date"
-                value={value}
-                onChange={e => onChange(e.target.value)}
-                onKeyDown={onKeyDown}
-                onClick={onClickPicker}
-                tabIndex={0}
-                style={{
-                    opacity: 0,
-                    display: 'block',
-                    width: '9.5em',   // "2026年12月31日（水）" が収まる固定幅
-                    fontSize: 22,
-                    border: 'none',
-                    background: 'transparent',
-                    outline: 'none',
-                    padding: '4px 2px',
-                    cursor: 'pointer',
-                    colorScheme: 'light',
-                    boxSizing: 'content-box',
-                }}
-            />
-            {/* 可視テキストを absolute でオーバーレイ */}
+        // ラッパーに幅を固定 — span のテキスト長や input の再描画で幅が変わらないようにする
+        <div style={{
+            position: 'relative',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '9.5em',   // em base = fontSize(22px) → 9.5 × 22 = 209px 固定
+            fontSize: 22,
+            padding: '4px 2px',
+            boxSizing: 'content-box',
+            flexShrink: 0,
+        }}>
+            {/* 可視テキスト — ノーマルフローで中央揃え */}
             <span style={{
-                position: 'absolute',
-                inset: 0,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: 22,
+                fontSize: 'inherit',
                 color,
                 whiteSpace: 'nowrap',
                 letterSpacing: '0.02em',
@@ -113,6 +96,30 @@ function DatePickerOverlay({ inputRef, value, color, label, onChange, onKeyDown,
             }}>
                 {value ? formatSingleDate(value) : label}
             </span>
+            {/* input を absolute でオーバーレイ — ラッパー幅が固定なのでレイアウト変動しない */}
+            <input
+                ref={inputRef}
+                type="date"
+                value={value}
+                onChange={e => onChange(e.target.value)}
+                onKeyDown={onKeyDown}
+                onClick={onClickPicker}
+                tabIndex={0}
+                style={{
+                    position: 'absolute',
+                    inset: 0,
+                    opacity: 0,
+                    width: '100%',
+                    height: '100%',
+                    fontSize: 'inherit',
+                    border: 'none',
+                    background: 'transparent',
+                    outline: 'none',
+                    cursor: 'pointer',
+                    colorScheme: 'light',
+                    boxSizing: 'border-box',
+                }}
+            />
         </div>
     )
 }
@@ -226,6 +233,7 @@ export default function BookletCover({ trip, theme, editable, editToken }: Props
     const dateRangeLabel = localStartDate
         ? formatDateRange(localStartDate, localEndDate)
         : null
+    const isDateOrderInvalid = editingDate && !!draftStart && !!draftEnd && draftEnd < draftStart
 
     return (
         <article
@@ -395,21 +403,24 @@ export default function BookletCover({ trip, theme, editable, editToken }: Props
                     ) : null}
                 </div>
 
-                {/* ヒント — opacity だけ変えてレイアウトを固定 */}
+                {/* ヒント / 警告 — opacity のみ切替してレイアウトを固定 */}
                 <p
                     className="no-print"
                     style={{
-                        marginTop: 14,
+                        margin: '14px 0 0',
                         fontSize: 11,
-                        opacity: (editable && !editing && !editingDate) ? 0.5 : 0,
                         letterSpacing: '0.06em',
-                        color: theme.coverText,
                         pointerEvents: 'none',
                         userSelect: 'none',
-                        margin: '14px 0 0',
+                        opacity: isDateOrderInvalid ? 1 : (editable && !editing && !editingDate ? 0.5 : 0),
+                        color: isDateOrderInvalid ? '#ef4444' : theme.coverText,
+                        background: isDateOrderInvalid ? 'rgba(255,255,255,0.15)' : 'transparent',
+                        borderRadius: isDateOrderInvalid ? 6 : 0,
+                        padding: isDateOrderInvalid ? '3px 10px' : '0',
+                        display: 'inline-block',
                     }}
                 >
-                    クリックして編集
+                    {isDateOrderInvalid ? '旅行終了日が旅行開始日より前になっています' : 'クリックして編集'}
                 </p>
             </div>
         </article>
