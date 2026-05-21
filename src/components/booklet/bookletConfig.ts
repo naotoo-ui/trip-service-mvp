@@ -41,6 +41,53 @@ export const TEXT_PRESETS: { key: string; title: string; placeholder: string }[]
 
 export const PACKING_PLACEHOLDER = '・パスポート\n・充電器\n・常備薬\n・着替え3日分'
 
+// ──────────── ブロックパレット用テンプレート ────────────
+
+export type BlockTemplate = {
+    label: string             // パレットボタンの表示名
+    icon: string              // 簡易アイコン
+    factory: () => BookletBlock
+}
+
+export const BLOCK_TEMPLATES: BlockTemplate[] = [
+    {
+        label: '持ち物リスト', icon: '✓',
+        factory: () => ({ id: generateBlockId(), kind: 'packing', title: '持ち物リスト', content: '', columns: 1 }),
+    },
+    {
+        label: '編集メンバー', icon: '👥',
+        factory: () => ({ id: generateBlockId(), kind: 'text', title: '編集メンバー', content: '' }),
+    },
+    {
+        label: '集合時間・場所', icon: '📍',
+        factory: () => ({ id: generateBlockId(), kind: 'text', title: '集合時間・場所', content: '' }),
+    },
+    {
+        label: '緊急連絡先', icon: '🚨',
+        factory: () => ({ id: generateBlockId(), kind: 'text', title: '緊急連絡先', content: '' }),
+    },
+    {
+        label: 'メモ', icon: '📝',
+        factory: () => ({ id: generateBlockId(), kind: 'text', title: 'メモ', content: '' }),
+    },
+    {
+        label: '金額メモ', icon: '💰',
+        factory: () => ({ id: generateBlockId(), kind: 'text', title: '金額メモ', content: '' }),
+    },
+    {
+        label: '自由ページ', icon: '✏️',
+        factory: () => ({ id: generateBlockId(), kind: 'text', title: '自由ページ', content: '' }),
+    },
+    {
+        label: '区切り線', icon: '─',
+        factory: () => ({ id: generateBlockId(), kind: 'divider', style: 'dashed' }),
+    },
+    {
+        label: 'スペーサー', icon: '⇕',
+        factory: () => ({ id: generateBlockId(), kind: 'spacer', height: 40 }),
+    },
+]
+
 // ──────────── ID 生成 ────────────
 
 export function generateBlockId(): string {

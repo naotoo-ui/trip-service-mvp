@@ -19,10 +19,12 @@ import TextBlock from './blocks/TextBlock'
 import PackingBlock from './blocks/PackingBlock'
 import DividerBlock from './blocks/DividerBlock'
 import SpacerBlock from './blocks/SpacerBlock'
+import BlockPalette from './blocks/BlockPalette'
 import { getTheme, themes, type ThemeName } from './bookletThemes'
 import {
     loadBookletConfig, saveBookletConfig, isCountedBlock,
-    type BookletConfig, type BookletBlock,
+    BLOCK_TEMPLATES,
+    type BookletConfig, type BookletBlock, type BlockTemplate,
 } from './bookletConfig'
 
 export default function BookletView({ trip, editToken }: { trip: Trip; editToken?: string }) {
@@ -84,9 +86,42 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
         })
     }
 
+    // パレットからクリック追加：表紙直後（先頭）に挿入
+    function addBlockFromPalette(template: BlockTemplate) {
+        if (!config) return
+        const newBlock = template.factory()
+        const coverIdx = config.blocks.findIndex(b => b.kind === 'cover')
+        const insertAt = coverIdx >= 0 ? coverIdx + 1 : 0
+        const next = [...config.blocks]
+        next.splice(insertAt, 0, newBlock)
+        updateConfig({ ...config, blocks: next })
+    }
+
+    // パレットからD&D：指定の over.id の直後に挿入
+    function insertBlockAfter(templateIdx: number, overId: string) {
+        if (!config) return
+        const template = BLOCK_TEMPLATES[templateIdx]
+        if (!template) return
+        const newBlock = template.factory()
+        const targetIdx = config.blocks.findIndex(b => b.id === overId)
+        const insertAt = targetIdx < 0 ? config.blocks.length : targetIdx + 1
+        const next = [...config.blocks]
+        next.splice(insertAt, 0, newBlock)
+        updateConfig({ ...config, blocks: next })
+    }
+
     function handleDragEnd(e: DragEndEvent) {
         const { active, over } = e
-        if (!over || !config || active.id === over.id) return
+        if (!over || !config) return
+
+        // パレット由来のドラッグ
+        if (active.data.current?.palette) {
+            const tIdx = active.data.current.templateIdx as number
+            insertBlockAfter(tIdx, String(over.id))
+            return
+        }
+
+        if (active.id === over.id) return
         const oldIdx = config.blocks.findIndex(b => b.id === active.id)
         const newIdx = config.blocks.findIndex(b => b.id === over.id)
         if (oldIdx < 0 || newIdx < 0) return
@@ -181,6 +216,29 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
         }
     }
 
+    // リサイズ対応ブロックの設定
+    function resizeProps(block: BookletBlock): { resizable: boolean; currentHeight?: number; onResize?: (h: number) => void } {
+        if (block.kind === 'text' || block.kind === 'packing') {
+            return {
+                resizable: true,
+                currentHeight: block.minHeight,
+                onResize: (h: number) => updateBlock(block.id, b => {
+                    if (b.kind === 'text') return { ...b, minHeight: h }
+                    if (b.kind === 'packing') return { ...b, minHeight: h }
+                    return b
+                }),
+            }
+        }
+        if (block.kind === 'spacer') {
+            return {
+                resizable: true,
+                currentHeight: block.height,
+                onResize: (h: number) => updateBlock(block.id, b => b.kind === 'spacer' ? { ...b, height: h } : b),
+            }
+        }
+        return { resizable: false }
+    }
+
     return (
         <div
             className="booklet-root"
@@ -197,18 +255,32 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
             <main style={{ maxWidth: 800, margin: '0 auto', padding: '24px 16px 24px 56px' }}>
                 <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                     <SortableContext items={config.blocks.map(b => b.id)} strategy={verticalListSortingStrategy}>
-                        {config.blocks.map(block => (
-                            <SortableBlock
-                                key={block.id}
-                                id={block.id}
-                                kind={block.kind}
-                                editable={editable}
-                                canDelete={editable && block.kind !== 'cover' && block.kind !== 'back-cover' && block.kind !== 'day'}
-                                onDelete={() => deleteBlock(block.id)}
-                            >
-                                {renderBlockContent(block)}
-                            </SortableBlock>
-                        ))}
+                        {config.blocks.map((block, idx) => {
+                            const prevBlock = idx > 0 ? config.blocks[idx - 1] : null
+                            const showPaletteBefore = editable && prevBlock?.kind === 'cover'
+                            const rProps = resizeProps(block)
+                            return (
+                                <div key={block.id}>
+                                    {showPaletteBefore && (
+                                        <div style={{ marginBottom: 18 }}>
+                                            <BlockPalette theme={theme} onAdd={addBlockFromPalette} />
+                                        </div>
+                                    )}
+                                    <SortableBlock
+                                        id={block.id}
+                                        kind={block.kind}
+                                        editable={editable}
+                                        canDelete={editable && block.kind !== 'cover' && block.kind !== 'back-cover' && block.kind !== 'day'}
+                                        onDelete={() => deleteBlock(block.id)}
+                                        resizable={rProps.resizable}
+                                        currentHeight={rProps.currentHeight}
+                                        onResize={rProps.onResize}
+                                    >
+                                        {renderBlockContent(block)}
+                                    </SortableBlock>
+                                </div>
+                            )
+                        })}
                     </SortableContext>
                 </DndContext>
 

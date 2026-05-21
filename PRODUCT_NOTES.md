@@ -488,7 +488,8 @@ src/
 │   │   ├── PackingBlock.tsx              # 持ち物リストブロック（チェックボックス・1/2/3列）
 │   │   ├── DividerBlock.tsx              # 区切り線
 │   │   ├── SpacerBlock.tsx               # スペーサー（高さ指定）
-│   │   └── SortableBlock.tsx             # @dnd-kit/sortable ラッパー（ハンドル＋削除ボタン）
+│   │   ├── BlockPalette.tsx              # ＋ページを追加パレット（表紙直後・D&D/クリックで追加）
+│   │   └── SortableBlock.tsx             # @dnd-kit/sortable ラッパー（ハンドル＋削除＋高さリサイズ）
 │   ├── BookletSettings.tsx               # 設定モーダル（全体/PC/印刷の3セクション）
 │   ├── BookletThemePicker.tsx            # テーマピッカー（カテゴリ別グリッド）
 │   ├── BookletDecorations.tsx            # 装飾レイヤー（CSSパターン）
@@ -594,7 +595,8 @@ docs/
 - `src/components/booklet/blocks/PackingBlock.tsx` — 持ち物リストブロック（チェックボックス・1/2/3列）
 - `src/components/booklet/blocks/DividerBlock.tsx` — 区切り線（solid/dashed/dotted）
 - `src/components/booklet/blocks/SpacerBlock.tsx` — スペーサー（高さ指定）
-- `src/components/booklet/blocks/SortableBlock.tsx` — @dnd-kit/sortable ラッパー（ドラッグハンドル＋削除ボタン）
+- `src/components/booklet/blocks/BlockPalette.tsx` — 「＋ページを追加」パレット（表紙直後に表示・@dnd-kit/useDraggable + onClick で追加）
+- `src/components/booklet/blocks/SortableBlock.tsx` — @dnd-kit/sortable ラッパー（ドラッグハンドル＋削除ボタン＋下端の高さリサイズハンドル）
 - `src/components/booklet/BookletSettings.tsx` — 設定モーダル（全体/PC/印刷の3セクション）
 - `src/components/booklet/BookletThemePicker.tsx` — テーマピッカー（カテゴリ別グリッド）
 - `src/components/booklet/BookletDecorations.tsx` — 装飾レイヤー（CSSパターン）
@@ -647,10 +649,26 @@ type BookletConfig = {
 3. データなし → `buildDefaultConfig(daysCount)` で `[cover, day×N, back-cover]` を生成
 
 **ブロック編集**:
-- `updateBlock(id, updater)`: 指定IDのブロックだけ更新（タイトル・content・columns 等）
+- `updateBlock(id, updater)`: 指定IDのブロックだけ更新（タイトル・content・columns・minHeight 等）
 - `deleteBlock(id)`: cover/back-cover/day 以外は削除可能（`SortableBlock.canDelete` で制御）
 - D&D並び替え: `@dnd-kit/sortable` の `arrayMove(blocks, oldIdx, newIdx)`
 - cover/back-cover はドラッグ不可（`NON_DRAGGABLE_KINDS` で制御）
+
+**ブロック追加（BlockPalette）**:
+- 表紙ブロックの直後（編集モード時のみ）に「＋ ページを追加」パレットを表示
+- パレットアイテムは `BLOCK_TEMPLATES` 配列（持ち物リスト・編集メンバー・集合時間・緊急連絡先・メモ・金額メモ・自由ページ・区切り線・スペーサー）
+- 2通りの追加方法：
+  1. **クリック**: 表紙直後に新ブロックを挿入（`addBlockFromPalette`）
+  2. **ドラッグ**: @dnd-kit/useDraggable で任意のブロック上にドロップ → そのブロックの直後に挿入（`active.data.current.palette === true` で判定し `insertBlockAfter` を呼ぶ）
+- DnDContext の `handleDragEnd` で `active.data.current?.palette` をチェックして並び替えか挿入かを分岐
+
+**ブロック高さリサイズ**:
+- text/packing/spacer ブロックに対応
+- SortableBlock の下端（bottom: -10）にハンドル（横長の青バー）を配置
+- PointerDown → pointermove で連続的に高さを変更、pointerup で確定
+- text/packing は `minHeight` を更新（コンテンツが多ければ minHeight より大きくなる）
+- spacer は `height` を直接更新
+- 最小高さ40pxでクランプ
 
 **ページ番号**:
 - `isCountedBlock(b)` が `true` のブロック（day/text/packing）のみ番号を振る

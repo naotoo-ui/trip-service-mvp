@@ -1,4 +1,5 @@
 'use client'
+import { useState, useRef } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { BookletBlockKind } from '../bookletConfig'
@@ -9,18 +10,55 @@ type Props = {
     editable: boolean
     canDelete: boolean
     onDelete?: () => void
+    resizable?: boolean
+    currentHeight?: number       // ハンドルがスタートする高さ（current minHeight or height）
+    onResize?: (newHeight: number) => void
     children: React.ReactNode
 }
 
 const NON_DRAGGABLE_KINDS: BookletBlockKind[] = ['cover', 'back-cover']
 
-export default function SortableBlock({ id, kind, editable, canDelete, onDelete, children }: Props) {
+export default function SortableBlock({
+    id, kind, editable, canDelete, onDelete,
+    resizable, currentHeight, onResize, children,
+}: Props) {
     const isDraggable = editable && !NON_DRAGGABLE_KINDS.includes(kind)
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled: !isDraggable })
+    const [resizing, setResizing] = useState(false)
+    const blockRef = useRef<HTMLDivElement | null>(null)
+
+    function combineRefs(el: HTMLDivElement | null) {
+        setNodeRef(el)
+        blockRef.current = el
+    }
+
+    function onResizeStart(e: React.PointerEvent) {
+        if (!onResize) return
+        e.preventDefault()
+        e.stopPropagation()
+        const startY = e.clientY
+        // 現在表示されている高さを使用（指定がなければ実描画高さ）
+        const startH = currentHeight ?? blockRef.current?.getBoundingClientRect().height ?? 140
+        setResizing(true)
+        document.body.style.cursor = 'ns-resize'
+
+        function onMove(ev: PointerEvent) {
+            const next = Math.max(40, Math.round(startH + (ev.clientY - startY)))
+            onResize!(next)
+        }
+        function onUp() {
+            window.removeEventListener('pointermove', onMove)
+            window.removeEventListener('pointerup', onUp)
+            document.body.style.cursor = ''
+            setResizing(false)
+        }
+        window.addEventListener('pointermove', onMove)
+        window.addEventListener('pointerup', onUp)
+    }
 
     const style: React.CSSProperties = {
         transform: CSS.Transform.toString(transform),
-        transition,
+        transition: resizing ? 'none' : transition,
         position: 'relative',
         marginBottom: 24,
         opacity: isDragging ? 0.55 : 1,
@@ -28,7 +66,7 @@ export default function SortableBlock({ id, kind, editable, canDelete, onDelete,
     }
 
     return (
-        <div ref={setNodeRef} style={style} className="booklet-block-wrap">
+        <div ref={combineRefs} style={style} className="booklet-block-wrap">
             {/* 編集UI：ドラッグハンドル + 削除ボタン */}
             {editable && (
                 <div
@@ -80,7 +118,33 @@ export default function SortableBlock({ id, kind, editable, canDelete, onDelete,
                     )}
                 </div>
             )}
+
             {children}
+
+            {/* 高さリサイズハンドル（編集モードかつresizable時のみ） */}
+            {editable && resizable && onResize && (
+                <div
+                    className="no-print"
+                    onPointerDown={onResizeStart}
+                    title="ドラッグして高さを調整"
+                    style={{
+                        position: 'absolute', left: 0, right: 0, bottom: -10, zIndex: 6,
+                        height: 16, display: 'flex',
+                        alignItems: 'center', justifyContent: 'center',
+                        cursor: 'ns-resize',
+                        opacity: resizing ? 1 : 0.55,
+                        transition: 'opacity 0.15s',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.opacity = '1' }}
+                    onMouseLeave={e => { if (!resizing) e.currentTarget.style.opacity = '0.55' }}
+                >
+                    <div style={{
+                        width: 56, height: 6, borderRadius: 99,
+                        background: resizing ? '#2563eb' : '#cbd5e1',
+                        boxShadow: '0 2px 6px rgba(15,23,42,0.12)',
+                    }} />
+                </div>
+            )}
         </div>
     )
 }
