@@ -68,6 +68,7 @@ export default function BookletCover({ trip, theme, editable, editToken }: Props
     const [draftEnd, setDraftEnd] = useState(initEnd)
     const dateContainerRef = useRef<HTMLDivElement>(null)
     const startInputRef = useRef<HTMLInputElement>(null)
+    const endInputRef = useRef<HTMLInputElement>(null)
 
     const isDark = theme.coverText === 'white' || theme.coverText === '#ffffff'
     const titleFont = getFontFamily(theme.fontStyle)
@@ -131,17 +132,19 @@ export default function BookletCover({ trip, theme, editable, editToken }: Props
         saveDate()
     }
 
+    function showPicker(ref: React.RefObject<HTMLInputElement | null>) {
+        try {
+            (ref.current as (HTMLInputElement & { showPicker?: () => void }) | null)?.showPicker?.()
+        } catch {}
+    }
+
     function openDateEdit() {
         setDraftStart(localStartDate)
         setDraftEnd(localEndDate)
         // flushSync でDOMを即時更新し、rAF でレイアウト確定後に showPicker() を呼ぶ
         // （レイアウト計算前に呼ぶと入力欄座標が (0,0) になりページ左上にポップアップが出る）
         flushSync(() => setEditingDate(true))
-        requestAnimationFrame(() => {
-            try {
-                (startInputRef.current as (HTMLInputElement & { showPicker?: () => void }) | null)?.showPicker?.()
-            } catch {}
-        })
+        requestAnimationFrame(() => showPicker(startInputRef))
     }
 
     const titleStyle: React.CSSProperties = {
@@ -266,14 +269,17 @@ export default function BookletCover({ trip, theme, editable, editToken }: Props
                                 value={draftStart}
                                 onChange={e => setDraftStart(e.target.value)}
                                 onKeyDown={handleDateKeyDown}
+                                onClick={() => showPicker(startInputRef)}
                                 style={dateInputStyle}
                             />
                             <span style={{ opacity: 0.7, fontSize: 22 }}>〜</span>
                             <input
+                                ref={endInputRef}
                                 type="date"
                                 value={draftEnd}
                                 onChange={e => setDraftEnd(e.target.value)}
                                 onKeyDown={handleDateKeyDown}
+                                onClick={() => showPicker(endInputRef)}
                                 style={dateInputStyle}
                             />
                         </div>
