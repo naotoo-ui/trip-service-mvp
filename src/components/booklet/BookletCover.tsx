@@ -52,6 +52,11 @@ function formatDateRange(startStr: string, endStr: string): string {
     return `${sy}年${sm}月${sd}日（${sw}）〜 ${ey}年${em}月${ed}日（${ew}）`
 }
 
+function formatDateNoYear(dateStr: string): string {
+    const d = new Date(dateStr + 'T00:00:00')
+    return `${d.getMonth() + 1}月${d.getDate()}日（${WEEKDAY_JA[d.getDay()]}）`
+}
+
 function computeEndDate(startStr: string, durationDays: number): string {
     return durationDays <= 1 ? startStr : addDays(startStr, durationDays - 1)
 }
@@ -233,7 +238,10 @@ export default function BookletCover({ trip, theme, editable, editToken }: Props
     const dateRangeLabel = localStartDate
         ? formatDateRange(localStartDate, localEndDate)
         : null
-    const isDateOrderInvalid = editingDate && !!draftStart && !!draftEnd && draftEnd < draftStart
+    // 編集中はドラフト値、表示中は保存値でそれぞれ判定し、修正するまで警告を表示し続ける
+    const isDateOrderInvalid = editingDate
+        ? (!!draftStart && !!draftEnd && draftEnd < draftStart)
+        : (!!localStartDate && !!localEndDate && localEndDate < localStartDate)
 
     return (
         <article
@@ -379,7 +387,9 @@ export default function BookletCover({ trip, theme, editable, editToken }: Props
                                         }}
                                         title={editable ? 'クリックして終了日を編集' : undefined}
                                     >
-                                        {formatSingleDate(localEndDate)}
+                                        {localStartDate.slice(0, 4) === localEndDate.slice(0, 4)
+                                            ? formatDateNoYear(localEndDate)
+                                            : formatSingleDate(localEndDate)}
                                     </span>
                                 </>
                             )}
@@ -408,7 +418,7 @@ export default function BookletCover({ trip, theme, editable, editToken }: Props
                     className="no-print"
                     style={{
                         margin: '14px 0 0',
-                        fontSize: 11,
+                        fontSize: isDateOrderInvalid ? 20 : 11,
                         letterSpacing: '0.06em',
                         pointerEvents: 'none',
                         userSelect: 'none',
