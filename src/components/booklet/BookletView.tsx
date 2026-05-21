@@ -106,34 +106,22 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
         return config!.showPageNumbers ? pageNumMap.get(key) : undefined
     }
 
-    const pageNumberStyle = {
-        textAlign: 'center' as const,
-        fontSize: 11,
-        color: theme.subText,
-        margin: '-8px 0 16px',
-        letterSpacing: '0.1em',
-        fontVariantNumeric: 'tabular-nums' as const,
-    }
-
     function renderOptionalPages(pos: InsertPosition) {
         return enabledPagesAt(config!, pos).map(kind => {
             const entry = config!.optionalPages[kind]
             const n = pageNum(`opt-${kind}`)
             return (
-                <div key={kind} style={{ position: 'relative' }}>
-                    <BookletOptionalPage
-                        pageKind={kind}
-                        theme={theme}
-                        content={entry.content}
-                        editable={editable}
-                        columns={(entry.columns ?? 1) as 1 | 2 | 3}
-                        onColumnsChange={cols => handleOptionalColumnsChange(kind, cols)}
-                        onChange={content => handleOptionalContentChange(kind, content)}
-                    />
-                    {n !== undefined && (
-                        <p className="booklet-page-number" style={pageNumberStyle}>— {n} —</p>
-                    )}
-                </div>
+                <BookletOptionalPage
+                    key={kind}
+                    pageKind={kind}
+                    theme={theme}
+                    content={entry.content}
+                    editable={editable}
+                    columns={(entry.columns ?? 1) as 1 | 2 | 3}
+                    onColumnsChange={cols => handleOptionalColumnsChange(kind, cols)}
+                    onChange={content => handleOptionalContentChange(kind, content)}
+                    pageNumber={n}
+                />
             )
         })
     }
@@ -177,21 +165,17 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
                     const n = pageNum(`day-${idx}`)
                     return (
                         <div key={idx}>
-                            <div style={{ position: 'relative' }}>
-                                <BookletDayPage
-                                    day={day}
-                                    dayIdx={idx}
-                                    startDate={trip.itinerary.start_date}
-                                    theme={theme}
-                                    enableNow={mounted}
-                                    memos={memos}
-                                    editable={editable}
-                                    onMemosChange={ms => handleMemosChange(idx, ms)}
-                                />
-                                {n !== undefined && (
-                                    <p className="booklet-page-number" style={pageNumberStyle}>— {n} —</p>
-                                )}
-                            </div>
+                            <BookletDayPage
+                                day={day}
+                                dayIdx={idx}
+                                startDate={trip.itinerary.start_date}
+                                theme={theme}
+                                enableNow={mounted}
+                                memos={memos}
+                                editable={editable}
+                                onMemosChange={ms => handleMemosChange(idx, ms)}
+                                pageNumber={n}
+                            />
                             {renderGap({ kind: 'after-day', dayIdx: idx })}
                             {renderOptionalPages({ kind: 'after-day', dayIdx: idx })}
                         </div>

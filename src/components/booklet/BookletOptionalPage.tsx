@@ -16,6 +16,7 @@ type Props = {
     columns: 1 | 2 | 3
     onColumnsChange: (cols: 1 | 2 | 3) => void
     onChange: (content: string) => void
+    pageNumber?: number
 }
 
 // A5冊子モード基準：ヘッダーを除いた1列あたりの最大行数
@@ -41,7 +42,7 @@ export default function BookletOptionalPage(props: Props) {
 
 // ──────────── 持ち物リスト（チェックボックス・複数ページ対応） ────────────
 
-function PackingPage({ theme, content, editable, columns, onColumnsChange, onChange }: Props) {
+function PackingPage({ theme, content, editable, columns, onColumnsChange, onChange, pageNumber }: Props) {
     const titleFont = getFontFamily(theme.fontStyle)
     const [editItems, setEditItems] = useState<string[]>(() => parseItems(content))
     const [checked, setChecked] = useState<Set<number>>(new Set())
@@ -290,6 +291,13 @@ function PackingPage({ theme, content, editable, columns, onColumnsChange, onCha
                                 ＋ アイテムを追加
                             </button>
                         )}
+                        {isFirst && pageNumber !== undefined && (
+                            <p style={{
+                                textAlign: 'center', fontSize: 11, letterSpacing: '0.1em',
+                                fontVariantNumeric: 'tabular-nums', color: theme.subText,
+                                margin: '16px 0 -8px', position: 'relative', zIndex: 2,
+                            }}>— {pageNumber} —</p>
+                        )}
                     </article>
                 )
             })}
@@ -299,7 +307,7 @@ function PackingPage({ theme, content, editable, columns, onColumnsChange, onCha
 
 // ──────────── 通常のオプションページ（テキストエリア） ────────────
 
-function SinglePage({ pageKind, theme, content, editable, onChange }: Props) {
+function SinglePage({ pageKind, theme, content, editable, onChange, pageNumber }: Props) {
     const titleFont = getFontFamily(theme.fontStyle)
     const label = OPTIONAL_PAGE_LABELS[pageKind]
     const placeholder = OPTIONAL_PAGE_PLACEHOLDERS[pageKind]
@@ -398,6 +406,13 @@ function SinglePage({ pageKind, theme, content, editable, onChange }: Props) {
                     </pre>
                 )}
             </div>
+            {pageNumber !== undefined && (
+                <p style={{
+                    textAlign: 'center', fontSize: 11, letterSpacing: '0.1em',
+                    fontVariantNumeric: 'tabular-nums', color: theme.subText,
+                    margin: '16px 0 -8px', position: 'relative', zIndex: 2,
+                }}>— {pageNumber} —</p>
+            )}
         </article>
     )
 }

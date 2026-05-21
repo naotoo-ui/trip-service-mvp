@@ -27,9 +27,10 @@ type Props = {
     memos: string[]
     editable: boolean
     onMemosChange: (memos: string[]) => void
+    pageNumber?: number
 }
 
-export default function BookletDayPage({ day, dayIdx, startDate, theme, enableNow, memos, editable, onMemosChange }: Props) {
+export default function BookletDayPage({ day, dayIdx, startDate, theme, enableNow, memos, editable, onMemosChange, pageNumber }: Props) {
     const [now, setNow] = useState<Date | null>(null)
 
     useEffect(() => {
@@ -419,6 +420,13 @@ export default function BookletDayPage({ day, dayIdx, startDate, theme, enableNo
                             ＋ メモを追加
                         </button>
                     </div>
+                )}
+                {pageNumber !== undefined && (
+                    <p style={{
+                        textAlign: 'center', fontSize: 11, letterSpacing: '0.1em',
+                        fontVariantNumeric: 'tabular-nums', color: theme.subText,
+                        margin: '16px 0 -8px', position: 'relative', zIndex: 2,
+                    }}>— {pageNumber} —</p>
                 )}
             </article>
 
