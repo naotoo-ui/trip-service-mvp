@@ -1,7 +1,7 @@
 # tripServiceMVP プロダクトノート
 
 > Claude Code が毎回このファイルを読み込みます。
-> 最終更新: 2026-05-20
+> 最終更新: 2026-05-21
 
 ---
 
@@ -479,7 +479,7 @@ src/
 ├── components/booklet/
 │   ├── BookletView.tsx                   # ルートコンテナ・config 管理・ページ並び順生成
 │   ├── BookletNav.tsx                    # 上部ツールバー（戻る・テーマ・設定・シェア・印刷）
-│   ├── BookletCover.tsx                  # 表紙ページ（タイトルのみ・クライアントコンポーネント・インライン編集）
+│   ├── BookletCover.tsx                  # 表紙ページ（タイトル＋旅行日程・インライン編集・DatePickerOverlay で FROM/TO 選択）
 │   ├── BookletBackCover.tsx              # 背表紙ページ（カバー対称デザイン）
 │   ├── BookletDayPage.tsx                # 日別ページ（時系列タイムライン・宿泊・メモ/メモ続きを分割記事で出力）
 │   ├── BookletOptionalPage.tsx           # オプショナルページ汎用（持ち物→チェックボックス・1/2/3列・ページ分割）
@@ -582,7 +582,7 @@ docs/
 - `src/app/trips/[id]/booklet/page.tsx` — サーバーコンポーネント（trip取得・edit_token引継）
 - `src/components/booklet/BookletView.tsx` — ルートクライアント（config 管理・ページ並び順生成）
 - `src/components/booklet/BookletNav.tsx` — 上部ツールバー（戻る・テーマ・設定・シェア・印刷）
-- `src/components/booklet/BookletCover.tsx` — 表紙（タイトルのみ・'use client'・クリックでインライン編集・PATCH で DB 保存）
+- `src/components/booklet/BookletCover.tsx` — 表紙（タイトル＋旅行日程・インライン編集・DatePickerOverlay で FROM/TO 選択・PATCH で DB 保存）
 - `src/components/booklet/BookletBackCover.tsx` — 背表紙（カバーと対称デザイン・締めのメッセージ）
 - `src/components/booklet/BookletDayPage.tsx` — 日別ページ（時系列タイムライン・宿泊先・NOW/NEXT判定・メモ分割記事）
 - `src/components/booklet/BookletOptionalPage.tsx` — オプショナルページ（持ち物→チェックボックス・1/2/3列・ページ分割）
@@ -744,8 +744,16 @@ try { data = JSON.parse(text) } catch {
 - **しおり印刷**: `@media print` で `body > header`・`body > footer`・`.no-print` を全て非表示。`.booklet-cover` `.booklet-day` に `page-break-after: always`
 - **しおりテーマ**: `tripgen.bookletTheme.v1` キーで localStorage 保存・SSR ハイドレーション差異を避けるため初期値は 'classic' 固定
 - **しおり NOW 判定**: `useEffect` でマウント後のみ `setInterval(60_000)`、SSR では計算しない
-- **しおり表紙タイトル編集**: `BookletCover` は `'use client'`。クリックで `<input>` に切替・Enter/blur で PATCH。`{ itinerary, title, edit_token }` をそのまま送信（itinerary は必須フィールドのため）
-- **しおり表紙日程表示**: `itinerary.start_date` / `end_date` から日本語表示。同月「5月5日（火）〜 7日（木）」・月跨ぎ・年跨ぎ・日帰りに対応。`end_date` 未設定時は `start_date + duration_days - 1` で初期値を算出。クリックで FROM / TO 2つの `<input type="date">` に切替（コンテナ外 blur または Enter で保存・Escape でキャンセル）。未設定時は編集権限ありなら「＋ 日程を追加」（22px / opacity 0.7）を表示。タイトルとの間の余白は 28px。編集時の FROM / TO 入力欄・「〜」は 22px・罫線なし・`color-scheme: light` でカレンダーポップアップを白基調に統一。日程テキストまたは「＋ 日程を追加」クリック時に `flushSync` でDOM即時更新 → `requestAnimationFrame` でレイアウト確定後に `showPicker()` を呼び出し FROM のカレンダーを入力欄直下に表示（`showPicker()` をレイアウト前に呼ぶと座標が (0,0) になりページ左上にポップアップが出るため rAF が必要）。input は `opacity:0; position:absolute; inset:0` で不可視・可視スパンに重ねる `DatePickerOverlay` コンポーネント方式を採用（コンポーネントはファイルスコープで定義 — 関数内定義だと毎レンダリングで unmount/remount されて ref が壊れる）。これにより年/月/日の個別セグメント問題・フォントサイズ・文字間隔をすべて自前制御可能。表示テキストは `formatSingleDate()` で生成した 22px 均一フォント・`letterSpacing:0.02em`。日程エリアは `height:44px` 固定・ヒント文は conditional render ではなく `opacity` のみ切替 — この2点でどの状態でも同じ高さを確保してタイトルのレイアウトシフトを防止。FROM・TO の両方を削除して確定すると `localStartDate=''` → `dateRangeLabel=null` →「＋ 日程を追加」表示に戻る。カレンダーポップアップは `color-scheme:light` で白基調。保存時はタイトル・start_date・end_date を同一 PATCH リクエストで送信
+- **しおり表紙タイトル編集**: クリックで `<input>` に切替・Enter/blur で確定・Escape でキャンセル。PATCH で `{ itinerary, title, edit_token }` を送信
+- **しおり表紙日程フィールド**: タイトル下 28px に配置。`height:44px` 固定コンテナ＋ヒントを `opacity` 切替のみにすることでレイアウトシフトを防止
+  - **表示**: `formatDateRange(start, end)` で日本語整形。同月「5月5日（火）〜 7日（木）」・月跨ぎ・年跨ぎ・日帰り（1日）対応。フォント 22px
+  - **初期値**: `itinerary.start_date` / `end_date` を使用。`end_date` 未設定時は `start_date + duration_days - 1` で算出
+  - **未設定時**: 編集権限ありなら「＋ 日程を追加」（22px・opacity 0.7）を表示
+  - **編集UI（DatePickerOverlay）**: ネイティブ date input の年/月/日セグメント問題・フォント・文字間隔を避けるため、`opacity:0; position:absolute; inset:0` の透明 input を `formatSingleDate()` の可視スパンに重ねる方式。コンポーネントはファイルスコープで定義（関数内定義だと毎レンダリングで unmount/remount されて ref が壊れる）
+  - **カレンダー起動**: `flushSync` でDOM即時更新 → `requestAnimationFrame` 後に `showPicker()`（rAF 前に呼ぶと座標 (0,0) でページ左上にポップアップが出る）。FROM・TO それぞれの input の `onClick` でも `showPicker()` を呼ぶ
+  - **保存**: コンテナ外 blur または Enter → `saveDate()` → `localStartDate / localEndDate` 更新 → PATCH で `{ itinerary: { ...itinerary, start_date, end_date }, title, edit_token }` を送信
+  - **クリア**: FROM・TO を両方削除して確定すると `localStartDate=''` → `dateRangeLabel=null` →「＋ 日程を追加」に戻る
+  - **カレンダーポップアップ**: `color-scheme:light` で白基調（globals.css で `.booklet-cover input[type="date"]` に適用）
 - **しおりメモ分割**: `MEMOS_PER_PAGE=8`・超えたら続き記事を React Fragment で返す（`BookletDayPage`）
 - **持ち物チェックボックス分割**: `ITEMS_PER_COL=14`・列×行数で超えたら続き記事（`BookletOptionalPage`）
 - **BookletConfig マイグレーション**: 旧 `screen/print` 構造を `loadBookletConfig` で自動変換（`parsed.screen` を source とする）
