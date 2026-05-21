@@ -750,7 +750,8 @@ try { data = JSON.parse(text) } catch {
   - **初期値**: `itinerary.start_date` / `end_date` を使用。`end_date` 未設定時は `start_date + duration_days - 1` で算出
   - **未設定時**: 編集権限ありなら「＋ 日程を追加」（22px・opacity 0.7）を表示
   - **編集UI（DatePickerOverlay）**: ネイティブ date input の年/月/日セグメント問題・フォント・文字間隔を避けるため、**input をノーマルフロー（固定幅 9.5em・opacity:0）に置いてコンテナ幅を確定させ、`formatSingleDate()` の可視スパンを `position:absolute; inset:0; pointer-events:none` でオーバーレイ**する方式。初回選択前後で input 幅が変わらないためギャップが発生しない。コンポーネントはファイルスコープで定義（関数内定義だと毎レンダリングで unmount/remount されて ref が壊れる）
-  - **カレンダー起動**: `flushSync` でDOM即時更新 → `requestAnimationFrame` 後に `showPicker()`（rAF 前に呼ぶと座標 (0,0) でページ左上にポップアップが出る）。FROM・TO それぞれの input の `onClick` でも `showPicker()` を呼ぶ
+  - **カレンダー起動**: `openDateEdit(target: 'start' | 'end' = 'start')` で開くピッカーを指定。`flushSync` でDOM即時更新 → `requestAnimationFrame` 後に対象 ref の `showPicker()` を呼ぶ（rAF 前に呼ぶと座標 (0,0) でページ左上にポップアップが出る）。FROM・TO それぞれの input の `onClick` でも `showPicker()` を呼ぶ
+  - **表示状態のクリック挙動**: 日程は FROM と TO を個別の `<span>` で表示（`formatSingleDate` 使用）。FROM をクリック→FROMピッカー、TO をクリック→TOピッカーが開く。日帰り（start === end）は FROM のみ表示
   - **保存**: コンテナ外 blur または Enter → `saveDate()` → `localStartDate / localEndDate` 更新 → PATCH で `{ itinerary: { ...itinerary, start_date, end_date }, title, edit_token }` を送信
   - **クリア**: FROM・TO を両方削除して確定すると `localStartDate=''` → `dateRangeLabel=null` →「＋ 日程を追加」に戻る
   - **カレンダーポップアップ**: `color-scheme:light` で白基調（globals.css で `.booklet-cover input[type="date"]` に適用）
