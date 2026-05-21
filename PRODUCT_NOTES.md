@@ -749,7 +749,7 @@ try { data = JSON.parse(text) } catch {
   - **表示**: `formatDateRange(start, end)` で日本語整形。同月「5月5日（火）〜 7日（木）」・月跨ぎ・年跨ぎ・日帰り（1日）対応。フォント 22px
   - **初期値**: `itinerary.start_date` / `end_date` を使用。`end_date` 未設定時は `start_date + duration_days - 1` で算出
   - **未設定時**: 編集権限ありなら「＋ 日程を追加」（22px・opacity 0.7）を表示
-  - **編集UI（DatePickerOverlay）**: ネイティブ date input の年/月/日セグメント問題・フォント・文字間隔を避けるため、`opacity:0; position:absolute; inset:0` の透明 input を `formatSingleDate()` の可視スパンに重ねる方式。コンポーネントはファイルスコープで定義（関数内定義だと毎レンダリングで unmount/remount されて ref が壊れる）
+  - **編集UI（DatePickerOverlay）**: ネイティブ date input の年/月/日セグメント問題・フォント・文字間隔を避けるため、**input をノーマルフロー（固定幅 9.5em・opacity:0）に置いてコンテナ幅を確定させ、`formatSingleDate()` の可視スパンを `position:absolute; inset:0; pointer-events:none` でオーバーレイ**する方式。初回選択前後で input 幅が変わらないためギャップが発生しない。コンポーネントはファイルスコープで定義（関数内定義だと毎レンダリングで unmount/remount されて ref が壊れる）
   - **カレンダー起動**: `flushSync` でDOM即時更新 → `requestAnimationFrame` 後に `showPicker()`（rAF 前に呼ぶと座標 (0,0) でページ左上にポップアップが出る）。FROM・TO それぞれの input の `onClick` でも `showPicker()` を呼ぶ
   - **保存**: コンテナ外 blur または Enter → `saveDate()` → `localStartDate / localEndDate` 更新 → PATCH で `{ itinerary: { ...itinerary, start_date, end_date }, title, edit_token }` を送信
   - **クリア**: FROM・TO を両方削除して確定すると `localStartDate=''` → `dateRangeLabel=null` →「＋ 日程を追加」に戻る
