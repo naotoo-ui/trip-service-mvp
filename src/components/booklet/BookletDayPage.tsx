@@ -350,7 +350,7 @@ export default function BookletDayPage({ day, dayIdx, startDate, theme, enableNo
                                             </p>
                                         )}
 
-                                        {/* メモ */}
+                                        {/* メモ表示 */}
                                         {isEditingMemo ? (
                                             <div className="no-print" style={{ marginTop: 8 }}>
                                                 <textarea
@@ -374,64 +374,72 @@ export default function BookletDayPage({ day, dayIdx, startDate, theme, enableNo
                                                     <button type="button" onClick={() => setEditingMemoOrigIdx(null)} style={{ padding: '3px 10px', fontSize: 11, borderRadius: 6, border: `1px solid ${theme.timelineBar}`, background: 'transparent', color: theme.subText, cursor: 'pointer' }}>キャンセル</button>
                                                 </div>
                                             </div>
-                                        ) : spot.memo ? (
+                                        ) : spot.memo && (
                                             <div style={{ marginTop: 6, padding: '6px 10px', background: theme.pageBg, borderRadius: 8, borderLeft: `3px solid ${theme.accent}`, display: 'flex', alignItems: 'flex-start', gap: 6 }}>
                                                 <span style={{ fontSize: 11, color: theme.subText, flex: 1, lineHeight: 1.6 }}>📝 {spot.memo}</span>
                                                 {editable && (
                                                     <button type="button" className="no-print" onClick={() => startEditMemo(origIdx, spot.memo!)} style={{ flexShrink: 0, fontSize: 10, padding: '2px 6px', borderRadius: 5, border: `1px solid ${theme.timelineBar}`, background: 'transparent', color: theme.subText, cursor: 'pointer' }}>編集</button>
                                                 )}
                                             </div>
-                                        ) : editable && (
-                                            <button type="button" className="no-print" onClick={() => startEditMemo(origIdx, '')} style={{ marginTop: 6, fontSize: 11, padding: '3px 10px', borderRadius: 6, border: `1.5px dashed ${theme.accent}`, background: 'transparent', color: theme.accent, cursor: 'pointer', fontWeight: 600 }}>
-                                                ＋ メモを追加
-                                            </button>
                                         )}
 
-                                        {/* URL */}
-                                        <div style={{ marginTop: 20 }}>
-                                            {links.length > 0 && (
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 6 }}>
-                                                    {links.map((link, li) => (
-                                                        <div key={li} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                                            <a href={link} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: theme.accent, textDecoration: 'underline', textUnderlineOffset: 2, wordBreak: 'break-all', flex: 1 }}>
-                                                                🔗 {link.length > 45 ? link.slice(0, 45) + '...' : link}
-                                                            </a>
-                                                            {editable && (
-                                                                <button type="button" className="no-print" onClick={() => removeUrl(origIdx, links, li)} style={{ flexShrink: 0, fontSize: 10, padding: '1px 5px', borderRadius: 4, border: `1px solid #fca5a5`, background: '#fef2f2', color: '#dc2626', cursor: 'pointer' }}>✕</button>
-                                                            )}
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            )}
-                                            {isEditingUrl ? (
-                                                <div className="no-print">
-                                                    <input
-                                                        ref={urlInputRef}
-                                                        type="url"
-                                                        value={urlDraft}
-                                                        onChange={e => setUrlDraft(e.target.value)}
-                                                        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); saveUrl(origIdx, links) } if (e.key === 'Escape') setEditingUrlOrigIdx(null) }}
-                                                        placeholder="https://..."
-                                                        style={{
-                                                            width: '100%', padding: '5px 8px', fontSize: 12,
-                                                            border: `1.5px solid ${theme.accent}`,
-                                                            borderRadius: 8, outline: 'none',
-                                                            fontFamily: 'inherit',
-                                                            boxSizing: 'border-box',
-                                                            background: theme.pageBg, color: theme.text,
-                                                        }}
-                                                    />
-                                                    <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
-                                                        <button type="button" onClick={() => saveUrl(origIdx, links)} style={{ padding: '3px 12px', fontSize: 11, fontWeight: 700, borderRadius: 6, border: 'none', background: theme.accent, color: 'white', cursor: 'pointer' }}>追加</button>
-                                                        <button type="button" onClick={() => setEditingUrlOrigIdx(null)} style={{ padding: '3px 10px', fontSize: 11, borderRadius: 6, border: `1px solid ${theme.timelineBar}`, background: 'transparent', color: theme.subText, cursor: 'pointer' }}>キャンセル</button>
+                                        {/* URL一覧 */}
+                                        {links.length > 0 && (
+                                            <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                                                {links.map((link, li) => (
+                                                    <div key={li} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                        <a href={link} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: theme.accent, textDecoration: 'underline', textUnderlineOffset: 2, wordBreak: 'break-all', flex: 1 }}>
+                                                            🔗 {link.length > 45 ? link.slice(0, 45) + '...' : link}
+                                                        </a>
+                                                        {editable && (
+                                                            <button type="button" className="no-print" onClick={() => removeUrl(origIdx, links, li)} style={{ flexShrink: 0, fontSize: 10, padding: '1px 5px', borderRadius: 4, border: `1px solid #fca5a5`, background: '#fef2f2', color: '#dc2626', cursor: 'pointer' }}>✕</button>
+                                                        )}
                                                     </div>
+                                                ))}
+                                            </div>
+                                        )}
+
+                                        {/* URL入力フォーム */}
+                                        {isEditingUrl && (
+                                            <div className="no-print" style={{ marginTop: 6 }}>
+                                                <input
+                                                    ref={urlInputRef}
+                                                    type="url"
+                                                    value={urlDraft}
+                                                    onChange={e => setUrlDraft(e.target.value)}
+                                                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); saveUrl(origIdx, links) } if (e.key === 'Escape') setEditingUrlOrigIdx(null) }}
+                                                    placeholder="https://..."
+                                                    style={{
+                                                        width: '100%', padding: '5px 8px', fontSize: 12,
+                                                        border: `1.5px solid ${theme.accent}`,
+                                                        borderRadius: 8, outline: 'none',
+                                                        fontFamily: 'inherit',
+                                                        boxSizing: 'border-box',
+                                                        background: theme.pageBg, color: theme.text,
+                                                    }}
+                                                />
+                                                <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                                                    <button type="button" onClick={() => saveUrl(origIdx, links)} style={{ padding: '3px 12px', fontSize: 11, fontWeight: 700, borderRadius: 6, border: 'none', background: theme.accent, color: 'white', cursor: 'pointer' }}>追加</button>
+                                                    <button type="button" onClick={() => setEditingUrlOrigIdx(null)} style={{ padding: '3px 10px', fontSize: 11, borderRadius: 6, border: `1px solid ${theme.timelineBar}`, background: 'transparent', color: theme.subText, cursor: 'pointer' }}>キャンセル</button>
                                                 </div>
-                                            ) : editable && links.length < 5 && (
-                                                <button type="button" className="no-print" onClick={() => startAddUrl(origIdx)} style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, border: `1.5px dashed ${theme.accent}`, background: 'transparent', color: theme.accent, cursor: 'pointer', fontWeight: 600 }}>
-                                                    ＋ URLを追加
-                                                </button>
-                                            )}
-                                        </div>
+                                            </div>
+                                        )}
+
+                                        {/* アクションバー（横並び） */}
+                                        {editable && !isEditingMemo && !isEditingUrl && (!spot.memo || links.length < 5) && (
+                                            <div className="no-print" style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                                                {!spot.memo && (
+                                                    <button type="button" onClick={() => startEditMemo(origIdx, '')} style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, border: `1.5px dashed ${theme.accent}`, background: 'transparent', color: theme.accent, cursor: 'pointer', fontWeight: 600 }}>
+                                                        ＋ メモを追加
+                                                    </button>
+                                                )}
+                                                {links.length < 5 && (
+                                                    <button type="button" onClick={() => startAddUrl(origIdx)} style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, border: `1.5px dashed ${theme.accent}`, background: 'transparent', color: theme.accent, cursor: 'pointer', fontWeight: 600 }}>
+                                                        ＋ URLを追加
+                                                    </button>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             )

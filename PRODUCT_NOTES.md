@@ -679,7 +679,7 @@ type InsertPosition =
 - スポットの `description`（AI生成説明文）は非表示（代わりにメモ・URLで手動補完）
 - **スポットメモ**: `spot.memo?: string` フィールドに格納。入力済みなら本文表示＋鉛筆編集ボタン、未入力かつ編集可なら「＋ メモを追加」ボタン（点線ボーダー）。押下で `<textarea>` が開き 保存/キャンセル で確定
 - **スポットURL**: `spot.links?: string[]` フィールドに格納（最大5件）。入力済みリンクは `<a>` で表示＋✕ 削除ボタン。「＋ URLを追加」ボタン（点線ボーダー）で `<input type="url">` が開き 追加/キャンセルで確定
-- **メモ/URLの間隔**: URLセクション全体を `<div style={{ marginTop: 20 }}>` でラップし、「メモを追加」と「URLを追加」の点線ボーダー同士が視覚的に分離されるよう余白を確保
+- **アクションバー（横並び）**: 「＋ メモを追加」と「＋ URLを追加」は独立したボタンではなく、`display: flex; gap: 8` のアクションバー div にまとめて横並びで表示。メモ編集中・URL編集中は非表示。メモ入力済みなら「メモを追加」は消え「URLを追加」のみ表示
 - 編集権限（`editToken` あり）の時のみ編集UIを表示。閲覧モードでは保存済みデータのみ表示
 - **スポットソート**: `sortedSpots = day.spots.map((spot, origIdx) => ({ spot, origIdx })).sort(by time)` で元インデックスを保持。PATCH 送信時に `origIdx` で正しいスポットを特定
 - **保存フロー**: `onSpotUpdate(origIdx, { memo })` → `BookletView.handleSpotUpdate(dayIdx, spotIdx, update)` → `localDays` 更新 → PATCH `/api/trips/${share_id}` で `{ itinerary: { ...trip.itinerary, days: newDays }, title, edit_token }`
