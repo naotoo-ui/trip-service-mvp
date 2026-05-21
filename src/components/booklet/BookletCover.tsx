@@ -56,6 +56,57 @@ function computeEndDate(startStr: string, durationDays: number): string {
     return durationDays <= 1 ? startStr : addDays(startStr, durationDays - 1)
 }
 
+// コンポーネント外で定義することで毎レンダリングの unmount/remount を防ぐ
+type OverlayProps = {
+    inputRef: React.RefObject<HTMLInputElement | null>
+    value: string
+    color: string
+    label: string
+    onChange: (v: string) => void
+    onKeyDown: (e: React.KeyboardEvent) => void
+    onClickPicker: () => void
+}
+function DatePickerOverlay({ inputRef, value, color, label, onChange, onKeyDown, onClickPicker }: OverlayProps) {
+    return (
+        <div style={{ position: 'relative', display: 'inline-block' }}>
+            <span style={{
+                display: 'block',
+                fontSize: 22,
+                color,
+                whiteSpace: 'nowrap',
+                padding: '4px 2px',
+                letterSpacing: '0.02em',
+                lineHeight: 1.3,
+                userSelect: 'none',
+            }}>
+                {value ? formatSingleDate(value) : label}
+            </span>
+            {/* opacity:0 の input でクリック範囲を span に重ねる */}
+            <input
+                ref={inputRef}
+                type="date"
+                value={value}
+                onChange={e => onChange(e.target.value)}
+                onKeyDown={onKeyDown}
+                onClick={onClickPicker}
+                tabIndex={0}
+                style={{
+                    position: 'absolute',
+                    inset: 0,
+                    opacity: 0,
+                    cursor: 'pointer',
+                    border: 'none',
+                    background: 'transparent',
+                    outline: 'none',
+                    colorScheme: 'light',
+                    width: '100%',
+                    height: '100%',
+                }}
+            />
+        </div>
+    )
+}
+
 export default function BookletCover({ trip, theme, editable, editToken }: Props) {
     const [localTitle, setLocalTitle] = useState(trip.title)
     const [editing, setEditing] = useState(false)
@@ -137,7 +188,7 @@ export default function BookletCover({ trip, theme, editable, editToken }: Props
         saveDate()
     }
 
-    function showPicker(ref: React.RefObject<HTMLInputElement | null>) {
+    function callShowPicker(ref: React.RefObject<HTMLInputElement | null>) {
         try {
             (ref.current as (HTMLInputElement & { showPicker?: () => void }) | null)?.showPicker?.()
         } catch {}
@@ -147,7 +198,7 @@ export default function BookletCover({ trip, theme, editable, editToken }: Props
         setDraftStart(localStartDate)
         setDraftEnd(localEndDate)
         flushSync(() => setEditingDate(true))
-        requestAnimationFrame(() => showPicker(startInputRef))
+        requestAnimationFrame(() => callShowPicker(startInputRef))
     }
 
     const titleStyle: React.CSSProperties = {
@@ -164,58 +215,6 @@ export default function BookletCover({ trip, theme, editable, editToken }: Props
     const dateRangeLabel = localStartDate
         ? formatDateRange(localStartDate, localEndDate)
         : null
-
-    // 透明 input を可視テキストに重ねるラッパー
-    // - 可視テキスト（span）がレイアウトサイズを決定
-    // - opacity:0 の input が絶対配置でその上を覆い、クリックを受け取る
-    // - 年/月/日の個別セグメント問題・フォント・文字間隔をすべて自前制御
-    function DatePickerOverlay({
-        inputRef: ref,
-        value,
-        onChange,
-        label,
-    }: {
-        inputRef: React.RefObject<HTMLInputElement | null>
-        value: string
-        onChange: (v: string) => void
-        label: string
-    }) {
-        return (
-            <div style={{ position: 'relative', display: 'inline-block' }}>
-                <span style={{
-                    fontSize: 22,
-                    color: theme.coverText,
-                    whiteSpace: 'nowrap',
-                    padding: '4px 2px',
-                    display: 'block',
-                    letterSpacing: '0.02em',
-                }}>
-                    {value ? formatSingleDate(value) : label}
-                </span>
-                <input
-                    ref={ref}
-                    type="date"
-                    value={value}
-                    onChange={e => onChange(e.target.value)}
-                    onKeyDown={handleDateKeyDown}
-                    onClick={() => showPicker(ref)}
-                    tabIndex={0}
-                    style={{
-                        position: 'absolute',
-                        inset: 0,
-                        opacity: 0,
-                        cursor: 'pointer',
-                        border: 'none',
-                        background: 'transparent',
-                        outline: 'none',
-                        colorScheme: 'light',
-                        width: '100%',
-                        height: '100%',
-                    }}
-                />
-            </div>
-        )
-    }
 
     return (
         <article
@@ -240,7 +239,6 @@ export default function BookletCover({ trip, theme, editable, editToken }: Props
         >
             <CoverDecoration kind={theme.decoration} accent={theme.accent} />
 
-            {/* 装飾円 */}
             <div style={{
                 position: 'absolute', top: -80, right: -60,
                 width: 240, height: 240, borderRadius: '50%',
@@ -252,7 +250,7 @@ export default function BookletCover({ trip, theme, editable, editToken }: Props
                 background: 'rgba(255,255,255,0.06)', pointerEvents: 'none',
             }} />
 
-            {/* タイトル + 日程 */}
+            {/* タイトル + 日程 — 高さを固定してレイアウトシフトを防ぐ */}
             <div style={{ position: 'relative', zIndex: 2, width: '100%', maxWidth: 560 }}>
                 {/* タイトル */}
                 {editing ? (
@@ -285,7 +283,6 @@ export default function BookletCover({ trip, theme, editable, editToken }: Props
                             cursor: editable ? 'pointer' : 'default',
                             padding: '4px 8px',
                             borderRadius: 8,
-                            transition: 'background 0.15s',
                         }}
                         title={editable ? 'クリックしてタイトルを編集' : undefined}
                     >
@@ -293,13 +290,14 @@ export default function BookletCover({ trip, theme, editable, editToken }: Props
                     </h1>
                 )}
 
-                {/* 旅行日程 — 固定高さでレイアウトシフトを防ぐ */}
+                {/* 旅行日程 — height 固定でどの状態でも同じ高さを確保 */}
                 <div style={{
                     marginTop: 28,
-                    minHeight: 44,
+                    height: 44,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
+                    overflow: 'visible',
                 }}>
                     {editingDate ? (
                         <div
@@ -310,15 +308,21 @@ export default function BookletCover({ trip, theme, editable, editToken }: Props
                             <DatePickerOverlay
                                 inputRef={startInputRef}
                                 value={draftStart}
-                                onChange={setDraftStart}
+                                color={theme.coverText}
                                 label="FROM"
+                                onChange={setDraftStart}
+                                onKeyDown={handleDateKeyDown}
+                                onClickPicker={() => callShowPicker(startInputRef)}
                             />
-                            <span style={{ opacity: 0.7, fontSize: 22, color: theme.coverText }}>〜</span>
+                            <span style={{ opacity: 0.7, fontSize: 22, color: theme.coverText, userSelect: 'none' }}>〜</span>
                             <DatePickerOverlay
                                 inputRef={endInputRef}
                                 value={draftEnd}
-                                onChange={setDraftEnd}
+                                color={theme.coverText}
                                 label="TO"
+                                onChange={setDraftEnd}
+                                onKeyDown={handleDateKeyDown}
+                                onClickPicker={() => callShowPicker(endInputRef)}
                             />
                         </div>
                     ) : dateRangeLabel ? (
@@ -333,6 +337,7 @@ export default function BookletCover({ trip, theme, editable, editToken }: Props
                                 cursor: editable ? 'pointer' : 'default',
                                 padding: '4px 8px',
                                 borderRadius: 6,
+                                whiteSpace: 'nowrap',
                             }}
                             title={editable ? 'クリックして日程を編集' : undefined}
                         >
@@ -349,6 +354,7 @@ export default function BookletCover({ trip, theme, editable, editToken }: Props
                                 color: theme.coverText,
                                 cursor: 'pointer',
                                 padding: '4px 8px',
+                                whiteSpace: 'nowrap',
                             }}
                         >
                             ＋ 日程を追加
@@ -356,18 +362,22 @@ export default function BookletCover({ trip, theme, editable, editToken }: Props
                     ) : null}
                 </div>
 
-                {editable && !editing && !editingDate && (
-                    <p
-                        className="no-print"
-                        style={{
-                            marginTop: 14, fontSize: 11,
-                            opacity: 0.5, letterSpacing: '0.06em',
-                            color: theme.coverText,
-                        }}
-                    >
-                        クリックして編集
-                    </p>
-                )}
+                {/* ヒント — opacity だけ変えてレイアウトを固定 */}
+                <p
+                    className="no-print"
+                    style={{
+                        marginTop: 14,
+                        fontSize: 11,
+                        opacity: (editable && !editing && !editingDate) ? 0.5 : 0,
+                        letterSpacing: '0.06em',
+                        color: theme.coverText,
+                        pointerEvents: 'none',
+                        userSelect: 'none',
+                        margin: '14px 0 0',
+                    }}
+                >
+                    クリックして編集
+                </p>
             </div>
         </article>
     )
