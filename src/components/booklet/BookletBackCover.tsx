@@ -41,7 +41,8 @@ export default function BookletBackCover({ trip: _, theme }: { trip: Trip; theme
             }} />
 
             <span style={{
-                position: 'relative', zIndex: 2,
+                position: 'absolute', zIndex: 2,
+                bottom: 32, right: 36,
                 fontSize: 13, letterSpacing: '0.12em', opacity: 0.75,
             }}>
                 旅程ジェネレーター
