@@ -388,48 +388,50 @@ export default function BookletDayPage({ day, dayIdx, startDate, theme, enableNo
                                         )}
 
                                         {/* URL */}
-                                        {links.length > 0 && (
-                                            <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 3 }}>
-                                                {links.map((link, li) => (
-                                                    <div key={li} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                                                        <a href={link} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: theme.accent, textDecoration: 'underline', textUnderlineOffset: 2, wordBreak: 'break-all', flex: 1 }}>
-                                                            🔗 {link.length > 45 ? link.slice(0, 45) + '...' : link}
-                                                        </a>
-                                                        {editable && (
-                                                            <button type="button" className="no-print" onClick={() => removeUrl(origIdx, links, li)} style={{ flexShrink: 0, fontSize: 10, padding: '1px 5px', borderRadius: 4, border: `1px solid #fca5a5`, background: '#fef2f2', color: '#dc2626', cursor: 'pointer' }}>✕</button>
-                                                        )}
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                        {isEditingUrl ? (
-                                            <div className="no-print" style={{ marginTop: 12 }}>
-                                                <input
-                                                    ref={urlInputRef}
-                                                    type="url"
-                                                    value={urlDraft}
-                                                    onChange={e => setUrlDraft(e.target.value)}
-                                                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); saveUrl(origIdx, links) } if (e.key === 'Escape') setEditingUrlOrigIdx(null) }}
-                                                    placeholder="https://..."
-                                                    style={{
-                                                        width: '100%', padding: '5px 8px', fontSize: 12,
-                                                        border: `1.5px solid ${theme.accent}`,
-                                                        borderRadius: 8, outline: 'none',
-                                                        fontFamily: 'inherit',
-                                                        boxSizing: 'border-box',
-                                                        background: theme.pageBg, color: theme.text,
-                                                    }}
-                                                />
-                                                <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
-                                                    <button type="button" onClick={() => saveUrl(origIdx, links)} style={{ padding: '3px 12px', fontSize: 11, fontWeight: 700, borderRadius: 6, border: 'none', background: theme.accent, color: 'white', cursor: 'pointer' }}>追加</button>
-                                                    <button type="button" onClick={() => setEditingUrlOrigIdx(null)} style={{ padding: '3px 10px', fontSize: 11, borderRadius: 6, border: `1px solid ${theme.timelineBar}`, background: 'transparent', color: theme.subText, cursor: 'pointer' }}>キャンセル</button>
+                                        <div style={{ marginTop: 20 }}>
+                                            {links.length > 0 && (
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 6 }}>
+                                                    {links.map((link, li) => (
+                                                        <div key={li} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                            <a href={link} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: theme.accent, textDecoration: 'underline', textUnderlineOffset: 2, wordBreak: 'break-all', flex: 1 }}>
+                                                                🔗 {link.length > 45 ? link.slice(0, 45) + '...' : link}
+                                                            </a>
+                                                            {editable && (
+                                                                <button type="button" className="no-print" onClick={() => removeUrl(origIdx, links, li)} style={{ flexShrink: 0, fontSize: 10, padding: '1px 5px', borderRadius: 4, border: `1px solid #fca5a5`, background: '#fef2f2', color: '#dc2626', cursor: 'pointer' }}>✕</button>
+                                                            )}
+                                                        </div>
+                                                    ))}
                                                 </div>
-                                            </div>
-                                        ) : editable && links.length < 5 && (
-                                            <button type="button" className="no-print" onClick={() => startAddUrl(origIdx)} style={{ marginTop: 12, fontSize: 11, padding: '3px 10px', borderRadius: 6, border: `1.5px dashed ${theme.accent}`, background: 'transparent', color: theme.accent, cursor: 'pointer', fontWeight: 600 }}>
-                                                ＋ URLを追加
-                                            </button>
-                                        )}
+                                            )}
+                                            {isEditingUrl ? (
+                                                <div className="no-print">
+                                                    <input
+                                                        ref={urlInputRef}
+                                                        type="url"
+                                                        value={urlDraft}
+                                                        onChange={e => setUrlDraft(e.target.value)}
+                                                        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); saveUrl(origIdx, links) } if (e.key === 'Escape') setEditingUrlOrigIdx(null) }}
+                                                        placeholder="https://..."
+                                                        style={{
+                                                            width: '100%', padding: '5px 8px', fontSize: 12,
+                                                            border: `1.5px solid ${theme.accent}`,
+                                                            borderRadius: 8, outline: 'none',
+                                                            fontFamily: 'inherit',
+                                                            boxSizing: 'border-box',
+                                                            background: theme.pageBg, color: theme.text,
+                                                        }}
+                                                    />
+                                                    <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                                                        <button type="button" onClick={() => saveUrl(origIdx, links)} style={{ padding: '3px 12px', fontSize: 11, fontWeight: 700, borderRadius: 6, border: 'none', background: theme.accent, color: 'white', cursor: 'pointer' }}>追加</button>
+                                                        <button type="button" onClick={() => setEditingUrlOrigIdx(null)} style={{ padding: '3px 10px', fontSize: 11, borderRadius: 6, border: `1px solid ${theme.timelineBar}`, background: 'transparent', color: theme.subText, cursor: 'pointer' }}>キャンセル</button>
+                                                    </div>
+                                                </div>
+                                            ) : editable && links.length < 5 && (
+                                                <button type="button" className="no-print" onClick={() => startAddUrl(origIdx)} style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, border: `1.5px dashed ${theme.accent}`, background: 'transparent', color: theme.accent, cursor: 'pointer', fontWeight: 600 }}>
+                                                    ＋ URLを追加
+                                                </button>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                             )
