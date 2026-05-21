@@ -629,14 +629,13 @@ type OptionalPageEntry = {
 type InsertPosition =
     | { kind: 'after-cover' }
     | { kind: 'after-day', dayIdx: number }
-    | { kind: 'before-back-cover' }
 ```
 
 `computePageOrder(config, daysCount)` が `PageKey[]` を返し、`BookletView` がそれを順に描画。表紙→（任意ページ）→1日目→（任意ページ）→2日目…→背表紙の順で組み立てる。
 
 `enabledPagesAt(config, pos)` が指定位置で有効な `OptionalPageKind[]` を返す。`positionLabel(pos, daysCount)` が位置のラベル文字列を返す。
 
-旧 `screen/print` 二重構造は廃止。旧フォーマットを `loadBookletConfig` 内のマイグレーションで自動変換。
+旧 `screen/print` 二重構造は廃止。旧フォーマットを `loadBookletConfig` 内のマイグレーションで自動変換。旧 `before-back-cover` 位置も `after-cover` へ自動マイグレーション。
 
 ### ページ番号
 - `config.showPageNumbers` で表示/非表示を切替
@@ -651,11 +650,12 @@ type InsertPosition =
 | 編集メンバー | 表紙の直後 | 田中太郎（リーダー）/ 佐藤花子 |
 | 集合時間・場所 | 表紙の直後 | 日時 / 場所 / 備考 |
 | 持ち物リスト | 表紙の直後 | パスポート / 充電器 / 常備薬 |
-| 緊急連絡先 | 背表紙の直前 | ホテル番号 / 保険会社 / 家族 |
-| メモ | 背表紙の直前 | 自由記述 |
-| 金額メモ | 背表紙の直前 | 交通費 / 宿泊費 / 食費 |
-| 自由ページ | 背表紙の直前 | 自由記述 |
+| 緊急連絡先 | 表紙の直後 | ホテル番号 / 保険会社 / 家族 |
+| メモ | 表紙の直後 | 自由記述 |
+| 金額メモ | 表紙の直後 | 交通費 / 宿泊費 / 食費 |
+| 自由ページ | 表紙の直後 | 自由記述 |
 
+- 挿入位置は **表紙の後** か **各日の後** のみ（背表紙の前は廃止）
 - 挿入位置はドロップダウンではなく、各ページの間に **BookletGapControl** を表示してその場で ON/OFF 切替
 - 他の位置で既に有効なページは灰色で表示（ツールチップで「○○で追加済み」表示）
 
