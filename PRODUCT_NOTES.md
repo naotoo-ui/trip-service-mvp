@@ -480,7 +480,7 @@ src/
 │   ├── BookletView.tsx                   # ルートコンテナ・config 管理・ページ並び順生成
 │   ├── BookletNav.tsx                    # 上部ツールバー（戻る・テーマ・設定・シェア・印刷）
 │   ├── BookletCover.tsx                  # 表紙ページ（タイトル＋旅行日程・インライン編集・DatePickerOverlay で FROM/TO 選択）
-│   ├── BookletBackCover.tsx              # 背表紙ページ（カバー対称デザイン）
+│   ├── BookletBackCover.tsx              # 背表紙ページ（テーマ装飾のみ・右下に「旅程ジェネレーター」）
 │   ├── BookletDayPage.tsx                # 日別ページ（時系列タイムライン・宿泊・メモ/メモ続きを分割記事で出力）
 │   ├── BookletOptionalPage.tsx           # オプショナルページ汎用（持ち物→チェックボックス・1/2/3列・ページ分割）
 │   ├── BookletGapControl.tsx             # ページ間ギャップUI（オプショナルページをインラインで挿入位置指定）
@@ -583,7 +583,7 @@ docs/
 - `src/components/booklet/BookletView.tsx` — ルートクライアント（config 管理・ページ並び順生成）
 - `src/components/booklet/BookletNav.tsx` — 上部ツールバー（戻る・テーマ・設定・シェア・印刷）
 - `src/components/booklet/BookletCover.tsx` — 表紙（タイトル＋旅行日程・インライン編集・DatePickerOverlay で FROM/TO 選択・PATCH で DB 保存）
-- `src/components/booklet/BookletBackCover.tsx` — 背表紙（カバーと対称デザイン・締めのメッセージ）
+- `src/components/booklet/BookletBackCover.tsx` — 背表紙（テーマ装飾・装飾円のみ。テキストは右下に「旅程ジェネレーター」のみ表示。タイトル・メッセージ等は削除済み）
 - `src/components/booklet/BookletDayPage.tsx` — 日別ページ（時系列タイムライン・宿泊先・NOW/NEXT判定・メモ分割記事）
 - `src/components/booklet/BookletOptionalPage.tsx` — オプショナルページ（持ち物→チェックボックス・1/2/3列・ページ分割）
 - `src/components/booklet/BookletGapControl.tsx` — ページ間ギャップUI（オプショナルページをインラインで挿入位置指定）
