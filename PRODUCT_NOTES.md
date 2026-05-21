@@ -643,6 +643,7 @@ type InsertPosition =
 - 表紙・背表紙以外のページに通し番号を振る（1, 2, 3, ...）
 - 表示形式: `— N —`（控えめなセンタリング）
 - 印刷時も同じスタイルで残る
+- **実装**: `pageNumber?: number` prop を `BookletDayPage` / `BookletOptionalPage` に渡し、各 `<article>` 末尾（内部）に描画。外部 sibling `<p>` 方式は廃止（枠外にはみ出す問題があったため）
 
 ### オプショナルページ（ページ間に挿入）
 | ページ | デフォルト位置 | プレースホルダー例 |
