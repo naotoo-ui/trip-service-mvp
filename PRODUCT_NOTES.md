@@ -616,6 +616,7 @@ type BookletConfig = {
     optionalPages: Record<OptionalPageKind, OptionalPageEntry>
     dayMemos: Record<number, string[]>  // dayIdx → メモ配列
     showPageNumbers: boolean
+    showUrlQrCode: boolean  // 印刷用設定：URLをQRコードで表示
     themeName: string
 }
 
@@ -636,6 +637,14 @@ type InsertPosition =
 `enabledPagesAt(config, pos)` が指定位置で有効な `OptionalPageKind[]` を返す。`positionLabel(pos, daysCount)` が位置のラベル文字列を返す。
 
 旧 `screen/print` 二重構造は廃止。旧フォーマットを `loadBookletConfig` 内のマイグレーションで自動変換。旧 `before-back-cover` 位置も `after-cover` へ自動マイグレーション。
+
+### しおり設定モーダル（BookletSettings）
+3セクション構成：
+- **全体設定**: ページ番号を表示する（`config.showPageNumbers`）
+- **スマホ/PC 表示用設定**: 現在は項目なし（将来の設定枠）
+- **印刷用設定**: URLをQRコードで表示（`config.showUrlQrCode`）
+
+`showUrlQrCode` が true のとき、`BookletDayPage` がスポットカードを flex レイアウトに切替。左に通常のスポット情報、右に `QRCodeSVG`（qrcode.react）を60×60px で縦並び表示。URLが2件以上のときは「URL 1」「URL 2」のラベルを付加。QRコードはSVGなので印刷時も鮮明。
 
 ### ページ番号
 - `config.showPageNumbers` で表示/非表示を切替

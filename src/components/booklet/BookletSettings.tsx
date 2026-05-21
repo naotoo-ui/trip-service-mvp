@@ -9,6 +9,21 @@ type Props = {
     onUpdate: (next: BookletConfig) => void
 }
 
+const sectionLabel: React.CSSProperties = {
+    fontSize: 11, fontWeight: 700, letterSpacing: '0.12em',
+    textTransform: 'uppercase', color: '#94a3b8',
+    margin: '0 0 10px',
+}
+
+const checkboxRow: React.CSSProperties = {
+    display: 'flex', alignItems: 'center', gap: 10,
+    padding: '12px 14px',
+    background: '#f8fafc',
+    borderRadius: 12,
+    border: '1.5px solid #e2e8f0',
+    cursor: 'pointer',
+}
+
 export default function BookletSettings({ open, onClose, config, onUpdate }: Props) {
     useEffect(() => {
         if (!open) return
@@ -47,6 +62,7 @@ export default function BookletSettings({ open, onClose, config, onUpdate }: Pro
                     overflow: 'hidden',
                     display: 'flex', flexDirection: 'column',
                     boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
+                    maxHeight: '90vh',
                 }}
             >
                 {/* ヘッダー */}
@@ -55,6 +71,7 @@ export default function BookletSettings({ open, onClose, config, onUpdate }: Pro
                     borderBottom: '1px solid #e2e8f0',
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                     background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+                    flexShrink: 0,
                 }}>
                     <div>
                         <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#0f172a' }}>
@@ -76,31 +93,59 @@ export default function BookletSettings({ open, onClose, config, onUpdate }: Pro
                     >×</button>
                 </header>
 
-                {/* ページ番号 */}
-                <div style={{ padding: '24px 22px' }}>
-                    <label style={{
-                        display: 'flex', alignItems: 'center', gap: 10,
-                        padding: '12px 14px',
-                        background: '#f8fafc',
-                        borderRadius: 12,
-                        border: '1.5px solid #e2e8f0',
-                        cursor: 'pointer',
-                    }}>
-                        <input
-                            type="checkbox"
-                            checked={config.showPageNumbers}
-                            onChange={e => onUpdate({ ...config, showPageNumbers: e.target.checked })}
-                            style={{ width: 16, height: 16, accentColor: '#2563eb' }}
-                        />
-                        <div>
-                            <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#0f172a' }}>
-                                ページ番号を表示する
-                            </p>
-                            <p style={{ margin: '2px 0 0', fontSize: 11, color: '#64748b' }}>
-                                表紙・背表紙を除く各ページに番号を振ります
-                            </p>
-                        </div>
-                    </label>
+                {/* コンテンツ */}
+                <div style={{ padding: '24px 22px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 28 }}>
+
+                    {/* ── 全体設定 ── */}
+                    <section>
+                        <p style={sectionLabel}>全体設定</p>
+                        <label style={checkboxRow}>
+                            <input
+                                type="checkbox"
+                                checked={config.showPageNumbers}
+                                onChange={e => onUpdate({ ...config, showPageNumbers: e.target.checked })}
+                                style={{ width: 16, height: 16, accentColor: '#2563eb', flexShrink: 0 }}
+                            />
+                            <div>
+                                <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#0f172a' }}>
+                                    ページ番号を表示する
+                                </p>
+                                <p style={{ margin: '2px 0 0', fontSize: 11, color: '#64748b' }}>
+                                    表紙・背表紙を除く各ページに番号を振ります
+                                </p>
+                            </div>
+                        </label>
+                    </section>
+
+                    {/* ── スマホ/PC 表示用設定 ── */}
+                    <section>
+                        <p style={sectionLabel}>スマホ / PC 表示用設定</p>
+                        <p style={{ margin: 0, fontSize: 12, color: '#94a3b8', padding: '10px 14px', background: '#f8fafc', borderRadius: 12, border: '1.5px solid #e2e8f0' }}>
+                            設定項目はありません
+                        </p>
+                    </section>
+
+                    {/* ── 印刷用設定 ── */}
+                    <section>
+                        <p style={sectionLabel}>印刷用設定</p>
+                        <label style={checkboxRow}>
+                            <input
+                                type="checkbox"
+                                checked={config.showUrlQrCode}
+                                onChange={e => onUpdate({ ...config, showUrlQrCode: e.target.checked })}
+                                style={{ width: 16, height: 16, accentColor: '#2563eb', flexShrink: 0 }}
+                            />
+                            <div>
+                                <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#0f172a' }}>
+                                    URL を QR コードで表示
+                                </p>
+                                <p style={{ margin: '2px 0 0', fontSize: 11, color: '#64748b' }}>
+                                    スポットに追加した URL を右側にQRコードで印字します
+                                </p>
+                            </div>
+                        </label>
+                    </section>
+
                 </div>
             </div>
         </div>

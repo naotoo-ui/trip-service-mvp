@@ -56,6 +56,7 @@ export type BookletConfig = {
     optionalPages: Record<OptionalPageKind, OptionalPageEntry>
     dayMemos: Record<number, string[]>
     showPageNumbers: boolean
+    showUrlQrCode: boolean
     themeName: string
 }
 
@@ -82,6 +83,7 @@ export function buildDefaultConfig(themeName = 'sakura'): BookletConfig {
         optionalPages: buildDefaultOptionalPages(),
         dayMemos: {},
         showPageNumbers: true,
+        showUrlQrCode: false,
         themeName,
     }
 }
@@ -135,6 +137,7 @@ export function loadBookletConfig(shareId: string): BookletConfig {
             ),
             dayMemos: (src.dayMemos as Record<number, string[]> | undefined) ?? def.dayMemos,
             showPageNumbers: (parsed.showPageNumbers as boolean | undefined) ?? def.showPageNumbers,
+            showUrlQrCode: (parsed.showUrlQrCode as boolean | undefined) ?? def.showUrlQrCode,
             themeName,
         }
     } catch {

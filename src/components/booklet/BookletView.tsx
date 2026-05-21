@@ -195,6 +195,7 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
                                 enableNow={mounted}
                                 memos={memos}
                                 editable={editable}
+                                showUrlQrCode={config.showUrlQrCode}
                                 onMemosChange={ms => handleMemosChange(idx, ms)}
                                 onSpotUpdate={(spotIdx, update) => handleSpotUpdate(idx, spotIdx, update)}
                                 pageNumber={n}
