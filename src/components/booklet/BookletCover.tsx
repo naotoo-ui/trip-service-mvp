@@ -204,11 +204,12 @@ export default function BookletCover({ trip, theme, editable, editToken }: Props
         } catch {}
     }
 
-    function openDateEdit() {
+    function openDateEdit(target: 'start' | 'end' = 'start') {
         setDraftStart(localStartDate)
         setDraftEnd(localEndDate)
+        const ref = target === 'end' ? endInputRef : startInputRef
         flushSync(() => setEditingDate(true))
-        requestAnimationFrame(() => callShowPicker(startInputRef))
+        requestAnimationFrame(() => callShowPicker(ref))
     }
 
     const titleStyle: React.CSSProperties = {
@@ -336,27 +337,49 @@ export default function BookletCover({ trip, theme, editable, editToken }: Props
                             />
                         </div>
                     ) : dateRangeLabel ? (
-                        <p
-                            onClick={editable ? openDateEdit : undefined}
-                            style={{
-                                margin: 0,
-                                fontSize: 22,
-                                letterSpacing: '0.02em',
-                                opacity: 0.85,
-                                color: theme.coverText,
-                                cursor: editable ? 'pointer' : 'default',
-                                padding: '4px 8px',
-                                borderRadius: 6,
-                                whiteSpace: 'nowrap',
-                            }}
-                            title={editable ? 'クリックして日程を編集' : undefined}
-                        >
-                            {dateRangeLabel}
-                        </p>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                            <span
+                                onClick={editable ? () => openDateEdit('start') : undefined}
+                                style={{
+                                    fontSize: 22,
+                                    letterSpacing: '0.02em',
+                                    opacity: 0.85,
+                                    color: theme.coverText,
+                                    cursor: editable ? 'pointer' : 'default',
+                                    padding: '4px 6px',
+                                    borderRadius: 6,
+                                    whiteSpace: 'nowrap',
+                                }}
+                                title={editable ? 'クリックして開始日を編集' : undefined}
+                            >
+                                {formatSingleDate(localStartDate)}
+                            </span>
+                            {localEndDate && localEndDate !== localStartDate && (
+                                <>
+                                    <span style={{ opacity: 0.7, fontSize: 22, color: theme.coverText, userSelect: 'none' }}>〜</span>
+                                    <span
+                                        onClick={editable ? () => openDateEdit('end') : undefined}
+                                        style={{
+                                            fontSize: 22,
+                                            letterSpacing: '0.02em',
+                                            opacity: 0.85,
+                                            color: theme.coverText,
+                                            cursor: editable ? 'pointer' : 'default',
+                                            padding: '4px 6px',
+                                            borderRadius: 6,
+                                            whiteSpace: 'nowrap',
+                                        }}
+                                        title={editable ? 'クリックして終了日を編集' : undefined}
+                                    >
+                                        {formatSingleDate(localEndDate)}
+                                    </span>
+                                </>
+                            )}
+                        </div>
                     ) : editable ? (
                         <p
                             className="no-print"
-                            onClick={openDateEdit}
+                            onClick={() => openDateEdit('start')}
                             style={{
                                 margin: 0,
                                 fontSize: 22,
