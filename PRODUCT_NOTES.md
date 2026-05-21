@@ -753,7 +753,7 @@ try { data = JSON.parse(text) } catch {
   - **カレンダー起動**: `openDateEdit(target: 'start' | 'end' = 'start')` で開くピッカーを指定。`flushSync` でDOM即時更新 → `requestAnimationFrame` 後に対象 ref の `showPicker()` を呼ぶ（rAF 前に呼ぶと座標 (0,0) でページ左上にポップアップが出る）。FROM・TO それぞれの input の `onClick` でも `showPicker()` を呼ぶ
   - **表示状態のクリック挙動**: 日程は FROM と TO を個別の `<span>` で表示。FROM をクリック→FROMピッカー、TO をクリック→TOピッカーが開く。日帰り（start === end）は FROM のみ表示
   - **TO 年省略**: FROM と同じ西暦なら TO は `月日（曜）` のみ表示（`formatDateNoYear`）。年跨ぎの場合のみ年を表示
-  - **日付順序の警告**: `localEndDate < localStartDate` の場合に「旅行終了日が旅行開始日より前になっています」を 20px の赤文字で表示。編集中はドラフト値・表示中は保存値で判定するため、日付を正しく修正して保存するまで警告が消えない
+  - **日付順序の警告**: `localEndDate < localStartDate` の場合に「旅行終了日が旅行開始日より前になっています」を 20px の赤文字で条件付きレンダリング。編集中はドラフト値・表示中は保存値で判定するため、日付を正しく修正して保存するまで警告が消えない。「クリックして編集」のヒント文は削除済み
   - **保存**: コンテナ外 blur または Enter → `saveDate()` → `localStartDate / localEndDate` 更新 → PATCH で `{ itinerary: { ...itinerary, start_date, end_date }, title, edit_token }` を送信
   - **クリア**: FROM・TO を両方削除して確定すると `localStartDate=''` → `dateRangeLabel=null` →「＋ 日程を追加」に戻る
   - **カレンダーポップアップ**: `color-scheme:light` で白基調（globals.css で `.booklet-cover input[type="date"]` に適用）
