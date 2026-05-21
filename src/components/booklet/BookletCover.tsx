@@ -57,6 +57,10 @@ function computeEndDate(startStr: string, durationDays: number): string {
 }
 
 // コンポーネント外で定義することで毎レンダリングの unmount/remount を防ぐ
+//
+// 構造: input をノーマルフローに置いて幅の基準にし、span を absolute でオーバーレイ。
+// input は固定幅(em)で opacity:0 のため「最初の日付選択時に幅が変わってギャップが出る」
+// 問題が起きない。span は pointer-events:none なのでクリックは input に届く。
 type OverlayProps = {
     inputRef: React.RefObject<HTMLInputElement | null>
     value: string
@@ -69,19 +73,7 @@ type OverlayProps = {
 function DatePickerOverlay({ inputRef, value, color, label, onChange, onKeyDown, onClickPicker }: OverlayProps) {
     return (
         <div style={{ position: 'relative', display: 'inline-block' }}>
-            <span style={{
-                display: 'block',
-                fontSize: 22,
-                color,
-                whiteSpace: 'nowrap',
-                padding: '4px 2px',
-                letterSpacing: '0.02em',
-                lineHeight: 1.3,
-                userSelect: 'none',
-            }}>
-                {value ? formatSingleDate(value) : label}
-            </span>
-            {/* opacity:0 の input でクリック範囲を span に重ねる */}
+            {/* input をノーマルフローで配置しコンテナ幅を固定 */}
             <input
                 ref={inputRef}
                 type="date"
@@ -91,18 +83,36 @@ function DatePickerOverlay({ inputRef, value, color, label, onChange, onKeyDown,
                 onClick={onClickPicker}
                 tabIndex={0}
                 style={{
-                    position: 'absolute',
-                    inset: 0,
                     opacity: 0,
-                    cursor: 'pointer',
+                    display: 'block',
+                    width: '9.5em',   // "2026年12月31日（水）" が収まる固定幅
+                    fontSize: 22,
                     border: 'none',
                     background: 'transparent',
                     outline: 'none',
+                    padding: '4px 2px',
+                    cursor: 'pointer',
                     colorScheme: 'light',
-                    width: '100%',
-                    height: '100%',
+                    boxSizing: 'content-box',
                 }}
             />
+            {/* 可視テキストを absolute でオーバーレイ */}
+            <span style={{
+                position: 'absolute',
+                inset: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 22,
+                color,
+                whiteSpace: 'nowrap',
+                letterSpacing: '0.02em',
+                lineHeight: 1.3,
+                userSelect: 'none',
+                pointerEvents: 'none',
+            }}>
+                {value ? formatSingleDate(value) : label}
+            </span>
         </div>
     )
 }
