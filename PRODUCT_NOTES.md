@@ -478,11 +478,11 @@ src/
 │   ├── TripViewTracker.tsx               # 閲覧履歴を localStorage に保存
 │   └── RecentTripsButton.tsx             # ヘッダー🕘最近ボタン（ドロップダウン）
 ├── components/booklet/
-│   ├── BookletView.tsx                   # ルートコンテナ・config 管理・ページ並び順生成
+│   ├── BookletView.tsx                   # ルートコンテナ・config 管理・ページ並び順生成・localDays 状態・onSpotUpdate（PATCH保存）
 │   ├── BookletNav.tsx                    # 上部ツールバー（戻る・テーマ・設定・シェア・印刷）
 │   ├── BookletCover.tsx                  # 表紙ページ（タイトル＋旅行日程・インライン編集・DatePickerOverlay で FROM/TO 選択）
 │   ├── BookletBackCover.tsx              # 背表紙ページ（テーマ装飾のみ・右下に「旅程ジェネレーター」）
-│   ├── BookletDayPage.tsx                # 日別ページ（時系列タイムライン・宿泊・メモ/メモ続きを分割記事で出力）
+│   ├── BookletDayPage.tsx                # 日別ページ（時系列タイムライン・宿泊・スポットごとメモ/URL・メモ続き分割記事で出力）
 │   ├── BookletOptionalPage.tsx           # オプショナルページ汎用（持ち物→チェックボックス・1/2/3列・ページ分割）
 │   ├── BookletGapControl.tsx             # ページ間ギャップUI（オプショナルページをインラインで挿入位置指定）
 │   ├── BookletSettings.tsx               # 設定モーダル（ページ番号のみ）
@@ -581,7 +581,7 @@ docs/
 
 **ファイル**:
 - `src/app/trips/[id]/booklet/page.tsx` — サーバーコンポーネント（trip取得・edit_token引継）
-- `src/components/booklet/BookletView.tsx` — ルートクライアント（config 管理・ページ並び順生成）
+- `src/components/booklet/BookletView.tsx` — ルートクライアント（config 管理・ページ並び順生成・`localDays` 状態・`handleSpotUpdate(dayIdx, spotIdx, update)` → PATCH保存）
 - `src/components/booklet/BookletNav.tsx` — 上部ツールバー（戻る・テーマ・設定・シェア・印刷）
 - `src/components/booklet/BookletCover.tsx` — 表紙（タイトル＋旅行日程・インライン編集・DatePickerOverlay で FROM/TO 選択・PATCH で DB 保存）
 - `src/components/booklet/BookletBackCover.tsx` — 背表紙（テーマ装飾・装飾円のみ。テキストは右下に「旅程ジェネレーター」のみ表示。タイトル・メッセージ等は削除済み）
@@ -674,6 +674,15 @@ type InsertPosition =
 - 編集権限（`editToken` あり）の時のみボタン表示・編集可能。閲覧モードでは入力済みメモのみ表示
 - `config.dayMemos[dayIdx]` に文字列配列として保存
 - メモ記事は日別ページと独立した `<article className="booklet-page booklet-memo-cont">` で出力（Fragment の複数 article）
+
+### スポットごとのメモ・URL機能（BookletDayPage）
+- スポットの `description`（AI生成説明文）は非表示（代わりにメモ・URLで手動補完）
+- **スポットメモ**: `spot.memo?: string` フィールドに格納。入力済みなら本文表示＋鉛筆編集ボタン、未入力かつ編集可なら「＋ メモを追加」ボタン。押下で `<textarea>` が開き 保存/キャンセル で確定
+- **スポットURL**: `spot.links?: string[]` フィールドに格納（最大5件）。入力済みリンクは `<a>` で表示＋✕ 削除ボタン。「＋ URLを追加」ボタンで `<input type="url">` が開き 追加/キャンセルで確定
+- 編集権限（`editToken` あり）の時のみ編集UIを表示。閲覧モードでは保存済みデータのみ表示
+- **スポットソート**: `sortedSpots = day.spots.map((spot, origIdx) => ({ spot, origIdx })).sort(by time)` で元インデックスを保持。PATCH 送信時に `origIdx` で正しいスポットを特定
+- **保存フロー**: `onSpotUpdate(origIdx, { memo })` → `BookletView.handleSpotUpdate(dayIdx, spotIdx, update)` → `localDays` 更新 → PATCH `/api/trips/${share_id}` で `{ itinerary: { ...trip.itinerary, days: newDays }, title, edit_token }`
+- `localDays` は `BookletView` の `useState<ItineraryDay[]>` として管理（`trip.itinerary.days` を初期値）
 
 **NOW / NEXT 判定**（旅行当日のみ動作）:
 - `useEffect` でマウント後のみ `setInterval(60s)` で現在時刻を更新（SSR 差異回避）
