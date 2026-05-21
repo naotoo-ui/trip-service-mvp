@@ -389,7 +389,7 @@ export default function BookletDayPage({ day, dayIdx, startDate, theme, enableNo
 
                                         {/* URL */}
                                         {links.length > 0 && (
-                                            <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                                            <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 3 }}>
                                                 {links.map((link, li) => (
                                                     <div key={li} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                                                         <a href={link} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: theme.accent, textDecoration: 'underline', textUnderlineOffset: 2, wordBreak: 'break-all', flex: 1 }}>
@@ -403,7 +403,7 @@ export default function BookletDayPage({ day, dayIdx, startDate, theme, enableNo
                                             </div>
                                         )}
                                         {isEditingUrl ? (
-                                            <div className="no-print" style={{ marginTop: 6 }}>
+                                            <div className="no-print" style={{ marginTop: 12 }}>
                                                 <input
                                                     ref={urlInputRef}
                                                     type="url"
@@ -426,7 +426,7 @@ export default function BookletDayPage({ day, dayIdx, startDate, theme, enableNo
                                                 </div>
                                             </div>
                                         ) : editable && links.length < 5 && (
-                                            <button type="button" className="no-print" onClick={() => startAddUrl(origIdx)} style={{ marginTop: 6, fontSize: 11, padding: '3px 10px', borderRadius: 6, border: `1.5px dashed ${theme.accent}`, background: 'transparent', color: theme.accent, cursor: 'pointer', fontWeight: 600 }}>
+                                            <button type="button" className="no-print" onClick={() => startAddUrl(origIdx)} style={{ marginTop: 12, fontSize: 11, padding: '3px 10px', borderRadius: 6, border: `1.5px dashed ${theme.accent}`, background: 'transparent', color: theme.accent, cursor: 'pointer', fontWeight: 600 }}>
                                                 ＋ URLを追加
                                             </button>
                                         )}
