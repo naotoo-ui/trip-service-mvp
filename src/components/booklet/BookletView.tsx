@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import type { Trip } from '@/types'
+import type { Trip, ItineraryDay, Spot } from '@/types'
 import BookletNav from './BookletNav'
 import BookletCover from './BookletCover'
 import BookletBackCover from './BookletBackCover'
@@ -20,6 +20,28 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
     const [config, setConfig] = useState<BookletConfig | null>(null)
     const [settingsOpen, setSettingsOpen] = useState(false)
     const [mounted, setMounted] = useState(false)
+    const [localDays, setLocalDays] = useState<ItineraryDay[]>(trip.itinerary.days)
+
+    async function handleSpotUpdate(dayIdx: number, spotIdx: number, update: Partial<Spot>) {
+        const newDays = localDays.map((d, di) =>
+            di !== dayIdx ? d : {
+                ...d,
+                spots: d.spots.map((s, si) => si !== spotIdx ? s : { ...s, ...update }),
+            }
+        )
+        setLocalDays(newDays)
+        try {
+            await fetch(`/api/trips/${trip.share_id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    itinerary: { ...trip.itinerary, days: newDays },
+                    title: trip.title,
+                    edit_token: editToken,
+                }),
+            })
+        } catch {}
+    }
 
     useEffect(() => {
         setMounted(true)
@@ -160,7 +182,7 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
                 {renderOptionalPages({ kind: 'after-cover' })}
 
                 {/* 各日のページ */}
-                {days.map((day, idx) => {
+                {localDays.map((day, idx) => {
                     const memos = config.dayMemos[idx] ?? []
                     const n = pageNum(`day-${idx}`)
                     return (
@@ -174,6 +196,7 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
                                 memos={memos}
                                 editable={editable}
                                 onMemosChange={ms => handleMemosChange(idx, ms)}
+                                onSpotUpdate={(spotIdx, update) => handleSpotUpdate(idx, spotIdx, update)}
                                 pageNumber={n}
                             />
                             {renderGap({ kind: 'after-day', dayIdx: idx })}

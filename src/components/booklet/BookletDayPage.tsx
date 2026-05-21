@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import type { ItineraryDay, Spot } from '@/types'
 import type { Theme } from './bookletThemes'
 import { PageDecoration } from './BookletDecorations'
@@ -27,10 +27,11 @@ type Props = {
     memos: string[]
     editable: boolean
     onMemosChange: (memos: string[]) => void
+    onSpotUpdate?: (spotIdx: number, update: Partial<Spot>) => void
     pageNumber?: number
 }
 
-export default function BookletDayPage({ day, dayIdx, startDate, theme, enableNow, memos, editable, onMemosChange, pageNumber }: Props) {
+export default function BookletDayPage({ day, dayIdx, startDate, theme, enableNow, memos, editable, onMemosChange, onSpotUpdate, pageNumber }: Props) {
     const [now, setNow] = useState<Date | null>(null)
 
     useEffect(() => {
@@ -70,8 +71,51 @@ export default function BookletDayPage({ day, dayIdx, startDate, theme, enableNo
     })()
 
     const labelText = day.label || `${dayIdx + 1}日目`
-    const sortedSpots = [...day.spots].sort((a, b) => toMins(a.time) - toMins(b.time))
+    const sortedSpots = day.spots
+        .map((spot, origIdx) => ({ spot, origIdx }))
+        .sort((a, b) => toMins(a.spot.time) - toMins(b.spot.time))
     const titleFont = getFontFamily(theme.fontStyle)
+
+    // スポットごとのメモ・URL 編集ステート
+    const [editingMemoOrigIdx, setEditingMemoOrigIdx] = useState<number | null>(null)
+    const [memoDraft, setMemoDraft] = useState('')
+    const memoInputRef = useRef<HTMLTextAreaElement>(null)
+    const [editingUrlOrigIdx, setEditingUrlOrigIdx] = useState<number | null>(null)
+    const [urlDraft, setUrlDraft] = useState('')
+    const urlInputRef = useRef<HTMLInputElement>(null)
+
+    useEffect(() => {
+        if (editingMemoOrigIdx !== null) memoInputRef.current?.focus()
+    }, [editingMemoOrigIdx])
+    useEffect(() => {
+        if (editingUrlOrigIdx !== null) urlInputRef.current?.focus()
+    }, [editingUrlOrigIdx])
+
+    function startEditMemo(origIdx: number, current: string) {
+        setEditingUrlOrigIdx(null)
+        setMemoDraft(current)
+        setEditingMemoOrigIdx(origIdx)
+    }
+    function saveMemo(origIdx: number) {
+        onSpotUpdate?.(origIdx, { memo: memoDraft.trim() || undefined })
+        setEditingMemoOrigIdx(null)
+    }
+    function startAddUrl(origIdx: number) {
+        setEditingMemoOrigIdx(null)
+        setUrlDraft('')
+        setEditingUrlOrigIdx(origIdx)
+    }
+    function saveUrl(origIdx: number, currentLinks: string[]) {
+        const url = urlDraft.trim()
+        if (url) {
+            onSpotUpdate?.(origIdx, { user_links: [...currentLinks, url].slice(0, 5) })
+        }
+        setEditingUrlOrigIdx(null)
+    }
+    function removeUrl(origIdx: number, currentLinks: string[], linkIdx: number) {
+        const next = currentLinks.filter((_, i) => i !== linkIdx)
+        onSpotUpdate?.(origIdx, { user_links: next.length ? next : undefined })
+    }
 
     function addMemo() { onMemosChange([...memos, '']) }
     function updateMemo(idx: number, value: string) {
@@ -221,11 +265,14 @@ export default function BookletDayPage({ day, dayIdx, startDate, theme, enableNo
                             width: 2, background: theme.timelineBar,
                         }} />
 
-                        {sortedSpots.map((spot, i) => {
+                        {sortedSpots.map(({ spot, origIdx }, i) => {
                             const typeStyle = theme.typeColors[spot.type] ?? theme.typeColors['その他']
                             const isCurrent = i === currentSpotIdx
                             const isNext    = i === nextSpotIdx && currentSpotIdx === -1
                             const highlight = isCurrent || isNext
+                            const isEditingMemo = editingMemoOrigIdx === origIdx
+                            const isEditingUrl  = editingUrlOrigIdx === origIdx
+                            const links = spot.user_links ?? []
 
                             return (
                                 <div key={i} style={{ position: 'relative', marginBottom: 18, paddingBottom: 4 }}>
@@ -292,56 +339,96 @@ export default function BookletDayPage({ day, dayIdx, startDate, theme, enableNo
 
                                         <h3 style={{
                                             fontSize: 16, fontWeight: 700, color: theme.text,
-                                            margin: '0 0 6px', lineHeight: 1.4,
+                                            margin: '0 0 4px', lineHeight: 1.4,
                                         }}>
                                             {spot.name}
                                         </h3>
 
-                                        {spot.description && (
-                                            <p style={{
-                                                fontSize: 12, color: theme.subText,
-                                                margin: '0 0 4px', lineHeight: 1.6,
-                                            }}>
-                                                {spot.description}
-                                            </p>
-                                        )}
-
                                         {spot.address && (
-                                            <p style={{ fontSize: 11, color: theme.subText, margin: '4px 0 0' }}>
+                                            <p style={{ fontSize: 11, color: theme.subText, margin: '2px 0 0' }}>
                                                 📍 {spot.address}
                                             </p>
                                         )}
 
-                                        {spot.memo && (
-                                            <p style={{
-                                                fontSize: 11, color: theme.subText,
-                                                margin: '6px 0 0', padding: '7px 10px',
-                                                background: theme.pageBg, borderRadius: 8,
-                                                borderLeft: `3px solid ${theme.accent}`,
-                                            }}>
-                                                📝 {spot.memo}
-                                            </p>
+                                        {/* メモ */}
+                                        {isEditingMemo ? (
+                                            <div className="no-print" style={{ marginTop: 8 }}>
+                                                <textarea
+                                                    ref={memoInputRef}
+                                                    value={memoDraft}
+                                                    onChange={e => setMemoDraft(e.target.value)}
+                                                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveMemo(origIdx) } if (e.key === 'Escape') setEditingMemoOrigIdx(null) }}
+                                                    placeholder="メモを入力..."
+                                                    rows={3}
+                                                    style={{
+                                                        width: '100%', padding: '6px 8px', fontSize: 12,
+                                                        border: `1.5px solid ${theme.accent}`,
+                                                        borderRadius: 8, resize: 'none', outline: 'none',
+                                                        fontFamily: 'inherit', lineHeight: 1.6,
+                                                        boxSizing: 'border-box',
+                                                        background: theme.pageBg, color: theme.text,
+                                                    }}
+                                                />
+                                                <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                                                    <button type="button" onClick={() => saveMemo(origIdx)} style={{ padding: '3px 12px', fontSize: 11, fontWeight: 700, borderRadius: 6, border: 'none', background: theme.accent, color: 'white', cursor: 'pointer' }}>保存</button>
+                                                    <button type="button" onClick={() => setEditingMemoOrigIdx(null)} style={{ padding: '3px 10px', fontSize: 11, borderRadius: 6, border: `1px solid ${theme.timelineBar}`, background: 'transparent', color: theme.subText, cursor: 'pointer' }}>キャンセル</button>
+                                                </div>
+                                            </div>
+                                        ) : spot.memo ? (
+                                            <div style={{ marginTop: 6, padding: '6px 10px', background: theme.pageBg, borderRadius: 8, borderLeft: `3px solid ${theme.accent}`, display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+                                                <span style={{ fontSize: 11, color: theme.subText, flex: 1, lineHeight: 1.6 }}>📝 {spot.memo}</span>
+                                                {editable && (
+                                                    <button type="button" className="no-print" onClick={() => startEditMemo(origIdx, spot.memo!)} style={{ flexShrink: 0, fontSize: 10, padding: '2px 6px', borderRadius: 5, border: `1px solid ${theme.timelineBar}`, background: 'transparent', color: theme.subText, cursor: 'pointer' }}>編集</button>
+                                                )}
+                                            </div>
+                                        ) : editable && (
+                                            <button type="button" className="no-print" onClick={() => startEditMemo(origIdx, '')} style={{ marginTop: 6, fontSize: 11, padding: '3px 10px', borderRadius: 6, border: `1.5px dashed ${theme.accent}`, background: 'transparent', color: theme.accent, cursor: 'pointer', fontWeight: 600 }}>
+                                                ＋ メモを追加
+                                            </button>
                                         )}
 
-                                        {spot.user_links && spot.user_links.length > 0 && (
-                                            <div className="no-print" style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 3 }}>
-                                                {spot.user_links.map((link, li) => (
-                                                    <a
-                                                        key={li}
-                                                        href={link}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        style={{
-                                                            fontSize: 11, color: theme.accent,
-                                                            textDecoration: 'underline',
-                                                            textUnderlineOffset: 2,
-                                                            wordBreak: 'break-all',
-                                                        }}
-                                                    >
-                                                        🔗 {link.length > 50 ? link.slice(0, 50) + '...' : link}
-                                                    </a>
+                                        {/* URL */}
+                                        {links.length > 0 && (
+                                            <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                                                {links.map((link, li) => (
+                                                    <div key={li} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                        <a href={link} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: theme.accent, textDecoration: 'underline', textUnderlineOffset: 2, wordBreak: 'break-all', flex: 1 }}>
+                                                            🔗 {link.length > 45 ? link.slice(0, 45) + '...' : link}
+                                                        </a>
+                                                        {editable && (
+                                                            <button type="button" className="no-print" onClick={() => removeUrl(origIdx, links, li)} style={{ flexShrink: 0, fontSize: 10, padding: '1px 5px', borderRadius: 4, border: `1px solid #fca5a5`, background: '#fef2f2', color: '#dc2626', cursor: 'pointer' }}>✕</button>
+                                                        )}
+                                                    </div>
                                                 ))}
                                             </div>
+                                        )}
+                                        {isEditingUrl ? (
+                                            <div className="no-print" style={{ marginTop: 6 }}>
+                                                <input
+                                                    ref={urlInputRef}
+                                                    type="url"
+                                                    value={urlDraft}
+                                                    onChange={e => setUrlDraft(e.target.value)}
+                                                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); saveUrl(origIdx, links) } if (e.key === 'Escape') setEditingUrlOrigIdx(null) }}
+                                                    placeholder="https://..."
+                                                    style={{
+                                                        width: '100%', padding: '5px 8px', fontSize: 12,
+                                                        border: `1.5px solid ${theme.accent}`,
+                                                        borderRadius: 8, outline: 'none',
+                                                        fontFamily: 'inherit',
+                                                        boxSizing: 'border-box',
+                                                        background: theme.pageBg, color: theme.text,
+                                                    }}
+                                                />
+                                                <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                                                    <button type="button" onClick={() => saveUrl(origIdx, links)} style={{ padding: '3px 12px', fontSize: 11, fontWeight: 700, borderRadius: 6, border: 'none', background: theme.accent, color: 'white', cursor: 'pointer' }}>追加</button>
+                                                    <button type="button" onClick={() => setEditingUrlOrigIdx(null)} style={{ padding: '3px 10px', fontSize: 11, borderRadius: 6, border: `1px solid ${theme.timelineBar}`, background: 'transparent', color: theme.subText, cursor: 'pointer' }}>キャンセル</button>
+                                                </div>
+                                            </div>
+                                        ) : editable && links.length < 5 && (
+                                            <button type="button" className="no-print" onClick={() => startAddUrl(origIdx)} style={{ marginTop: 6, fontSize: 11, padding: '3px 10px', borderRadius: 6, border: `1.5px dashed ${theme.accent}`, background: 'transparent', color: theme.accent, cursor: 'pointer', fontWeight: 600 }}>
+                                                ＋ URLを追加
+                                            </button>
                                         )}
                                     </div>
                                 </div>
