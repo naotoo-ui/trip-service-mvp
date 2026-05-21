@@ -413,25 +413,26 @@ export default function BookletCover({ trip, theme, editable, editToken }: Props
                     ) : null}
                 </div>
 
-                {/* ヒント / 警告 — opacity のみ切替してレイアウトを固定 */}
-                <p
-                    className="no-print"
-                    style={{
-                        margin: '14px 0 0',
-                        fontSize: isDateOrderInvalid ? 20 : 11,
-                        letterSpacing: '0.06em',
-                        pointerEvents: 'none',
-                        userSelect: 'none',
-                        opacity: isDateOrderInvalid ? 1 : (editable && !editing && !editingDate ? 0.5 : 0),
-                        color: isDateOrderInvalid ? '#ef4444' : theme.coverText,
-                        background: isDateOrderInvalid ? 'rgba(255,255,255,0.15)' : 'transparent',
-                        borderRadius: isDateOrderInvalid ? 6 : 0,
-                        padding: isDateOrderInvalid ? '3px 10px' : '0',
-                        display: 'inline-block',
-                    }}
-                >
-                    {isDateOrderInvalid ? '旅行終了日が旅行開始日より前になっています' : 'クリックして編集'}
-                </p>
+                {/* 警告 — 日付順序が不正な場合のみ表示 */}
+                {isDateOrderInvalid && (
+                    <p
+                        className="no-print"
+                        style={{
+                            margin: '14px 0 0',
+                            fontSize: 20,
+                            letterSpacing: '0.06em',
+                            pointerEvents: 'none',
+                            userSelect: 'none',
+                            color: '#ef4444',
+                            background: 'rgba(255,255,255,0.15)',
+                            borderRadius: 6,
+                            padding: '3px 10px',
+                            display: 'inline-block',
+                        }}
+                    >
+                        旅行終了日が旅行開始日より前になっています
+                    </p>
+                )}
             </div>
         </article>
     )
