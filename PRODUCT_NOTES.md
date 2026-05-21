@@ -478,19 +478,23 @@ src/
 │   ├── TripViewTracker.tsx               # 閲覧履歴を localStorage に保存
 │   └── RecentTripsButton.tsx             # ヘッダー🕘最近ボタン（ドロップダウン）
 ├── components/booklet/
-│   ├── BookletView.tsx                   # ルートコンテナ・config 管理・ページ並び順生成・localDays 状態・onSpotUpdate（PATCH保存）
+│   ├── BookletView.tsx                   # ブロックベース描画ルート・@dnd-kit並び替え・localDays/onSpotUpdate
 │   ├── BookletNav.tsx                    # 上部ツールバー（戻る・テーマ・設定・シェア・印刷）
-│   ├── BookletCover.tsx                  # 表紙ページ（タイトル＋旅行日程・インライン編集・DatePickerOverlay で FROM/TO 選択）
-│   ├── BookletBackCover.tsx              # 背表紙ページ（テーマ装飾のみ・右下に「旅程ジェネレーター」）
-│   ├── BookletDayPage.tsx                # 日別ページ（時系列タイムライン・宿泊・スポットごとメモ/URL・メモ続き分割記事で出力）
-│   ├── BookletOptionalPage.tsx           # オプショナルページ汎用（持ち物→チェックボックス・1/2/3列・ページ分割）
-│   ├── BookletGapControl.tsx             # ページ間ギャップUI（オプショナルページをインラインで挿入位置指定）
-│   ├── BookletSettings.tsx               # 設定モーダル（ページ番号のみ）
+│   ├── BookletCover.tsx                  # 表紙ブロック（タイトル＋旅行日程・インライン編集・DatePickerOverlay）
+│   ├── BookletBackCover.tsx              # 背表紙ブロック（テーマ装飾のみ・右下に「旅程ジェネレーター」）
+│   ├── BookletDayPage.tsx                # 日別ブロック（タイムライン・宿泊・スポット別メモ/URL/QRコード）
+│   ├── blocks/
+│   │   ├── TextBlock.tsx                 # 汎用テキストブロック（タイトル＋本文 textarea）
+│   │   ├── PackingBlock.tsx              # 持ち物リストブロック（チェックボックス・1/2/3列）
+│   │   ├── DividerBlock.tsx              # 区切り線
+│   │   ├── SpacerBlock.tsx               # スペーサー（高さ指定）
+│   │   └── SortableBlock.tsx             # @dnd-kit/sortable ラッパー（ハンドル＋削除ボタン）
+│   ├── BookletSettings.tsx               # 設定モーダル（全体/PC/印刷の3セクション）
 │   ├── BookletThemePicker.tsx            # テーマピッカー（カテゴリ別グリッド）
-│   ├── BookletDecorations.tsx            # 装飾レイヤー（CSSパターンのみ・絵文字なし）
-│   ├── bookletFont.ts                    # フォント family ヘルパー（丸ゴシック/明朝/標準）
-│   ├── bookletConfig.ts                  # BookletConfig 型・localStorage IO・ページ並び順計算
-│   └── bookletThemes.ts                  # テーマ定義（13テーマ・絵文字なし）
+│   ├── BookletDecorations.tsx            # 装飾レイヤー（CSSパターン）
+│   ├── bookletFont.ts                    # フォント family ヘルパー
+│   ├── bookletConfig.ts                  # BookletBlock 型・localStorage IO・旧データ自動マイグレーション
+│   └── bookletThemes.ts                  # テーマ定義（13テーマ）
 ├── hooks/
 │   ├── useIsMobile.ts                    # window.matchMedia ベース判定
 │   └── useRecentTrips.ts                 # localStorage「最近の旅程」フック
@@ -577,22 +581,25 @@ docs/
   - デザイン: 青グラデーション背景・旅程タイトル・目的地・日数
 
 ### しおり機能の設計（/trips/[id]/booklet）
-**コンセプト**: カレンダーで完成した旅程を「持ち歩ける・印刷できるしおり」に変換するビュー。
+**コンセプト**: カレンダーで完成した旅程を「持ち歩ける・印刷できるしおり」に変換するビュー。**ブロックベース構成**（2026-05-21〜）：ユーザーが自由にブロック（表紙・各日・テキスト・持ち物・区切り線・スペーサーなど）を組み合わせて1ページを作る。PC版はドラッグ&ドロップで並び替え可能。印刷時は用紙サイズに応じてCSSで自動レイアウト・自動改ページ。
 
 **ファイル**:
 - `src/app/trips/[id]/booklet/page.tsx` — サーバーコンポーネント（trip取得・edit_token引継）
-- `src/components/booklet/BookletView.tsx` — ルートクライアント（config 管理・ページ並び順生成・`localDays` 状態・`handleSpotUpdate(dayIdx, spotIdx, update)` → PATCH保存）
+- `src/components/booklet/BookletView.tsx` — ルートクライアント（`config.blocks` を順に描画・@dnd-kit で並び替え・`handleSpotUpdate` → PATCH保存）
 - `src/components/booklet/BookletNav.tsx` — 上部ツールバー（戻る・テーマ・設定・シェア・印刷）
-- `src/components/booklet/BookletCover.tsx` — 表紙（タイトル＋旅行日程・インライン編集・DatePickerOverlay で FROM/TO 選択・PATCH で DB 保存）
-- `src/components/booklet/BookletBackCover.tsx` — 背表紙（テーマ装飾・装飾円のみ。テキストは右下に「旅程ジェネレーター」のみ表示。タイトル・メッセージ等は削除済み）
-- `src/components/booklet/BookletDayPage.tsx` — 日別ページ（時系列タイムライン・宿泊先・NOW/NEXT判定・メモ分割記事）
-- `src/components/booklet/BookletOptionalPage.tsx` — オプショナルページ（持ち物→チェックボックス・1/2/3列・ページ分割）
-- `src/components/booklet/BookletGapControl.tsx` — ページ間ギャップUI（オプショナルページをインラインで挿入位置指定）
-- `src/components/booklet/BookletSettings.tsx` — 設定モーダル（ページ番号のみ）
-- `src/components/booklet/BookletThemePicker.tsx` — テーマピッカー（カテゴリ別グリッド・絵文字レンダリングなし）
-- `src/components/booklet/BookletDecorations.tsx` — 装飾レイヤー（CSSパターンのみ：dots/lines/grid/wave/washi）
-- `src/components/booklet/bookletThemes.ts` — テーマ定義（13テーマ・絵文字プロパティ削除済）
-- `src/components/booklet/bookletConfig.ts` — BookletConfig 型・localStorage IO・ページ並び順計算（フラット統合構造）
+- `src/components/booklet/BookletCover.tsx` — 表紙ブロック（タイトル＋旅行日程・インライン編集・DatePickerOverlay）
+- `src/components/booklet/BookletBackCover.tsx` — 背表紙ブロック（装飾円のみ・右下に「旅程ジェネレーター」）
+- `src/components/booklet/BookletDayPage.tsx` — 日別ブロック（時系列タイムライン・宿泊先・NOW/NEXT判定・スポット別メモ/URL・QRコード）。**dayMemos機能は削除し独立TextBlockへ移行**
+- `src/components/booklet/blocks/TextBlock.tsx` — 汎用テキストブロック（編集可能タイトル＋本文 textarea）
+- `src/components/booklet/blocks/PackingBlock.tsx` — 持ち物リストブロック（チェックボックス・1/2/3列）
+- `src/components/booklet/blocks/DividerBlock.tsx` — 区切り線（solid/dashed/dotted）
+- `src/components/booklet/blocks/SpacerBlock.tsx` — スペーサー（高さ指定）
+- `src/components/booklet/blocks/SortableBlock.tsx` — @dnd-kit/sortable ラッパー（ドラッグハンドル＋削除ボタン）
+- `src/components/booklet/BookletSettings.tsx` — 設定モーダル（全体/PC/印刷の3セクション）
+- `src/components/booklet/BookletThemePicker.tsx` — テーマピッカー（カテゴリ別グリッド）
+- `src/components/booklet/BookletDecorations.tsx` — 装飾レイヤー（CSSパターン）
+- `src/components/booklet/bookletThemes.ts` — テーマ定義（13テーマ）
+- `src/components/booklet/bookletConfig.ts` — `BookletBlock` 型・localStorage IO・旧データ自動マイグレーション
 - `src/components/booklet/bookletFont.ts` — フォント family ヘルパー
 
 ### しおりテーマ（絵文字削除版）
@@ -607,36 +614,48 @@ docs/
 | `wave` | 控えめなウェーブパターン |
 | `washi` | washi tape 風の斜め帯（表紙の角に配置） |
 
-### BookletConfig（しおり構成データ・localStorage管理）
+### BookletConfig（しおり構成データ・localStorage管理・ブロックベース）
 **ファイル**: `src/components/booklet/bookletConfig.ts`
 **localStorage キー**: `tripgen.booklet.config.${shareId}` — trip 単位で別個に保存
 
 ```typescript
+type BookletBlock =
+    | { id: string; kind: 'cover' }
+    | { id: string; kind: 'back-cover' }
+    | { id: string; kind: 'day'; dayIdx: number }
+    | { id: string; kind: 'text'; title: string; content: string; minHeight?: number }
+    | { id: string; kind: 'packing'; title: string; content: string; columns: 1|2|3; minHeight?: number }
+    | { id: string; kind: 'divider'; style?: 'solid'|'dashed'|'dotted' }
+    | { id: string; kind: 'spacer'; height: number }
+
 type BookletConfig = {
-    optionalPages: Record<OptionalPageKind, OptionalPageEntry>
-    dayMemos: Record<number, string[]>  // dayIdx → メモ配列
+    blocks: BookletBlock[]            // 並び順は配列順
     showPageNumbers: boolean
-    showUrlQrCode: boolean  // 印刷用設定：URLをQRコードで表示
+    showUrlQrCode: boolean
     themeName: string
 }
-
-type OptionalPageEntry = {
-    enabled: boolean
-    position: InsertPosition
-    content: string
-    columns?: 1 | 2 | 3    // 持ち物リストの列数
-}
-
-type InsertPosition =
-    | { kind: 'after-cover' }
-    | { kind: 'after-day', dayIdx: number }
 ```
 
-`computePageOrder(config, daysCount)` が `PageKey[]` を返し、`BookletView` がそれを順に描画。表紙→（任意ページ）→1日目→（任意ページ）→2日目…→背表紙の順で組み立てる。
+**ブロック方式の設計思想**: 固定テンプレート（旧 cover→optional→days→optional→back-cover）を廃止し、ユーザーが自由にブロックを並べ替え・追加・削除できる柔軟構成に変更。PCでD&D並び替え、印刷時はCSSで自動レイアウト・自動改ページ（`break-inside: avoid` ベース）。
 
-`enabledPagesAt(config, pos)` が指定位置で有効な `OptionalPageKind[]` を返す。`positionLabel(pos, daysCount)` が位置のラベル文字列を返す。
+**マイグレーション** (`loadBookletConfig(shareId, daysCount)`):
+1. 新フォーマット（`parsed.blocks` 配列あり）→ そのまま使用。`reconcileDayBlocks` で旅程日数の過不足を調整（不足分は背表紙の直前に追加、範囲外の dayIdx は除去）
+2. 旧フォーマット（optionalPages + dayMemos）→ `migrateLegacyConfig` で blocks 配列に変換：
+   - 表紙の後の optional → 該当ブロック
+   - 各日 + 該当日後の optional + dayMemos（テキストブロック「N日目のメモ」化）
+   - 旧 `before-back-cover` 位置は `after-cover` 扱い
+3. データなし → `buildDefaultConfig(daysCount)` で `[cover, day×N, back-cover]` を生成
 
-旧 `screen/print` 二重構造は廃止。旧フォーマットを `loadBookletConfig` 内のマイグレーションで自動変換。旧 `before-back-cover` 位置も `after-cover` へ自動マイグレーション。
+**ブロック編集**:
+- `updateBlock(id, updater)`: 指定IDのブロックだけ更新（タイトル・content・columns 等）
+- `deleteBlock(id)`: cover/back-cover/day 以外は削除可能（`SortableBlock.canDelete` で制御）
+- D&D並び替え: `@dnd-kit/sortable` の `arrayMove(blocks, oldIdx, newIdx)`
+- cover/back-cover はドラッグ不可（`NON_DRAGGABLE_KINDS` で制御）
+
+**ページ番号**:
+- `isCountedBlock(b)` が `true` のブロック（day/text/packing）のみ番号を振る
+- divider/spacer/cover/back-cover はカウント外
+- `pageNumMap: Map<blockId, number>` を BookletView で事前計算し各ブロックに渡す
 
 ### しおり設定モーダル（BookletSettings）
 3セクション構成：
@@ -648,41 +667,28 @@ type InsertPosition =
 
 ### ページ番号
 - `config.showPageNumbers` で表示/非表示を切替
-- 表紙・背表紙以外のページに通し番号を振る（1, 2, 3, ...）
+- 表紙・背表紙以外のブロック（day/text/packing）に通し番号を振る（1, 2, 3, ...）
+- divider/spacer はカウント外
 - 表示形式: `— N —`（控えめなセンタリング）
-- 印刷時も同じスタイルで残る
-- **実装**: `pageNumber?: number` prop を `BookletDayPage` / `BookletOptionalPage` に渡し、各 `<article>` 末尾（内部）に描画。外部 sibling `<p>` 方式は廃止（枠外にはみ出す問題があったため）
+- **実装**: `pageNumber?: number` prop を各ブロックに渡し、`<article>` 末尾（内部）に描画
 
-### オプショナルページ（ページ間に挿入）
-| ページ | デフォルト位置 | プレースホルダー例 |
-|--------|--------------|------------------|
-| 編集メンバー | 表紙の直後 | 田中太郎（リーダー）/ 佐藤花子 |
-| 集合時間・場所 | 表紙の直後 | 日時 / 場所 / 備考 |
-| 持ち物リスト | 表紙の直後 | パスポート / 充電器 / 常備薬 |
-| 緊急連絡先 | 表紙の直後 | ホテル番号 / 保険会社 / 家族 |
-| メモ | 表紙の直後 | 自由記述 |
-| 金額メモ | 表紙の直後 | 交通費 / 宿泊費 / 食費 |
-| 自由ページ | 表紙の直後 | 自由記述 |
+### ブロックの種類とプリセット
+| 種類 | 説明 | 削除可 | ドラッグ可 |
+|------|------|--------|-----------|
+| `cover` | 表紙ブロック（1個・固定） | × | × |
+| `back-cover` | 背表紙ブロック（1個・固定） | × | × |
+| `day` | 旅程の日ブロック（日数分自動生成） | × | ○ |
+| `text` | 汎用テキスト（タイトル＋本文） | ○ | ○ |
+| `packing` | 持ち物リスト（チェックボックス・1/2/3列） | ○ | ○ |
+| `divider` | 区切り線（solid/dashed/dotted） | ○ | ○ |
+| `spacer` | スペーサー（高さ指定） | ○ | ○ |
 
-- 挿入位置は **表紙の後** か **各日の後** のみ（背表紙の前は廃止）
-- 挿入位置はドロップダウンではなく、各ページの間に **BookletGapControl** を表示してその場で ON/OFF 切替
-- 他の位置で既に有効なページは灰色で表示（ツールチップで「○○で追加済み」表示）
+`text` ブロックは旧オプショナルページ（編集メンバー・集合時間・緊急連絡先・メモ・金額メモ・自由ページ）の置き換え。タイトルもユーザーが自由に編集可能。
 
-**持ち物リスト（packing）の特別挙動**:
-- チェックボックスリストで表示（常時）
-- 1 / 2 / 3 列表示を切替可能（ヘッダーの列数ボタン）
-- `ITEMS_PER_COL = 14` ── 1列14行を超える場合は続きページを自動追加
-- 編集モード: 各行を `<input type="text">` で直接編集・× で削除・「＋ 追加」ボタン
-- その他のページ（メンバー等）は textarea / pre 表示
-
-### 各日ページのメモ機能
-- メモが 0 件の場合: 編集モードのみ「＋ メモを追加」ボタンを表示（MEMO コンテナは非表示）
-- 「＋ メモを追加」を押すと MEMO コンテナが現れ textarea が追加される
-- `MEMOS_PER_PAGE = 8` ── 8行を超える場合はメモ専用の続きページ（`booklet-memo-cont` 記事）を自動追加
-- 各メモには × ボタンで削除可能（最後の 1 件を消すと MEMO コンテナも非表示に戻る）
-- 編集権限（`editToken` あり）の時のみボタン表示・編集可能。閲覧モードでは入力済みメモのみ表示
-- `config.dayMemos[dayIdx]` に文字列配列として保存
-- メモ記事は日別ページと独立した `<article className="booklet-page booklet-memo-cont">` で出力（Fragment の複数 article）
+**持ち物リスト（packing）の挙動**:
+- チェックボックスリスト（常時）・1/2/3列切替（ヘッダーの列数ボタン）
+- 編集モード: 各行を `<input type="text">` で編集・× で削除・「＋ アイテムを追加」ボタン
+- 印刷時の自動分割は CSS の `break-inside: avoid` に委譲（手動 `ITEMS_PER_COL` 分割は廃止）
 
 ### スポットごとのメモ・URL機能（BookletDayPage）
 - スポットの `description`（AI生成説明文）は非表示（代わりにメモ・URLで手動補完）
@@ -700,10 +706,14 @@ type InsertPosition =
 - 次の予定（進行中なし時）= NEXT（⏭ NEXT バッジ）
 - TODAY バッジを日付ヘッダーにも表示
 
-**印刷対応**（`globals.css` の `@media print`）:
+**印刷対応**（`globals.css` の `@media print`・ブロックベース自動レイアウト）:
 - `body > header`, `body > footer`, `.no-print` を非表示
-- `.booklet-cover` `.booklet-day` `.booklet-optional` `.booklet-back-cover` に `page-break-after / before: always`
-- `.booklet-memo-cont`（メモ続きページ・持ち物続きページ）に `page-break-after: always; break-inside: avoid`
+- `.booklet-cover` に `break-after: page`、`.booklet-back-cover` に `break-before: page`（表紙/背表紙は独立ページ）
+- `.booklet-page`（text/packing 等のブロック内 `<article>`）に `break-inside: avoid`（収まれば分割しない）
+- `.booklet-day` のみ `break-inside: auto`（長い日程は自動分割を許可）
+- `.booklet-divider`, `.booklet-spacer` も `break-inside: avoid`
+- mainのD&Dハンドル領域（`padding-left: 56px`）は `padding: 0` に解除
+- `.booklet-block-wrap` の `transform` をリセット（D&Dの並び替えアニメを印刷に出さない）
 - `@page { size: A4; margin: 12mm 10mm }`
 - リンクの `::after` URL 表示を抑止
 - 真の PDF 出力は未実装（`window.print()` ベース・将来 `@react-pdf/renderer` 検討）
@@ -711,7 +721,7 @@ type InsertPosition =
 **ItineraryEditor からの遷移**:
 - ツールバーに「📖 しおり」ボタン（オレンジグラデ）
 - `editable && editToken` なら `?edit=token` を引継ぎ、しおりからカレンダーに戻った時も編集モードを維持
-- 編集権限がある時のみメモ・オプショナルページの編集UIが表示される
+- 編集権限がある時のみブロックのD&Dハンドル・削除ボタン・編集UI が表示される
 
 ### 移動ブロックの設計方針（ギャップ注釈方式）
 - AI はスポット間に空き時間を設けるだけ（移動ブロック非生成）
@@ -778,6 +788,6 @@ try { data = JSON.parse(text) } catch {
   - **保存**: コンテナ外 blur または Enter → `saveDate()` → `localStartDate / localEndDate` 更新 → PATCH で `{ itinerary: { ...itinerary, start_date, end_date }, title, edit_token }` を送信
   - **クリア**: FROM・TO を両方削除して確定すると `localStartDate=''` → `dateRangeLabel=null` →「＋ 日程を追加」に戻る
   - **カレンダーポップアップ**: `color-scheme:light` で白基調（globals.css で `.booklet-cover input[type="date"]` に適用）
-- **しおりメモ分割**: `MEMOS_PER_PAGE=8`・超えたら続き記事を React Fragment で返す（`BookletDayPage`）
-- **持ち物チェックボックス分割**: `ITEMS_PER_COL=14`・列×行数で超えたら続き記事（`BookletOptionalPage`）
+- **しおりブロック方式**: `config.blocks: BookletBlock[]` をユーザーがD&Dで並び替え・追加・削除（@dnd-kit）。印刷時は `break-inside: avoid` で自動レイアウト・自動改ページ
+- **しおり旧データ自動マイグレーション**: `optionalPages`/`dayMemos` を持つ旧 localStorage を `migrateLegacyConfig` が blocks 配列に変換（次回保存時に新形式で上書き）
 - **BookletConfig マイグレーション**: 旧 `screen/print` 構造を `loadBookletConfig` で自動変換（`parsed.screen` を source とする）

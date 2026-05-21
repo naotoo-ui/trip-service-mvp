@@ -60,6 +60,7 @@ details:not([open]) .faq-toggle::before { content: "＋"; }
 }
 
 /* ────────── しおり（Booklet）印刷最適化 ────────── */
+/* ブロックベース構成：用紙サイズに応じて自動レイアウト・自動改ページ */
 @media print {
     /* グローバルヘッダー・フッター・ナビは非表示 */
     body > header, body > footer, .no-print {
@@ -70,42 +71,42 @@ details:not([open]) .faq-toggle::before { content: "＋"; }
         background: white !important;
         padding: 0 !important;
     }
-    /* 各「ページ」を新しい紙ページに */
+    /* mainの左パディング（D&Dハンドル領域）を解除 */
+    .booklet-root main {
+        padding: 0 !important;
+        max-width: 100% !important;
+    }
+    /* ブロックラッパ：D&D変形は印刷で出さない */
+    .booklet-block-wrap {
+        transform: none !important;
+        margin-bottom: 8mm !important;
+    }
+    /* 各ブロック内部：分割を避ける（収まらない場合のみ自動分割） */
     .booklet-page {
-        page-break-inside: avoid;
         break-inside: avoid;
-        margin-bottom: 0 !important;
+        page-break-inside: avoid;
         box-shadow: none !important;
+        border-radius: 8px !important;
     }
+    /* 表紙：表紙のあとで改ページ */
     .booklet-cover {
-        page-break-after: always;
         break-after: page;
-    }
-    .booklet-day {
         page-break-after: always;
-        break-after: page;
     }
-    .booklet-day:last-of-type {
-        page-break-after: auto;
-        break-after: auto;
-    }
-    .booklet-memo-cont {
-        page-break-inside: avoid;
-        break-inside: avoid;
-        page-break-after: always;
-        break-after: page;
-    }
-    .booklet-optional {
-        page-break-after: always;
-        break-after: page;
-    }
+    /* 背表紙：背表紙の前で改ページ */
     .booklet-back-cover {
-        page-break-before: always;
         break-before: page;
+        page-break-before: always;
     }
-    /* ページ番号は最下部に固定表示 */
-    .booklet-page-number {
-        margin-top: 12px !important;
+    /* 日別ページは大きいので分割可（収まらない場合のみ） */
+    .booklet-day {
+        break-inside: auto;
+        page-break-inside: auto;
+    }
+    /* 区切り線・スペーサーは改ページしない */
+    .booklet-divider, .booklet-spacer {
+        break-inside: avoid;
+        page-break-inside: avoid;
     }
     /* A4 余白 */
     @page {

@@ -9,9 +9,6 @@ import { getFontFamily } from './bookletFont'
 const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土']
 const WEEKDAY_COLORS = ['#dc2626', '#475569', '#475569', '#475569', '#475569', '#475569', '#2563eb']
 
-// 冊子A5ページのメモ欄：1ページあたりの最大メモ件数
-const MEMOS_PER_PAGE = 8
-
 function toMins(time: string) {
     const [h, m] = time.split(':').map(Number)
     return isNaN(h) ? 0 : h * 60 + (m || 0)
@@ -25,15 +22,13 @@ type Props = {
     startDate?: string
     theme: Theme
     enableNow: boolean
-    memos: string[]
     editable: boolean
     showUrlQrCode?: boolean
-    onMemosChange: (memos: string[]) => void
     onSpotUpdate?: (spotIdx: number, update: Partial<Spot>) => void
     pageNumber?: number
 }
 
-export default function BookletDayPage({ day, dayIdx, startDate, theme, enableNow, memos, editable, showUrlQrCode, onMemosChange, onSpotUpdate, pageNumber }: Props) {
+export default function BookletDayPage({ day, dayIdx, startDate, theme, enableNow, editable, showUrlQrCode, onSpotUpdate, pageNumber }: Props) {
     const [now, setNow] = useState<Date | null>(null)
 
     useEffect(() => {
@@ -119,20 +114,6 @@ export default function BookletDayPage({ day, dayIdx, startDate, theme, enableNo
         onSpotUpdate?.(origIdx, { user_links: next.length ? next : undefined })
     }
 
-    function addMemo() { onMemosChange([...memos, '']) }
-    function updateMemo(idx: number, value: string) {
-        onMemosChange(memos.map((m, i) => i === idx ? value : m))
-    }
-    function removeMemo(idx: number) {
-        onMemosChange(memos.filter((_, i) => i !== idx))
-    }
-
-    // メモをページ単位に分割
-    const memoChunks: string[][] = []
-    for (let i = 0; i < memos.length; i += MEMOS_PER_PAGE) {
-        memoChunks.push(memos.slice(i, i + MEMOS_PER_PAGE))
-    }
-
     const cardWrapStyle = (typeStyle: { bg: string; border: string; text: string }, highlight: boolean): React.CSSProperties => {
         const base: React.CSSProperties = {
             background: highlight ? theme.accent + '14' : typeStyle.bg,
@@ -197,9 +178,7 @@ export default function BookletDayPage({ day, dayIdx, startDate, theme, enableNo
     }
 
     return (
-        <>
-            {/* ─── メインの日程ページ ─── */}
-            <article className="booklet-page booklet-day" style={articleBase}>
+        <article className="booklet-page booklet-day" style={articleBase}>
                 <PageDecoration kind={theme.decoration} />
 
                 {/* 日付ヘッダー */}
@@ -525,25 +504,6 @@ export default function BookletDayPage({ day, dayIdx, startDate, theme, enableNo
                     </div>
                 )}
 
-                {/* メモが0件のときだけ「メモを追加」ボタンを表示（編集者のみ） */}
-                {editable && memos.length === 0 && (
-                    <div className="no-print" style={{ position: 'relative', zIndex: 2, marginTop: 20 }}>
-                        <button
-                            type="button"
-                            onClick={addMemo}
-                            style={{
-                                width: '100%', padding: '9px 12px',
-                                background: 'white',
-                                border: `1.5px dashed ${theme.accent}`,
-                                borderRadius: 10,
-                                color: theme.accent,
-                                fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                            }}
-                        >
-                            ＋ メモを追加
-                        </button>
-                    </div>
-                )}
                 {pageNumber !== undefined && (
                     <p style={{
                         textAlign: 'center', fontSize: 11, letterSpacing: '0.1em',
@@ -551,143 +511,6 @@ export default function BookletDayPage({ day, dayIdx, startDate, theme, enableNo
                         margin: '16px 0 -8px', position: 'relative', zIndex: 2,
                     }}>— {pageNumber} —</p>
                 )}
-            </article>
-
-            {/* ─── メモ記事群（メモが1件以上のときのみ） ─── */}
-            {memoChunks.map((chunk, chunkIdx) => {
-                const isLast = chunkIdx === memoChunks.length - 1
-                const offset = chunkIdx * MEMOS_PER_PAGE
-                return (
-                    <article
-                        key={`memo-${chunkIdx}`}
-                        className="booklet-page booklet-memo-cont"
-                        style={articleBase}
-                    >
-                        <PageDecoration kind={theme.decoration} />
-
-                        <header style={{
-                            position: 'relative', zIndex: 2,
-                            paddingBottom: 14, marginBottom: 18,
-                            borderBottom: `2px solid ${theme.accent}`,
-                        }}>
-                            <p style={{
-                                fontSize: 11, fontWeight: 700, letterSpacing: '0.18em',
-                                textTransform: 'uppercase', color: theme.accent, margin: '0 0 6px',
-                            }}>
-                                Day {dayIdx + 1}{chunkIdx > 0 ? ' (続き)' : ''}
-                            </p>
-                            <h2 style={{
-                                fontSize: 22, fontWeight: 800, color: theme.text,
-                                margin: 0, letterSpacing: '-0.01em',
-                            }}>
-                                {labelText} — メモ
-                            </h2>
-                        </header>
-
-                        <div style={{
-                            position: 'relative', zIndex: 2,
-                            display: 'flex', flexDirection: 'column', gap: 8,
-                        }}>
-                            {chunk.map((memo, localIdx) => {
-                                const globalIdx = offset + localIdx
-                                return (
-                                    <DayMemoItem
-                                        key={globalIdx}
-                                        initial={memo}
-                                        editable={editable}
-                                        theme={theme}
-                                        onCommit={value => updateMemo(globalIdx, value)}
-                                        onRemove={() => removeMemo(globalIdx)}
-                                    />
-                                )
-                            })}
-                        </div>
-
-                        {isLast && editable && (
-                            <button
-                                type="button"
-                                onClick={addMemo}
-                                className="no-print"
-                                style={{
-                                    marginTop: 12, width: '100%',
-                                    padding: '9px 12px', background: 'white',
-                                    border: `1.5px dashed ${theme.accent}`,
-                                    borderRadius: 10, color: theme.accent,
-                                    fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                                    position: 'relative', zIndex: 2,
-                                }}
-                            >
-                                ＋ メモを追加
-                            </button>
-                        )}
-                    </article>
-                )
-            })}
-        </>
-    )
-}
-
-// ──────────── DayMemoItem ────────────
-
-function DayMemoItem({
-    initial, editable, theme, onCommit, onRemove,
-}: {
-    initial: string
-    editable: boolean
-    theme: Theme
-    onCommit: (value: string) => void
-    onRemove: () => void
-}) {
-    const [draft, setDraft] = useState(initial)
-
-    useEffect(() => { setDraft(initial) }, [initial])
-
-    if (!editable) {
-        if (!initial.trim()) return null
-        return (
-            <p style={{
-                margin: 0, padding: '8px 10px',
-                background: 'white', borderRadius: 8,
-                fontSize: 13, color: theme.text, lineHeight: 1.6,
-                whiteSpace: 'pre-wrap',
-                borderLeft: `3px solid ${theme.accent}`,
-            }}>
-                {initial}
-            </p>
-        )
-    }
-
-    return (
-        <div style={{ display: 'flex', gap: 6, alignItems: 'flex-start' }}>
-            <textarea
-                value={draft}
-                onChange={e => setDraft(e.target.value)}
-                onBlur={() => { if (draft !== initial) onCommit(draft) }}
-                placeholder="自由にメモを書く..."
-                rows={2}
-                style={{
-                    flex: 1, padding: '8px 10px',
-                    background: 'white',
-                    border: `1px solid ${theme.timelineBar}`,
-                    borderRadius: 8,
-                    fontSize: 13, color: theme.text,
-                    fontFamily: 'inherit', lineHeight: 1.6,
-                    resize: 'vertical', outline: 'none',
-                    minHeight: 40, boxSizing: 'border-box',
-                }}
-            />
-            <button
-                type="button"
-                onClick={onRemove}
-                aria-label="メモを削除"
-                className="no-print"
-                style={{
-                    width: 28, height: 28,
-                    border: 'none', background: 'transparent',
-                    color: theme.subText, fontSize: 18,
-                    cursor: 'pointer', flexShrink: 0, borderRadius: 6,
-                }}
-            >×</button>
-        </div>
+        </article>
     )
 }
