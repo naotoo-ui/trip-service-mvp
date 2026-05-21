@@ -182,10 +182,6 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
                     )
                 })}
 
-                {/* 背表紙の前 */}
-                {renderGap({ kind: 'before-back-cover' })}
-                {renderOptionalPages({ kind: 'before-back-cover' })}
-
                 {/* 背表紙 */}
                 <BookletBackCover trip={trip} theme={theme} />
 

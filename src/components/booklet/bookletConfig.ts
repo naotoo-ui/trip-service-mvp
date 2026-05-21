@@ -40,11 +40,10 @@ export type PageKey =
     | { kind: 'day'; idx: number }
     | { kind: 'optional'; pageKind: OptionalPageKind }
 
-// 各オプションページの挿入位置
+// 各オプションページの挿入位置（表紙の後 or 各日の後のみ）
 export type InsertPosition =
     | { kind: 'after-cover' }
     | { kind: 'after-day'; dayIdx: number }
-    | { kind: 'before-back-cover' }
 
 export type OptionalPageEntry = {
     enabled: boolean
@@ -64,10 +63,10 @@ const DEFAULT_POSITION_BY_KIND: Record<OptionalPageKind, InsertPosition> = {
     members:   { kind: 'after-cover' },
     meeting:   { kind: 'after-cover' },
     packing:   { kind: 'after-cover' },
-    emergency: { kind: 'before-back-cover' },
-    notes:     { kind: 'before-back-cover' },
-    budget:    { kind: 'before-back-cover' },
-    free:      { kind: 'before-back-cover' },
+    emergency: { kind: 'after-cover' },
+    notes:     { kind: 'after-cover' },
+    budget:    { kind: 'after-cover' },
+    free:      { kind: 'after-cover' },
 }
 
 function buildDefaultOptionalPages(): Record<OptionalPageKind, OptionalPageEntry> {
@@ -93,6 +92,12 @@ function keyFor(shareId: string): string {
     return `tripgen.booklet.config.${shareId}`
 }
 
+function migratePosition(pos: InsertPosition | { kind: 'before-back-cover' }): InsertPosition {
+    // 旧 before-back-cover 位置を after-cover に変換
+    if ((pos as { kind: string }).kind === 'before-back-cover') return { kind: 'after-cover' }
+    return pos as InsertPosition
+}
+
 function mergeOptionalPages(
     def: Record<OptionalPageKind, OptionalPageEntry>,
     raw: Record<string, Partial<OptionalPageEntry>> | undefined,
@@ -100,9 +105,10 @@ function mergeOptionalPages(
     const result: Partial<Record<OptionalPageKind, OptionalPageEntry>> = {}
     OPTIONAL_PAGE_KINDS.forEach(k => {
         const incoming = raw?.[k]
+        const rawPos = incoming?.position as (InsertPosition | { kind: 'before-back-cover' }) | undefined
         result[k] = {
             enabled:  incoming?.enabled  ?? def[k].enabled,
-            position: incoming?.position ?? def[k].position,
+            position: rawPos ? migratePosition(rawPos) : def[k].position,
             content:  incoming?.content  ?? def[k].content,
             columns:  incoming?.columns  ?? def[k].columns,
         }
@@ -149,7 +155,6 @@ export function computePageOrder(config: BookletConfig, daysCount: number): Page
     const result: PageKey[] = ['cover']
     const afterCover: OptionalPageKind[] = []
     const afterDay = new Map<number, OptionalPageKind[]>()
-    const beforeBackCover: OptionalPageKind[] = []
 
     OPTIONAL_PAGE_KINDS.forEach(k => {
         const e = config.optionalPages[k]
@@ -161,7 +166,6 @@ export function computePageOrder(config: BookletConfig, daysCount: number): Page
             arr.push(k)
             afterDay.set(pos.dayIdx, arr)
         }
-        else if (pos.kind === 'before-back-cover') beforeBackCover.push(k)
     })
 
     afterCover.forEach(k => result.push({ kind: 'optional', pageKind: k }))
@@ -170,7 +174,6 @@ export function computePageOrder(config: BookletConfig, daysCount: number): Page
         const list = afterDay.get(i) ?? []
         list.forEach(k => result.push({ kind: 'optional', pageKind: k }))
     }
-    beforeBackCover.forEach(k => result.push({ kind: 'optional', pageKind: k }))
     result.push('back-cover')
     return result
 }
@@ -187,14 +190,12 @@ export function enabledPagesAt(
         const p = e.position
         if (pos.kind === 'after-cover' && p.kind === 'after-cover') return true
         if (pos.kind === 'after-day' && p.kind === 'after-day' && p.dayIdx === pos.dayIdx) return true
-        if (pos.kind === 'before-back-cover' && p.kind === 'before-back-cover') return true
         return false
     })
 }
 
 export function positionLabel(pos: InsertPosition, daysCount: number): string {
     if (pos.kind === 'after-cover') return '表紙の後'
-    if (pos.kind === 'before-back-cover') return '背表紙の前'
     if (pos.kind === 'after-day') {
         const n = pos.dayIdx + 1
         return n <= daysCount ? `${n}日目の後` : `${n}日目の後`

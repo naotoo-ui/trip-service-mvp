@@ -78,7 +78,6 @@ export default function BookletGapControl({ position, label, config, onToggle }:
 
 function positionOf(pos: InsertPosition): string {
     if (pos.kind === 'after-cover') return '表紙の後'
-    if (pos.kind === 'before-back-cover') return '背表紙の前'
     if (pos.kind === 'after-day') return `${pos.dayIdx + 1}日目の後`
     return ''
 }
