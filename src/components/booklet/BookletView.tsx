@@ -16,18 +16,26 @@ import BookletCover from './BookletCover'
 import BookletBackCover from './BookletBackCover'
 import BookletDayPage from './BookletDayPage'
 import BookletSettings from './BookletSettings'
-import SortableBlock from './blocks/SortableBlock'
+import SortablePage from './blocks/SortablePage'
+import SortableInnerBlock from './blocks/SortableInnerBlock'
 import TextBlock from './blocks/TextBlock'
 import PackingBlock from './blocks/PackingBlock'
 import DividerBlock from './blocks/DividerBlock'
 import SpacerBlock from './blocks/SpacerBlock'
 import BlockPalette from './blocks/BlockPalette'
-import { getTheme, themes, type ThemeName } from './bookletThemes'
+import { PageDecoration } from './BookletDecorations'
+import { getTheme, themes, type ThemeName, type Theme } from './bookletThemes'
+import { getFontFamily } from './bookletFont'
 import {
-    loadBookletConfig, saveBookletConfig, isCountedBlock,
-    BLOCK_TEMPLATES,
-    type BookletConfig, type BookletBlock, type BlockTemplate,
+    loadBookletConfig, saveBookletConfig, isCountedItem, findBlockOrItem,
+    generateBlockId, BLOCK_TEMPLATES,
+    type BookletConfig, type BookletItem, type PrimitiveBlock, type BlockTemplate,
 } from './bookletConfig'
+
+const DAY_ANCHOR_SUFFIX = '__day-anchor'
+const isDayAnchorId = (id: string) => id.endsWith(DAY_ANCHOR_SUFFIX)
+const dayAnchorOfItem = (itemId: string) => itemId + DAY_ANCHOR_SUFFIX
+const itemOfDayAnchor = (anchorId: string) => anchorId.slice(0, -DAY_ANCHOR_SUFFIX.length)
 
 export default function BookletView({ trip, editToken }: { trip: Trip; editToken?: string }) {
     const editable = !!editToken
@@ -36,7 +44,6 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
     const [settingsOpen, setSettingsOpen] = useState(false)
     const [mounted, setMounted] = useState(false)
     const [localDays, setLocalDays] = useState<ItineraryDay[]>(trip.itinerary.days)
-    // パレットから D&D 中の挿入位置ヒント（どのブロックの上/下に入るか）
     const [dragHint, setDragHint] = useState<{ overId: string; side: 'above' | 'below' } | null>(null)
 
     const sensors = useSensors(
@@ -75,49 +82,175 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
         saveBookletConfig(trip.share_id, next)
     }
 
-    function updateBlock(id: string, updater: (b: BookletBlock) => BookletBlock) {
+    function mapItems(mutator: (items: BookletItem[]) => BookletItem[]) {
         if (!config) return
-        updateConfig({
-            ...config,
-            blocks: config.blocks.map(b => b.id === id ? updater(b) : b),
-        })
+        updateConfig({ ...config, items: mutator(config.items) })
     }
 
-    function deleteBlock(id: string) {
+    // ─── プリミティブブロック更新 ───
+    function updatePrimitive(id: string, updater: (b: PrimitiveBlock) => PrimitiveBlock) {
         if (!config) return
-        updateConfig({
-            ...config,
-            blocks: config.blocks.filter(b => b.id !== id),
+        const items = config.items.map(item => {
+            if (item.kind === 'composite') {
+                return { ...item, blocks: item.blocks.map(b => b.id === id ? updater(b) : b) }
+            }
+            if (item.kind === 'day') {
+                return {
+                    ...item,
+                    blocksAbove: item.blocksAbove.map(b => b.id === id ? updater(b) : b),
+                    blocksBelow: item.blocksBelow.map(b => b.id === id ? updater(b) : b),
+                }
+            }
+            return item
         })
+        updateConfig({ ...config, items })
     }
 
-    // パレットからクリック追加：表紙直後（先頭）に挿入
+    // ─── プリミティブブロック削除（composite が空になったらページごと削除） ───
+    function deletePrimitive(id: string) {
+        if (!config) return
+        const result: BookletItem[] = []
+        for (const item of config.items) {
+            if (item.kind === 'composite') {
+                const next = item.blocks.filter(b => b.id !== id)
+                if (next.length > 0) result.push({ ...item, blocks: next })
+                // 空になった composite は消滅
+                continue
+            }
+            if (item.kind === 'day') {
+                result.push({
+                    ...item,
+                    blocksAbove: item.blocksAbove.filter(b => b.id !== id),
+                    blocksBelow: item.blocksBelow.filter(b => b.id !== id),
+                })
+                continue
+            }
+            result.push(item)
+        }
+        updateConfig({ ...config, items: result })
+    }
+
+    // ─── ページアイテム削除 ───
+    function deleteItem(itemId: string) {
+        mapItems(items => items.filter(i => i.id !== itemId))
+    }
+
+    // ─── パレットから挿入：target の上下に応じて適切な場所へ ───
+    function insertFromPalette(template: BlockTemplate, overId: string, side: 'above' | 'below') {
+        if (!config) return
+        const newBlock = template.factory()
+
+        // day anchor へのドロップ → 該当日の above/below に追加
+        if (isDayAnchorId(overId)) {
+            const itemId = itemOfDayAnchor(overId)
+            const items = config.items.map(it => {
+                if (it.id !== itemId || it.kind !== 'day') return it
+                if (side === 'above') return { ...it, blocksAbove: [...it.blocksAbove, newBlock] }
+                return { ...it, blocksBelow: [newBlock, ...it.blocksBelow] }
+            })
+            updateConfig({ ...config, items })
+            return
+        }
+
+        const found = findBlockOrItem(config.items, overId)
+        if (!found) return
+
+        // case A: target は item 自体（cover/back-cover/day/composite）
+        if (found.array === null) {
+            const item = found.item
+            if (item.kind === 'cover' || item.kind === 'back-cover') {
+                // 表紙/背表紙の前後は新規 composite ページとして追加
+                const newItem: BookletItem = { id: generateBlockId(), kind: 'composite', blocks: [newBlock] }
+                const items = [...config.items]
+                items.splice(side === 'above' ? found.itemIdx : found.itemIdx + 1, 0, newItem)
+                updateConfig({ ...config, items })
+                return
+            }
+            if (item.kind === 'composite') {
+                const items = config.items.map((it, i) => {
+                    if (i !== found.itemIdx || it.kind !== 'composite') return it
+                    if (side === 'above') return { ...it, blocks: [newBlock, ...it.blocks] }
+                    return { ...it, blocks: [...it.blocks, newBlock] }
+                })
+                updateConfig({ ...config, items })
+                return
+            }
+            if (item.kind === 'day') {
+                const items = config.items.map((it, i) => {
+                    if (i !== found.itemIdx || it.kind !== 'day') return it
+                    if (side === 'above') return { ...it, blocksAbove: [...it.blocksAbove, newBlock] }
+                    return { ...it, blocksBelow: [newBlock, ...it.blocksBelow] }
+                })
+                updateConfig({ ...config, items })
+                return
+            }
+            return
+        }
+
+        // case B: target は item 内のプリミティブブロック
+        const parentItem = found.item
+        if (parentItem.kind === 'composite') {
+            const newArr = [...parentItem.blocks]
+            newArr.splice(side === 'above' ? found.blockIdx : found.blockIdx + 1, 0, newBlock)
+            const items = config.items.map((it, i) =>
+                i === found.itemIdx && it.kind === 'composite' ? { ...it, blocks: newArr } : it
+            )
+            updateConfig({ ...config, items })
+            return
+        }
+        if (parentItem.kind === 'day') {
+            const arrName = found.array
+            const targetArr = arrName === 'above' ? parentItem.blocksAbove : parentItem.blocksBelow
+            const newArr = [...targetArr]
+            newArr.splice(side === 'above' ? found.blockIdx : found.blockIdx + 1, 0, newBlock)
+            const items = config.items.map((it, i) => {
+                if (i !== found.itemIdx || it.kind !== 'day') return it
+                return arrName === 'above'
+                    ? { ...it, blocksAbove: newArr }
+                    : { ...it, blocksBelow: newArr }
+            })
+            updateConfig({ ...config, items })
+            return
+        }
+    }
+
+    // ─── パレットからクリック挿入：表紙の直後に新規 composite ページとして追加 ───
     function addBlockFromPalette(template: BlockTemplate) {
         if (!config) return
         const newBlock = template.factory()
-        const coverIdx = config.blocks.findIndex(b => b.kind === 'cover')
+        const newItem: BookletItem = { id: generateBlockId(), kind: 'composite', blocks: [newBlock] }
+        const coverIdx = config.items.findIndex(it => it.kind === 'cover')
         const insertAt = coverIdx >= 0 ? coverIdx + 1 : 0
-        const next = [...config.blocks]
-        next.splice(insertAt, 0, newBlock)
-        updateConfig({ ...config, blocks: next })
+        const items = [...config.items]
+        items.splice(insertAt, 0, newItem)
+        updateConfig({ ...config, items })
     }
 
-    // パレットからD&D：指定の over.id の前 or 後に挿入
-    function insertBlockAt(templateIdx: number, overId: string, side: 'above' | 'below') {
+    // ─── inner block 並び替え（同じ parent 配列内のみ） ───
+    function reorderInnerBlock(activeId: string, overId: string) {
         if (!config) return
-        const template = BLOCK_TEMPLATES[templateIdx]
-        if (!template) return
-        const newBlock = template.factory()
-        const targetIdx = config.blocks.findIndex(b => b.id === overId)
-        const insertAt = targetIdx < 0
-            ? config.blocks.length
-            : (side === 'below' ? targetIdx + 1 : targetIdx)
-        const next = [...config.blocks]
-        next.splice(insertAt, 0, newBlock)
-        updateConfig({ ...config, blocks: next })
+        // どちらも同じ親の同じ配列に属する必要がある
+        const a = findBlockOrItem(config.items, activeId)
+        const b = findBlockOrItem(config.items, overId)
+        if (!a || !b || a.itemIdx !== b.itemIdx || a.array !== b.array) return
+        if (a.blockIdx === b.blockIdx) return
+
+        const items = config.items.map((it, i) => {
+            if (i !== a.itemIdx) return it
+            if (it.kind === 'composite' && a.array === 'blocks') {
+                return { ...it, blocks: arrayMove(it.blocks, a.blockIdx, b.blockIdx) }
+            }
+            if (it.kind === 'day' && a.array === 'above') {
+                return { ...it, blocksAbove: arrayMove(it.blocksAbove, a.blockIdx, b.blockIdx) }
+            }
+            if (it.kind === 'day' && a.array === 'below') {
+                return { ...it, blocksBelow: arrayMove(it.blocksBelow, a.blockIdx, b.blockIdx) }
+            }
+            return it
+        })
+        updateConfig({ ...config, items })
     }
 
-    // ドラッグ中の active と over から「上半分/下半分」を判定
     function computeDropSide(activeRectTop: number, activeHeight: number, overTop: number, overHeight: number): 'above' | 'below' {
         const activeCenter = activeRectTop + activeHeight / 2
         const overCenter = overTop + overHeight / 2
@@ -134,9 +267,9 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
         const oRect = over.rect
         if (!aRect || !oRect) return
         const side = computeDropSide(aRect.top, aRect.height, oRect.top, oRect.height)
-        const nextHint = { overId: String(over.id), side }
-        if (dragHint?.overId !== nextHint.overId || dragHint?.side !== nextHint.side) {
-            setDragHint(nextHint)
+        const next = { overId: String(over.id), side }
+        if (dragHint?.overId !== next.overId || dragHint?.side !== next.side) {
+            setDragHint(next)
         }
     }
 
@@ -149,23 +282,39 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
         const { active, over } = e
         if (!over || !config) return
 
-        // パレット由来のドラッグ → 上半分なら前に、下半分なら後に挿入
+        // パレット由来 → 挿入
         if (active.data.current?.palette) {
             const tIdx = active.data.current.templateIdx as number
+            const template = BLOCK_TEMPLATES[tIdx]
+            if (!template) return
             const aRect = active.rect.current.translated
             const oRect = over.rect
             const side = aRect && oRect
                 ? computeDropSide(aRect.top, aRect.height, oRect.top, oRect.height)
                 : 'below'
-            insertBlockAt(tIdx, String(over.id), side)
+            insertFromPalette(template, String(over.id), side)
             return
         }
 
         if (active.id === over.id) return
-        const oldIdx = config.blocks.findIndex(b => b.id === active.id)
-        const newIdx = config.blocks.findIndex(b => b.id === over.id)
-        if (oldIdx < 0 || newIdx < 0) return
-        updateConfig({ ...config, blocks: arrayMove(config.blocks, oldIdx, newIdx) })
+        const activeId = String(active.id)
+        const overId = String(over.id)
+
+        // 同じ contextに属する：上位アイテム間（page reorder）
+        const isPageActive = config.items.some(it => it.id === activeId)
+        const isPageOver = config.items.some(it => it.id === overId)
+        if (isPageActive && isPageOver) {
+            const oldIdx = config.items.findIndex(it => it.id === activeId)
+            const newIdx = config.items.findIndex(it => it.id === overId)
+            if (oldIdx < 0 || newIdx < 0) return
+            updateConfig({ ...config, items: arrayMove(config.items, oldIdx, newIdx) })
+            return
+        }
+
+        // inner block reorder（同じ親の同じ配列内）
+        if (!isPageActive && !isDayAnchorId(activeId) && !isDayAnchorId(overId)) {
+            reorderInnerBlock(activeId, overId)
+        }
     }
 
     if (!config) {
@@ -186,41 +335,42 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
         updateConfig({ ...config!, themeName: t })
     }
 
-    // ページ番号事前計算
+    // ─── ページ番号事前計算 ───
     const pageNumMap = new Map<string, number>()
     let pCounter = 0
-    config.blocks.forEach(b => {
-        if (!isCountedBlock(b)) return
+    config.items.forEach(it => {
+        if (!isCountedItem(it)) return
         pCounter += 1
-        pageNumMap.set(b.id, pCounter)
+        pageNumMap.set(it.id, pCounter)
     })
     function pageNum(id: string): number | undefined {
         return config!.showPageNumbers ? pageNumMap.get(id) : undefined
     }
 
-    function renderBlockContent(block: BookletBlock): React.ReactNode {
-        switch (block.kind) {
-            case 'cover':
-                return <BookletCover trip={trip} theme={theme} editable={editable} editToken={editToken} />
-            case 'back-cover':
-                return <BookletBackCover trip={trip} theme={theme} />
-            case 'day': {
-                const day = localDays[block.dayIdx]
-                if (!day) return null
-                return (
-                    <BookletDayPage
-                        day={day}
-                        dayIdx={block.dayIdx}
-                        startDate={trip.itinerary.start_date}
-                        theme={theme}
-                        enableNow={mounted}
-                        editable={editable}
-                        showUrlQrCode={config!.showUrlQrCode}
-                        onSpotUpdate={(spotIdx, update) => handleSpotUpdate(block.dayIdx, spotIdx, update)}
-                        pageNumber={pageNum(block.id)}
-                    />
-                )
+    function resizePropsFor(block: PrimitiveBlock): { resizable: boolean; currentHeight?: number; onResize?: (h: number) => void } {
+        if (block.kind === 'text' || block.kind === 'packing') {
+            return {
+                resizable: true,
+                currentHeight: block.minHeight,
+                onResize: (h: number) => updatePrimitive(block.id, b => {
+                    if (b.kind === 'text') return { ...b, minHeight: h }
+                    if (b.kind === 'packing') return { ...b, minHeight: h }
+                    return b
+                }),
             }
+        }
+        if (block.kind === 'spacer') {
+            return {
+                resizable: true,
+                currentHeight: block.height,
+                onResize: (h: number) => updatePrimitive(block.id, b => b.kind === 'spacer' ? { ...b, height: h } : b),
+            }
+        }
+        return { resizable: false }
+    }
+
+    function renderPrimitiveBlock(block: PrimitiveBlock): React.ReactNode {
+        switch (block.kind) {
             case 'text':
                 return (
                     <TextBlock
@@ -229,9 +379,8 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
                         theme={theme}
                         editable={editable}
                         minHeight={block.minHeight}
-                        pageNumber={pageNum(block.id)}
-                        onTitleChange={editable ? (title => updateBlock(block.id, b => b.kind === 'text' ? { ...b, title } : b)) : undefined}
-                        onContentChange={editable ? (content => updateBlock(block.id, b => b.kind === 'text' ? { ...b, content } : b)) : undefined}
+                        onTitleChange={editable ? (title => updatePrimitive(block.id, b => b.kind === 'text' ? { ...b, title } : b)) : undefined}
+                        onContentChange={editable ? (content => updatePrimitive(block.id, b => b.kind === 'text' ? { ...b, content } : b)) : undefined}
                     />
                 )
             case 'packing':
@@ -243,10 +392,9 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
                         theme={theme}
                         editable={editable}
                         minHeight={block.minHeight}
-                        pageNumber={pageNum(block.id)}
-                        onTitleChange={editable ? (title => updateBlock(block.id, b => b.kind === 'packing' ? { ...b, title } : b)) : undefined}
-                        onContentChange={editable ? (content => updateBlock(block.id, b => b.kind === 'packing' ? { ...b, content } : b)) : undefined}
-                        onColumnsChange={editable ? (columns => updateBlock(block.id, b => b.kind === 'packing' ? { ...b, columns } : b)) : undefined}
+                        onTitleChange={editable ? (title => updatePrimitive(block.id, b => b.kind === 'packing' ? { ...b, title } : b)) : undefined}
+                        onContentChange={editable ? (content => updatePrimitive(block.id, b => b.kind === 'packing' ? { ...b, content } : b)) : undefined}
+                        onColumnsChange={editable ? (columns => updatePrimitive(block.id, b => b.kind === 'packing' ? { ...b, columns } : b)) : undefined}
                     />
                 )
             case 'divider':
@@ -256,27 +404,102 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
         }
     }
 
-    // リサイズ対応ブロックの設定
-    function resizeProps(block: BookletBlock): { resizable: boolean; currentHeight?: number; onResize?: (h: number) => void } {
-        if (block.kind === 'text' || block.kind === 'packing') {
-            return {
-                resizable: true,
-                currentHeight: block.minHeight,
-                onResize: (h: number) => updateBlock(block.id, b => {
-                    if (b.kind === 'text') return { ...b, minHeight: h }
-                    if (b.kind === 'packing') return { ...b, minHeight: h }
-                    return b
-                }),
-            }
+    function renderInnerBlock(block: PrimitiveBlock, dropHint: 'above' | 'below' | null): React.ReactNode {
+        const rProps = resizePropsFor(block)
+        return (
+            <SortableInnerBlock
+                key={block.id}
+                id={block.id}
+                editable={editable}
+                canDelete={true}
+                onDelete={() => deletePrimitive(block.id)}
+                resizable={rProps.resizable}
+                currentHeight={rProps.currentHeight}
+                onResize={rProps.onResize}
+                dropHint={dropHint}
+            >
+                {renderPrimitiveBlock(block)}
+            </SortableInnerBlock>
+        )
+    }
+
+    function pageCardStyle(): React.CSSProperties {
+        return {
+            background: theme.paperBg,
+            border: theme.paperBorder,
+            borderRadius: theme.cardStyle === 'polaroid' ? 8 : 20,
+            padding: '28px 26px',
+            boxShadow: theme.cardStyle === 'soft'
+                ? '0 4px 20px rgba(15, 23, 42, 0.06)'
+                : '0 2px 12px rgba(15, 23, 42, 0.04)',
+            position: 'relative',
+            overflow: 'hidden',
+            fontFamily: getFontFamily(theme.fontStyle),
         }
-        if (block.kind === 'spacer') {
-            return {
-                resizable: true,
-                currentHeight: block.height,
-                onResize: (h: number) => updateBlock(block.id, b => b.kind === 'spacer' ? { ...b, height: h } : b),
-            }
+    }
+
+    function renderPageContent(item: BookletItem): React.ReactNode {
+        if (item.kind === 'cover') {
+            return <BookletCover trip={trip} theme={theme} editable={editable} editToken={editToken} />
         }
-        return { resizable: false }
+        if (item.kind === 'back-cover') {
+            return <BookletBackCover trip={trip} theme={theme} />
+        }
+
+        const pn = pageNum(item.id)
+
+        if (item.kind === 'day') {
+            const innerIds = [
+                ...item.blocksAbove.map(b => b.id),
+                dayAnchorOfItem(item.id),
+                ...item.blocksBelow.map(b => b.id),
+            ]
+            const dayAnchorHint = dragHint?.overId === dayAnchorOfItem(item.id) ? dragHint.side : null
+            return (
+                <article className="booklet-page booklet-page-day" style={pageCardStyle()}>
+                    <PageDecoration kind={theme.decoration} accent={theme.accent} />
+                    <SortableContext items={innerIds} strategy={verticalListSortingStrategy}>
+                        {item.blocksAbove.map(b => renderInnerBlock(b, dragHint?.overId === b.id ? dragHint.side : null))}
+                        <SortableInnerBlock
+                            id={dayAnchorOfItem(item.id)}
+                            editable={editable}
+                            canDelete={false}
+                            draggable={false}
+                            dropHint={dayAnchorHint}
+                        >
+                            <BookletDayPage
+                                day={localDays[item.dayIdx]}
+                                dayIdx={item.dayIdx}
+                                startDate={trip.itinerary.start_date}
+                                theme={theme}
+                                enableNow={mounted}
+                                editable={editable}
+                                showUrlQrCode={config!.showUrlQrCode}
+                                onSpotUpdate={(spotIdx, update) => handleSpotUpdate(item.dayIdx, spotIdx, update)}
+                            />
+                        </SortableInnerBlock>
+                        {item.blocksBelow.map(b => renderInnerBlock(b, dragHint?.overId === b.id ? dragHint.side : null))}
+                    </SortableContext>
+                    {pn !== undefined && (
+                        <p style={pageNumberStyle(theme)}>— {pn} —</p>
+                    )}
+                </article>
+            )
+        }
+
+        // composite
+        const innerIds = item.blocks.map(b => b.id)
+        return (
+            <article className="booklet-page booklet-page-composite" style={pageCardStyle()}>
+                <PageDecoration kind={theme.decoration} accent={theme.accent} />
+                <SortableContext items={innerIds} strategy={verticalListSortingStrategy}>
+                    {item.blocks.map(b => renderInnerBlock(b, dragHint?.overId === b.id ? dragHint.side : null))}
+                </SortableContext>
+                {pn !== undefined && (
+                    <p style={pageNumberStyle(theme)}>— {pn} —</p>
+                )}
+            </article>
+        )
     }
 
     return (
@@ -310,38 +533,33 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
                         padding: '24px 16px',
                     }}
                 >
-                    {/* 中央：しおり本体 */}
                     <main
                         style={{
                             flex: 1, minWidth: 0,
                             maxWidth: 800,
-                            paddingLeft: editable ? 40 : 0,
+                            paddingLeft: editable ? 44 : 0,
                         }}
                     >
-                        <SortableContext items={config.blocks.map(b => b.id)} strategy={verticalListSortingStrategy}>
-                            {config.blocks.map(block => {
-                                const rProps = resizeProps(block)
-                                const dropHint = dragHint?.overId === block.id ? dragHint.side : null
+                        <SortableContext items={config.items.map(it => it.id)} strategy={verticalListSortingStrategy}>
+                            {config.items.map(item => {
+                                const pageHint = dragHint?.overId === item.id ? dragHint.side : null
+                                const canDeletePage = item.kind === 'composite'
                                 return (
-                                    <SortableBlock
-                                        key={block.id}
-                                        id={block.id}
-                                        kind={block.kind}
+                                    <SortablePage
+                                        key={item.id}
+                                        id={item.id}
+                                        kind={item.kind}
                                         editable={editable}
-                                        canDelete={editable && block.kind !== 'cover' && block.kind !== 'back-cover' && block.kind !== 'day'}
-                                        onDelete={() => deleteBlock(block.id)}
-                                        resizable={rProps.resizable}
-                                        currentHeight={rProps.currentHeight}
-                                        onResize={rProps.onResize}
-                                        dropHint={dropHint}
+                                        canDelete={canDeletePage}
+                                        onDelete={() => deleteItem(item.id)}
+                                        dropHint={pageHint}
                                     >
-                                        {renderBlockContent(block)}
-                                    </SortableBlock>
+                                        {renderPageContent(item)}
+                                    </SortablePage>
                                 )
                             })}
                         </SortableContext>
 
-                        {/* モバイル時のパレット（サイドバー非表示の代わり） */}
                         {editable && isMobile && (
                             <div className="no-print" style={{ marginTop: 24 }}>
                                 <BlockPalette theme={theme} onAdd={addBlockFromPalette} />
@@ -361,7 +579,6 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
                         </footer>
                     </main>
 
-                    {/* 右サイドバー：ブロックパレット（PCのみ・スクロール時も画面内に固定） */}
                     {editable && !isMobile && (
                         <aside
                             className="no-print booklet-palette-sidebar"
@@ -387,4 +604,12 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
             />
         </div>
     )
+}
+
+function pageNumberStyle(theme: Theme): React.CSSProperties {
+    return {
+        textAlign: 'center', fontSize: 11, letterSpacing: '0.1em',
+        fontVariantNumeric: 'tabular-nums', color: theme.subText,
+        margin: '16px 0 -4px', position: 'relative', zIndex: 2,
+    }
 }

@@ -85,6 +85,13 @@ details:not([open]) .faq-toggle::before { content: "＋"; }
     .booklet-palette-sidebar {
         display: none !important;
     }
+    /* ページ内インラインブロックの余白を整理 */
+    .booklet-inline-block {
+        padding: 0 !important;
+    }
+    .booklet-inner-wrap {
+        padding: 8px 0 !important;
+    }
     /* ブロックラッパ：D&D変形は印刷で出さない */
     .booklet-block-wrap {
         transform: none !important;

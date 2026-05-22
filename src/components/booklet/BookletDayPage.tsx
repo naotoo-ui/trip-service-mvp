@@ -3,8 +3,6 @@ import { useState, useEffect, useRef } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import type { ItineraryDay, Spot } from '@/types'
 import type { Theme } from './bookletThemes'
-import { PageDecoration } from './BookletDecorations'
-import { getFontFamily } from './bookletFont'
 
 const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土']
 const WEEKDAY_COLORS = ['#dc2626', '#475569', '#475569', '#475569', '#475569', '#475569', '#2563eb']
@@ -25,10 +23,9 @@ type Props = {
     editable: boolean
     showUrlQrCode?: boolean
     onSpotUpdate?: (spotIdx: number, update: Partial<Spot>) => void
-    pageNumber?: number
 }
 
-export default function BookletDayPage({ day, dayIdx, startDate, theme, enableNow, editable, showUrlQrCode, onSpotUpdate, pageNumber }: Props) {
+export default function BookletDayPage({ day, dayIdx, startDate, theme, enableNow, editable, showUrlQrCode, onSpotUpdate }: Props) {
     const [now, setNow] = useState<Date | null>(null)
 
     useEffect(() => {
@@ -71,7 +68,6 @@ export default function BookletDayPage({ day, dayIdx, startDate, theme, enableNo
     const sortedSpots = day.spots
         .map((spot, origIdx) => ({ spot, origIdx }))
         .sort((a, b) => toMins(a.spot.time) - toMins(b.spot.time))
-    const titleFont = getFontFamily(theme.fontStyle)
 
     // スポットごとのメモ・URL 編集ステート
     const [editingMemoOrigIdx, setEditingMemoOrigIdx] = useState<number | null>(null)
@@ -163,24 +159,8 @@ export default function BookletDayPage({ day, dayIdx, startDate, theme, enableNo
         return base
     }
 
-    const articleBase: React.CSSProperties = {
-        background: theme.paperBg,
-        border: theme.paperBorder,
-        borderRadius: theme.cardStyle === 'polaroid' ? 8 : 20,
-        padding: '32px 28px',
-        marginBottom: 24,
-        boxShadow: theme.cardStyle === 'soft'
-            ? '0 4px 20px rgba(15, 23, 42, 0.06)'
-            : '0 2px 12px rgba(15, 23, 42, 0.04)',
-        position: 'relative',
-        overflow: 'hidden',
-        fontFamily: titleFont,
-    }
-
     return (
-        <article className="booklet-page booklet-day" style={articleBase}>
-                <PageDecoration kind={theme.decoration} />
-
+        <div className="booklet-day booklet-inline-block" style={{ position: 'relative', zIndex: 2 }}>
                 {/* 日付ヘッダー */}
                 <header
                     style={{
@@ -504,13 +484,6 @@ export default function BookletDayPage({ day, dayIdx, startDate, theme, enableNo
                     </div>
                 )}
 
-                {pageNumber !== undefined && (
-                    <p style={{
-                        textAlign: 'center', fontSize: 11, letterSpacing: '0.1em',
-                        fontVariantNumeric: 'tabular-nums', color: theme.subText,
-                        margin: '16px 0 -8px', position: 'relative', zIndex: 2,
-                    }}>— {pageNumber} —</p>
-                )}
-        </article>
+        </div>
     )
 }

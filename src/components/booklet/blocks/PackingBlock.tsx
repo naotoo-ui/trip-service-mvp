@@ -1,8 +1,6 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import type { Theme } from '../bookletThemes'
-import { PageDecoration } from '../BookletDecorations'
-import { getFontFamily } from '../bookletFont'
 
 type Props = {
     title: string
@@ -11,7 +9,6 @@ type Props = {
     theme: Theme
     editable: boolean
     minHeight?: number
-    pageNumber?: number
     onTitleChange?: (title: string) => void
     onContentChange?: (content: string) => void
     onColumnsChange?: (cols: 1 | 2 | 3) => void
@@ -23,8 +20,7 @@ function parseItems(text: string): string[] {
         .filter(Boolean)
 }
 
-export default function PackingBlock({ title, content, columns, theme, editable, minHeight, pageNumber, onTitleChange, onContentChange, onColumnsChange }: Props) {
-    const titleFont = getFontFamily(theme.fontStyle)
+export default function PackingBlock({ title, content, columns, theme, editable, minHeight, onTitleChange, onContentChange, onColumnsChange }: Props) {
     const [titleDraft, setTitleDraft] = useState(title)
     const [editItems, setEditItems] = useState<string[]>(() => parseItems(content))
     const [checked, setChecked] = useState<Set<number>>(new Set())
@@ -96,38 +92,14 @@ export default function PackingBlock({ title, content, columns, theme, editable,
     }
 
     return (
-        <article
-            className="booklet-page booklet-packing"
-            style={{
-                background: theme.paperBg,
-                border: theme.paperBorder,
-                borderRadius: 20,
-                padding: '28px 26px',
-                boxShadow: theme.cardStyle === 'soft'
-                    ? '0 4px 20px rgba(15, 23, 42, 0.06)'
-                    : '0 2px 12px rgba(15, 23, 42, 0.04)',
-                position: 'relative',
-                overflow: 'hidden',
-                fontFamily: titleFont,
-                minHeight: minHeight ?? undefined,
-            }}
-        >
-            <PageDecoration kind={theme.decoration} accent={theme.accent} />
-
+        <div className="booklet-packing booklet-inline-block" style={{ position: 'relative', zIndex: 2, minHeight: minHeight ?? undefined }}>
             <header style={{
-                position: 'relative', zIndex: 2,
-                paddingBottom: 14, marginBottom: 16,
-                borderBottom: `2px solid ${theme.accent}`,
+                paddingBottom: 10, marginBottom: 12,
+                borderBottom: `1.5px solid ${theme.accent}`,
                 display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
                 gap: 12,
             }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{
-                        fontSize: 11, fontWeight: 700, letterSpacing: '0.18em',
-                        textTransform: 'uppercase', color: theme.accent, margin: '0 0 6px',
-                    }}>
-                        Checklist
-                    </p>
                     {editable ? (
                         <input
                             type="text"
@@ -137,21 +109,20 @@ export default function PackingBlock({ title, content, columns, theme, editable,
                             onKeyDown={e => { if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur() }}
                             placeholder="タイトル"
                             style={{
-                                fontSize: 24, fontWeight: 800, color: theme.text,
+                                fontSize: 18, fontWeight: 800, color: theme.text,
                                 margin: 0, letterSpacing: '-0.01em',
                                 width: '100%', border: 'none', background: 'transparent',
-                                outline: 'none', fontFamily: 'inherit', padding: '2px 0',
+                                outline: 'none', fontFamily: 'inherit', padding: 0,
                             }}
                         />
                     ) : (
-                        <h2 style={{
-                            fontSize: 24, fontWeight: 800, color: theme.text,
+                        <h3 style={{
+                            fontSize: 18, fontWeight: 800, color: theme.text,
                             margin: 0, letterSpacing: '-0.01em',
-                        }}>{title}</h2>
+                        }}>{title}</h3>
                     )}
                 </div>
-                {/* 列数トグル */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 6, flexShrink: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
                     <span style={{ fontSize: 11, color: theme.subText, marginRight: 2 }}>列</span>
                     {([1, 2, 3] as const).map(n => (
                         <button
@@ -160,13 +131,13 @@ export default function PackingBlock({ title, content, columns, theme, editable,
                             onClick={() => onColumnsChange?.(n)}
                             disabled={!onColumnsChange}
                             style={{
-                                width: 28, height: 26, borderRadius: 6,
+                                width: 26, height: 24, borderRadius: 6,
                                 border: columns === n
                                     ? `2px solid ${theme.accent}`
                                     : '1.5px solid #e2e8f0',
                                 background: columns === n ? theme.accent : 'transparent',
                                 color: columns === n ? 'white' : theme.subText,
-                                fontSize: 12, fontWeight: 700,
+                                fontSize: 11, fontWeight: 700,
                                 cursor: onColumnsChange ? 'pointer' : 'default',
                             }}
                         >{n}</button>
@@ -175,7 +146,6 @@ export default function PackingBlock({ title, content, columns, theme, editable,
             </header>
 
             <div style={{
-                position: 'relative', zIndex: 2,
                 display: 'grid',
                 gridTemplateColumns: `repeat(${columns}, 1fr)`,
                 gap: '5px 10px',
@@ -184,7 +154,7 @@ export default function PackingBlock({ title, content, columns, theme, editable,
                     <p style={{
                         gridColumn: `span ${columns}`,
                         color: theme.subText, fontSize: 13,
-                        margin: '8px 0',
+                        margin: '4px 0',
                     }}>
                         下の「＋ アイテムを追加」から持ち物を追加してください
                     </p>
@@ -196,7 +166,7 @@ export default function PackingBlock({ title, content, columns, theme, editable,
                             key={idx}
                             style={{
                                 display: 'flex', alignItems: 'center', gap: 7,
-                                padding: '6px 8px',
+                                padding: '5px 8px',
                                 background: done ? 'rgba(34,197,94,0.07)' : 'transparent',
                                 border: `1px solid ${done ? '#86efac' : theme.timelineBar}`,
                                 borderRadius: 7,
@@ -269,20 +239,11 @@ export default function PackingBlock({ title, content, columns, theme, editable,
                         border: `1.5px dashed ${theme.accent}`,
                         background: 'transparent', color: theme.accent,
                         fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                        position: 'relative', zIndex: 2,
                     }}
                 >
                     ＋ アイテムを追加
                 </button>
             )}
-
-            {pageNumber !== undefined && (
-                <p style={{
-                    textAlign: 'center', fontSize: 11, letterSpacing: '0.1em',
-                    fontVariantNumeric: 'tabular-nums', color: theme.subText,
-                    margin: '16px 0 -4px', position: 'relative', zIndex: 2,
-                }}>— {pageNumber} —</p>
-            )}
-        </article>
+        </div>
     )
 }

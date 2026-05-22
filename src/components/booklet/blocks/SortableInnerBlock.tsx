@@ -2,29 +2,29 @@
 import { useState, useRef } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import type { BookletBlockKind } from '../bookletConfig'
 
 type Props = {
     id: string
-    kind: BookletBlockKind
     editable: boolean
     canDelete: boolean
     onDelete?: () => void
+    draggable?: boolean         // false の場合 useSortable は disabled（day 本体など）
     resizable?: boolean
-    currentHeight?: number       // ハンドルがスタートする高さ（current minHeight or height）
+    currentHeight?: number
     onResize?: (newHeight: number) => void
-    dropHint?: 'above' | 'below' | null  // パレットからD&D中の挿入位置プレビュー
+    dropHint?: 'above' | 'below' | null
     children: React.ReactNode
 }
 
-const NON_DRAGGABLE_KINDS: BookletBlockKind[] = ['cover', 'back-cover']
-
-export default function SortableBlock({
-    id, kind, editable, canDelete, onDelete,
+export default function SortableInnerBlock({
+    id, editable, canDelete, onDelete,
+    draggable = true,
     resizable, currentHeight, onResize, dropHint, children,
 }: Props) {
-    const isDraggable = editable && !NON_DRAGGABLE_KINDS.includes(kind)
-    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled: !isDraggable })
+    const sortableEnabled = editable && draggable
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+        id, disabled: !sortableEnabled,
+    })
     const [resizing, setResizing] = useState(false)
     const blockRef = useRef<HTMLDivElement | null>(null)
 
@@ -38,8 +38,7 @@ export default function SortableBlock({
         e.preventDefault()
         e.stopPropagation()
         const startY = e.clientY
-        // 現在表示されている高さを使用（指定がなければ実描画高さ）
-        const startH = currentHeight ?? blockRef.current?.getBoundingClientRect().height ?? 140
+        const startH = currentHeight ?? blockRef.current?.getBoundingClientRect().height ?? 120
         setResizing(true)
         document.body.style.cursor = 'ns-resize'
 
@@ -61,67 +60,40 @@ export default function SortableBlock({
         transform: CSS.Transform.toString(transform),
         transition: resizing ? 'none' : transition,
         position: 'relative',
-        marginBottom: 24,
         opacity: isDragging ? 0.55 : 1,
         zIndex: isDragging ? 50 : 'auto',
+        padding: '8px 0',
     }
 
     return (
-        <div ref={combineRefs} style={style} className="booklet-block-wrap">
-            {/* パレットD&D中の挿入位置インジケーター（上） */}
-            {dropHint === 'above' && (
-                <div
-                    className="no-print"
-                    aria-hidden="true"
-                    style={{
-                        position: 'absolute', left: 0, right: 0, top: -14,
-                        height: 4, borderRadius: 99,
-                        background: '#2563eb',
-                        boxShadow: '0 0 0 4px rgba(37, 99, 235, 0.15)',
-                        zIndex: 20, pointerEvents: 'none',
-                    }}
-                />
-            )}
-            {/* パレットD&D中の挿入位置インジケーター（下） */}
-            {dropHint === 'below' && (
-                <div
-                    className="no-print"
-                    aria-hidden="true"
-                    style={{
-                        position: 'absolute', left: 0, right: 0, bottom: -14,
-                        height: 4, borderRadius: 99,
-                        background: '#2563eb',
-                        boxShadow: '0 0 0 4px rgba(37, 99, 235, 0.15)',
-                        zIndex: 20, pointerEvents: 'none',
-                    }}
-                />
-            )}
+        <div ref={combineRefs} style={style} className="booklet-inner-wrap">
+            {dropHint === 'above' && <InnerDropIndicator side="above" />}
+            {dropHint === 'below' && <InnerDropIndicator side="below" />}
 
-            {/* 編集UI：ドラッグハンドル + 削除ボタン */}
-            {editable && (
+            {editable && (sortableEnabled || canDelete) && (
                 <div
-                    className="no-print booklet-block-controls"
+                    className="no-print booklet-inner-controls"
                     style={{
-                        position: 'absolute', top: 8, left: -36, zIndex: 10,
-                        display: 'flex', flexDirection: 'column', gap: 4,
+                        position: 'absolute', top: 6, right: 0, zIndex: 10,
+                        display: 'flex', gap: 4,
                     }}
                 >
-                    {isDraggable && (
+                    {sortableEnabled && (
                         <button
                             type="button"
                             aria-label="ブロックをドラッグ"
                             {...attributes}
                             {...listeners}
+                            title="このページ内で並び替え"
                             style={{
-                                width: 28, height: 28, borderRadius: 8,
-                                border: '1.5px solid #e2e8f0',
+                                width: 22, height: 22, borderRadius: 6,
+                                border: '1px solid #e2e8f0',
                                 background: 'white',
-                                color: '#64748b',
+                                color: '#94a3b8',
                                 cursor: 'grab',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                fontSize: 14, fontWeight: 700,
+                                fontSize: 10, fontWeight: 700,
                                 touchAction: 'none',
-                                boxShadow: '0 2px 6px rgba(15,23,42,0.06)',
                             }}
                         >
                             ⋮⋮
@@ -132,15 +104,15 @@ export default function SortableBlock({
                             type="button"
                             aria-label="ブロックを削除"
                             onClick={onDelete}
+                            title="ブロックを削除"
                             style={{
-                                width: 28, height: 28, borderRadius: 8,
-                                border: '1.5px solid #fecaca',
+                                width: 22, height: 22, borderRadius: 6,
+                                border: '1px solid #fecaca',
                                 background: '#fef2f2',
                                 color: '#dc2626',
                                 cursor: 'pointer',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                fontSize: 14,
-                                boxShadow: '0 2px 6px rgba(220,38,38,0.06)',
+                                fontSize: 11,
                             }}
                         >
                             ✕
@@ -151,30 +123,45 @@ export default function SortableBlock({
 
             {children}
 
-            {/* 高さリサイズハンドル（編集モードかつresizable時のみ） */}
             {editable && resizable && onResize && (
                 <div
                     className="no-print"
                     onPointerDown={onResizeStart}
                     title="ドラッグして高さを調整"
                     style={{
-                        position: 'absolute', left: 0, right: 0, bottom: -10, zIndex: 6,
-                        height: 16, display: 'flex',
+                        position: 'absolute', left: 0, right: 0, bottom: -2, zIndex: 6,
+                        height: 14, display: 'flex',
                         alignItems: 'center', justifyContent: 'center',
                         cursor: 'ns-resize',
-                        opacity: resizing ? 1 : 0.55,
+                        opacity: resizing ? 1 : 0.4,
                         transition: 'opacity 0.15s',
                     }}
                     onMouseEnter={e => { e.currentTarget.style.opacity = '1' }}
-                    onMouseLeave={e => { if (!resizing) e.currentTarget.style.opacity = '0.55' }}
+                    onMouseLeave={e => { if (!resizing) e.currentTarget.style.opacity = '0.4' }}
                 >
                     <div style={{
-                        width: 56, height: 6, borderRadius: 99,
+                        width: 48, height: 5, borderRadius: 99,
                         background: resizing ? '#2563eb' : '#cbd5e1',
-                        boxShadow: '0 2px 6px rgba(15,23,42,0.12)',
                     }} />
                 </div>
             )}
         </div>
+    )
+}
+
+function InnerDropIndicator({ side }: { side: 'above' | 'below' }) {
+    return (
+        <div
+            className="no-print"
+            aria-hidden="true"
+            style={{
+                position: 'absolute', left: 0, right: 0,
+                [side === 'above' ? 'top' : 'bottom']: 0,
+                height: 3, borderRadius: 99,
+                background: '#2563eb',
+                boxShadow: '0 0 0 3px rgba(37, 99, 235, 0.15)',
+                zIndex: 20, pointerEvents: 'none',
+            }}
+        />
     )
 }

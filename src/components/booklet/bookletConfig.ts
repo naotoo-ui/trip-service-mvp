@@ -1,34 +1,35 @@
 // しおりの構成情報（テーマ以外）を localStorage で trip 単位に保存
-// ブロックベースの構成データ：ユーザーが自由にブロックを並べ替え・追加・削除できる
+// ページ単位の構造：各ページ（item）が複数の primitive ブロックを保持する。
+// 表紙・背表紙は単独ページ、旅程ページは day ブロック上下に primitive ブロックを並べる。
 
-// ──────────── ブロック型定義 ────────────
+// ──────────── プリミティブブロック（ページ内のサブブロック） ────────────
 
-export type BookletBlockKind =
-    | 'cover'        // 表紙（必ず1個）
-    | 'back-cover'   // 背表紙（必ず1個）
-    | 'day'          // 旅程の日（dayIdx 指定）
-    | 'text'         // 汎用テキストブロック（title + content）
-    | 'packing'      // 持ち物リスト（チェックボックス＋列数）
-    | 'divider'      // 区切り線
-    | 'spacer'       // スペーサー（高さ指定）
-
-export type BookletBlock =
-    | { id: string; kind: 'cover' }
-    | { id: string; kind: 'back-cover' }
-    | { id: string; kind: 'day'; dayIdx: number }
+export type PrimitiveBlock =
     | { id: string; kind: 'text'; title: string; content: string; minHeight?: number }
     | { id: string; kind: 'packing'; title: string; content: string; columns: 1 | 2 | 3; minHeight?: number }
     | { id: string; kind: 'divider'; style?: 'solid' | 'dashed' | 'dotted' }
     | { id: string; kind: 'spacer'; height: number }
 
+export type PrimitiveBlockKind = PrimitiveBlock['kind']
+
+// ──────────── ページアイテム（しおりの最上位ユニット） ────────────
+
+export type BookletItem =
+    | { id: string; kind: 'cover' }
+    | { id: string; kind: 'back-cover' }
+    | { id: string; kind: 'day'; dayIdx: number; blocksAbove: PrimitiveBlock[]; blocksBelow: PrimitiveBlock[] }
+    | { id: string; kind: 'composite'; blocks: PrimitiveBlock[] }
+
+export type BookletItemKind = BookletItem['kind']
+
 export type BookletConfig = {
-    blocks: BookletBlock[]
+    items: BookletItem[]
     showPageNumbers: boolean
     showUrlQrCode: boolean
     themeName: string
 }
 
-// ──────────── ブロック種別ラベル・プレースホルダー ────────────
+// ──────────── プリセット ────────────
 
 export const TEXT_PRESETS: { key: string; title: string; placeholder: string }[] = [
     { key: 'members',   title: '編集メンバー',     placeholder: '田中太郎（リーダー）\n佐藤花子\n山田次郎' },
@@ -41,12 +42,12 @@ export const TEXT_PRESETS: { key: string; title: string; placeholder: string }[]
 
 export const PACKING_PLACEHOLDER = '・パスポート\n・充電器\n・常備薬\n・着替え3日分'
 
-// ──────────── ブロックパレット用テンプレート ────────────
+// ──────────── ブロックパレット用テンプレート（primitive ブロックのみ） ────────────
 
 export type BlockTemplate = {
-    label: string             // パレットボタンの表示名
-    icon: string              // 簡易アイコン
-    factory: () => BookletBlock
+    label: string
+    icon: string
+    factory: () => PrimitiveBlock
 }
 
 export const BLOCK_TEMPLATES: BlockTemplate[] = [
@@ -93,15 +94,15 @@ export function generateBlockId(): string {
 // ──────────── デフォルト設定 ────────────
 
 export function buildDefaultConfig(daysCount: number, themeName = 'sakura'): BookletConfig {
-    const blocks: BookletBlock[] = [
+    const items: BookletItem[] = [
         { id: generateBlockId(), kind: 'cover' },
     ]
     for (let i = 0; i < daysCount; i++) {
-        blocks.push({ id: generateBlockId(), kind: 'day', dayIdx: i })
+        items.push({ id: generateBlockId(), kind: 'day', dayIdx: i, blocksAbove: [], blocksBelow: [] })
     }
-    blocks.push({ id: generateBlockId(), kind: 'back-cover' })
+    items.push({ id: generateBlockId(), kind: 'back-cover' })
     return {
-        blocks,
+        items,
         showPageNumbers: true,
         showUrlQrCode: false,
         themeName,
@@ -124,7 +125,7 @@ const LEGACY_LABELS: Record<LegacyKind, string> = {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function legacyEntryToBlock(kind: LegacyKind, entry: any): BookletBlock {
+function legacyEntryToBlock(kind: LegacyKind, entry: any): PrimitiveBlock {
     const title = LEGACY_LABELS[kind]
     const content = (entry?.content as string | undefined) ?? ''
     if (kind === 'packing') {
@@ -144,10 +145,11 @@ function legacyEntryToBlock(kind: LegacyKind, entry: any): BookletBlock {
     }
 }
 
+// 完全旧フォーマット（optionalPages + dayMemos）から items 配列を作る
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function migrateLegacyConfig(parsed: Record<string, any>, daysCount: number): BookletBlock[] {
-    const blocks: BookletBlock[] = []
-    blocks.push({ id: generateBlockId(), kind: 'cover' })
+function migrateLegacyToItems(parsed: Record<string, any>, daysCount: number): BookletItem[] {
+    const items: BookletItem[] = []
+    items.push({ id: generateBlockId(), kind: 'cover' })
 
     const src = parsed.screen ?? parsed
     const optionalPages = (src?.optionalPages ?? {}) as Record<string, { enabled?: boolean; position?: { kind: string; dayIdx?: number }; content?: string; columns?: 1 | 2 | 3 }>
@@ -159,59 +161,81 @@ function migrateLegacyConfig(parsed: Record<string, any>, daysCount: number): Bo
         if (!e?.enabled) return
         const posKind = e.position?.kind === 'before-back-cover' ? 'after-cover' : e.position?.kind
         if (posKind === 'after-cover') {
-            blocks.push(legacyEntryToBlock(k, e))
+            items.push({ id: generateBlockId(), kind: 'composite', blocks: [legacyEntryToBlock(k, e)] })
         }
     })
 
-    // 各日 + 各日後の optional + 各日のメモ
     for (let i = 0; i < daysCount; i++) {
-        blocks.push({ id: generateBlockId(), kind: 'day', dayIdx: i })
+        items.push({ id: generateBlockId(), kind: 'day', dayIdx: i, blocksAbove: [], blocksBelow: [] })
 
-        // 旧 dayMemos をテキストブロック化
         const memos = (dayMemos[i] ?? []).filter(m => m && m.trim())
         if (memos.length > 0) {
-            blocks.push({
-                id: generateBlockId(),
-                kind: 'text',
-                title: `${i + 1}日目のメモ`,
-                content: memos.join('\n'),
+            items.push({
+                id: generateBlockId(), kind: 'composite',
+                blocks: [{
+                    id: generateBlockId(), kind: 'text',
+                    title: `${i + 1}日目のメモ`, content: memos.join('\n'),
+                }],
             })
         }
 
-        // この日の後の optional
         LEGACY_OPTIONAL_KINDS.forEach(k => {
             const e = optionalPages[k]
             if (!e?.enabled) return
             if (e.position?.kind === 'after-day' && e.position.dayIdx === i) {
-                blocks.push(legacyEntryToBlock(k, e))
+                items.push({ id: generateBlockId(), kind: 'composite', blocks: [legacyEntryToBlock(k, e)] })
             }
         })
     }
 
-    blocks.push({ id: generateBlockId(), kind: 'back-cover' })
-    return blocks
+    items.push({ id: generateBlockId(), kind: 'back-cover' })
+    return items
 }
 
-// 既存 blocks 配列に day ブロックの過不足があれば調整（旅程の日数変更に追従）
-function reconcileDayBlocks(blocks: BookletBlock[], daysCount: number): BookletBlock[] {
-    const existing = new Set<number>()
-    blocks.forEach(b => { if (b.kind === 'day') existing.add(b.dayIdx) })
+// 前バージョンの blocks: BookletBlock[] フラット構造を items 配列に変換
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function migrateFlatBlocksToItems(blocks: any[]): BookletItem[] {
+    const items: BookletItem[] = []
+    for (const b of blocks) {
+        if (!b || typeof b !== 'object') continue
+        if (b.kind === 'cover') {
+            items.push({ id: b.id ?? generateBlockId(), kind: 'cover' })
+        } else if (b.kind === 'back-cover') {
+            items.push({ id: b.id ?? generateBlockId(), kind: 'back-cover' })
+        } else if (b.kind === 'day') {
+            items.push({ id: b.id ?? generateBlockId(), kind: 'day', dayIdx: b.dayIdx, blocksAbove: [], blocksBelow: [] })
+        } else if (b.kind === 'text' || b.kind === 'packing' || b.kind === 'divider' || b.kind === 'spacer') {
+            items.push({
+                id: generateBlockId(), kind: 'composite',
+                blocks: [{ ...b, id: b.id ?? generateBlockId() } as PrimitiveBlock],
+            })
+        }
+    }
+    return items
+}
 
-    // 不足分を背表紙の直前に追加
+// 旅程の日数変更に追従：足りない day item を背表紙の直前に追加・余分は除去
+function reconcileDayItems(items: BookletItem[], daysCount: number): BookletItem[] {
+    const existing = new Set<number>()
+    items.forEach(i => { if (i.kind === 'day') existing.add(i.dayIdx) })
+
     const missing: number[] = []
     for (let i = 0; i < daysCount; i++) {
         if (!existing.has(i)) missing.push(i)
     }
-    if (missing.length === 0) {
-        // 余分（範囲外の dayIdx）の day ブロックは除去
-        return blocks.filter(b => b.kind !== 'day' || b.dayIdx < daysCount)
+
+    let result = items.filter(i => i.kind !== 'day' || i.dayIdx < daysCount)
+
+    if (missing.length > 0) {
+        const backCoverIdx = result.findIndex(i => i.kind === 'back-cover')
+        const insertAt = backCoverIdx === -1 ? result.length : backCoverIdx
+        const newItems: BookletItem[] = missing.map(idx => ({
+            id: generateBlockId(), kind: 'day' as const, dayIdx: idx,
+            blocksAbove: [], blocksBelow: [],
+        }))
+        result = [...result.slice(0, insertAt), ...newItems, ...result.slice(insertAt)]
     }
-    const result = [...blocks]
-    const backCoverIdx = result.findIndex(b => b.kind === 'back-cover')
-    const insertAt = backCoverIdx === -1 ? result.length : backCoverIdx
-    const newDayBlocks: BookletBlock[] = missing.map(idx => ({ id: generateBlockId(), kind: 'day' as const, dayIdx: idx }))
-    result.splice(insertAt, 0, ...newDayBlocks)
-    return result.filter(b => b.kind !== 'day' || b.dayIdx < daysCount)
+    return result
 }
 
 // ──────────── localStorage ────────────
@@ -231,15 +255,21 @@ export function loadBookletConfig(shareId: string, daysCount: number): BookletCo
         const showPageNumbers = (parsed.showPageNumbers as boolean | undefined) ?? true
         const showUrlQrCode = (parsed.showUrlQrCode as boolean | undefined) ?? false
 
-        // 新フォーマット（blocks 配列あり）
-        if (Array.isArray(parsed.blocks)) {
-            const blocks = reconcileDayBlocks(parsed.blocks as BookletBlock[], daysCount)
-            return { blocks, showPageNumbers, showUrlQrCode, themeName }
+        // 最新フォーマット（items 配列あり）
+        if (Array.isArray(parsed.items)) {
+            const items = reconcileDayItems(parsed.items as BookletItem[], daysCount)
+            return { items, showPageNumbers, showUrlQrCode, themeName }
         }
 
-        // 旧フォーマットからマイグレーション
-        const blocks = migrateLegacyConfig(parsed, daysCount)
-        return { blocks, showPageNumbers, showUrlQrCode, themeName }
+        // 前バージョン（blocks フラット配列）→ items に変換
+        if (Array.isArray(parsed.blocks)) {
+            const items = reconcileDayItems(migrateFlatBlocksToItems(parsed.blocks), daysCount)
+            return { items, showPageNumbers, showUrlQrCode, themeName }
+        }
+
+        // 旧フォーマット（optionalPages + dayMemos）→ items に変換
+        const items = migrateLegacyToItems(parsed, daysCount)
+        return { items, showPageNumbers, showUrlQrCode, themeName }
     } catch {
         return buildDefaultConfig(daysCount)
     }
@@ -254,7 +284,37 @@ export function saveBookletConfig(shareId: string, config: BookletConfig): void 
 
 // ──────────── ヘルパー ────────────
 
-// 印刷時にページ番号を振る対象（表紙・背表紙・divider/spacer は除外）
-export function isCountedBlock(b: BookletBlock): boolean {
-    return b.kind === 'day' || b.kind === 'text' || b.kind === 'packing'
+// 1ページとしてカウントする item か（divider/spacer/cover/back-cover は除外）
+export function isCountedItem(item: BookletItem): boolean {
+    return item.kind === 'day' || item.kind === 'composite'
+}
+
+// item.id または block.id を含む item と、その中の primitive block の位置を見つける
+export type FoundBlock = {
+    itemIdx: number
+    item: BookletItem
+    // primitive block の位置
+    array: 'above' | 'below' | 'blocks' | null   // null は item.id 自身を指している（day の本体 or cover 等）
+    blockIdx: number  // -1 if array is null
+    block: PrimitiveBlock | null
+}
+
+export function findBlockOrItem(items: BookletItem[], id: string): FoundBlock | null {
+    for (let i = 0; i < items.length; i++) {
+        const item = items[i]
+        if (item.id === id) {
+            return { itemIdx: i, item, array: null, blockIdx: -1, block: null }
+        }
+        if (item.kind === 'day') {
+            const aIdx = item.blocksAbove.findIndex(b => b.id === id)
+            if (aIdx >= 0) return { itemIdx: i, item, array: 'above', blockIdx: aIdx, block: item.blocksAbove[aIdx] }
+            const bIdx = item.blocksBelow.findIndex(b => b.id === id)
+            if (bIdx >= 0) return { itemIdx: i, item, array: 'below', blockIdx: bIdx, block: item.blocksBelow[bIdx] }
+        }
+        if (item.kind === 'composite') {
+            const idx = item.blocks.findIndex(b => b.id === id)
+            if (idx >= 0) return { itemIdx: i, item, array: 'blocks', blockIdx: idx, block: item.blocks[idx] }
+        }
+    }
+    return null
 }

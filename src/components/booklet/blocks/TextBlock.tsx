@@ -1,8 +1,6 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import type { Theme } from '../bookletThemes'
-import { PageDecoration } from '../BookletDecorations'
-import { getFontFamily } from '../bookletFont'
 
 type Props = {
     title: string
@@ -10,13 +8,13 @@ type Props = {
     theme: Theme
     editable: boolean
     minHeight?: number
-    pageNumber?: number
     onTitleChange?: (title: string) => void
     onContentChange?: (content: string) => void
 }
 
-export default function TextBlock({ title, content, theme, editable, minHeight, pageNumber, onTitleChange, onContentChange }: Props) {
-    const titleFont = getFontFamily(theme.fontStyle)
+// インラインで描画される（ページコンテナ内の1セクション）。
+// 外側 article / 装飾 / ページ番号は BookletView の page コンテナが提供する。
+export default function TextBlock({ title, content, theme, editable, minHeight, onTitleChange, onContentChange }: Props) {
     const [titleDraft, setTitleDraft] = useState(title)
     const [contentDraft, setContentDraft] = useState(content)
     const lastTitleRef = useRef(title)
@@ -33,7 +31,7 @@ export default function TextBlock({ title, content, theme, editable, minHeight, 
     useEffect(() => {
         if (!taRef.current) return
         taRef.current.style.height = 'auto'
-        taRef.current.style.height = `${Math.max(minHeight ?? 140, taRef.current.scrollHeight)}px`
+        taRef.current.style.height = `${Math.max(minHeight ?? 120, taRef.current.scrollHeight)}px`
     }, [contentDraft, minHeight])
 
     function commitTitle() {
@@ -50,35 +48,11 @@ export default function TextBlock({ title, content, theme, editable, minHeight, 
     }
 
     return (
-        <article
-            className="booklet-page booklet-text"
-            style={{
-                background: theme.paperBg,
-                border: theme.paperBorder,
-                borderRadius: 20,
-                padding: '28px 26px',
-                boxShadow: theme.cardStyle === 'soft'
-                    ? '0 4px 20px rgba(15, 23, 42, 0.06)'
-                    : '0 2px 12px rgba(15, 23, 42, 0.04)',
-                position: 'relative',
-                overflow: 'hidden',
-                fontFamily: titleFont,
-                minHeight: minHeight ?? undefined,
-            }}
-        >
-            <PageDecoration kind={theme.decoration} accent={theme.accent} />
-
+        <div className="booklet-text booklet-inline-block" style={{ position: 'relative', zIndex: 2 }}>
             <header style={{
-                position: 'relative', zIndex: 2,
-                paddingBottom: 14, marginBottom: 16,
-                borderBottom: `2px solid ${theme.accent}`,
+                paddingBottom: 10, marginBottom: 12,
+                borderBottom: `1.5px solid ${theme.accent}`,
             }}>
-                <p style={{
-                    fontSize: 11, fontWeight: 700, letterSpacing: '0.18em',
-                    textTransform: 'uppercase', color: theme.accent, margin: '0 0 6px',
-                }}>
-                    Page
-                </p>
                 {editable ? (
                     <input
                         type="text"
@@ -88,24 +62,21 @@ export default function TextBlock({ title, content, theme, editable, minHeight, 
                         onKeyDown={e => { if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur() }}
                         placeholder="タイトル"
                         style={{
-                            fontSize: 24, fontWeight: 800, color: theme.text,
+                            fontSize: 18, fontWeight: 800, color: theme.text,
                             margin: 0, letterSpacing: '-0.01em',
                             width: '100%', border: 'none', background: 'transparent',
-                            outline: 'none', fontFamily: 'inherit',
-                            padding: '2px 0',
+                            outline: 'none', fontFamily: 'inherit', padding: 0,
                         }}
                     />
                 ) : (
-                    <h2 style={{
-                        fontSize: 24, fontWeight: 800, color: theme.text,
+                    <h3 style={{
+                        fontSize: 18, fontWeight: 800, color: theme.text,
                         margin: 0, letterSpacing: '-0.01em',
-                    }}>
-                        {title}
-                    </h2>
+                    }}>{title}</h3>
                 )}
             </header>
 
-            <div style={{ position: 'relative', zIndex: 2 }}>
+            <div>
                 {editable ? (
                     <textarea
                         ref={taRef}
@@ -114,9 +85,9 @@ export default function TextBlock({ title, content, theme, editable, minHeight, 
                         onBlur={commitContent}
                         placeholder="自由に入力できます..."
                         style={{
-                            width: '100%', minHeight: minHeight ?? 140, padding: 14,
+                            width: '100%', minHeight: minHeight ?? 120, padding: 12,
                             border: `1.5px dashed ${theme.timelineBar}`,
-                            borderRadius: 12,
+                            borderRadius: 10,
                             background: theme.pageBg,
                             fontSize: 14, color: theme.text,
                             fontFamily: 'inherit', lineHeight: 1.7,
@@ -127,24 +98,16 @@ export default function TextBlock({ title, content, theme, editable, minHeight, 
                 ) : (
                     <pre style={{
                         whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-                        margin: 0, padding: 14,
-                        background: theme.pageBg, borderRadius: 12,
+                        margin: 0, padding: 12,
+                        background: theme.pageBg, borderRadius: 10,
                         fontSize: 14, color: theme.text,
                         fontFamily: 'inherit', lineHeight: 1.7,
-                        minHeight: minHeight ?? 140,
+                        minHeight: minHeight ?? 120,
                     }}>
                         {content || <span style={{ color: theme.subText, opacity: 0.6 }}>（内容なし）</span>}
                     </pre>
                 )}
             </div>
-
-            {pageNumber !== undefined && (
-                <p style={{
-                    textAlign: 'center', fontSize: 11, letterSpacing: '0.1em',
-                    fontVariantNumeric: 'tabular-nums', color: theme.subText,
-                    margin: '16px 0 -4px', position: 'relative', zIndex: 2,
-                }}>— {pageNumber} —</p>
-            )}
-        </article>
+        </div>
     )
 }

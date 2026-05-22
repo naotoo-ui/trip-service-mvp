@@ -484,12 +484,13 @@ src/
 │   ├── BookletBackCover.tsx              # 背表紙ブロック（テーマ装飾のみ・右下に「旅程ジェネレーター」）
 │   ├── BookletDayPage.tsx                # 日別ブロック（タイムライン・宿泊・スポット別メモ/URL/QRコード）
 │   ├── blocks/
-│   │   ├── TextBlock.tsx                 # 汎用テキストブロック（タイトル＋本文 textarea）
-│   │   ├── PackingBlock.tsx              # 持ち物リストブロック（チェックボックス・1/2/3列）
+│   │   ├── TextBlock.tsx                 # 汎用テキストインラインブロック（カードなし）
+│   │   ├── PackingBlock.tsx              # 持ち物リストインラインブロック（チェックボックス・1/2/3列）
 │   │   ├── DividerBlock.tsx              # 区切り線
 │   │   ├── SpacerBlock.tsx               # スペーサー（高さ指定）
-│   │   ├── BlockPalette.tsx              # ＋ページを追加パレット（表紙直後・D&D/クリックで追加）
-│   │   └── SortableBlock.tsx             # @dnd-kit/sortable ラッパー（ハンドル＋削除＋高さリサイズ）
+│   │   ├── BlockPalette.tsx              # ページ追加パレット（右サイドバー・D&D/クリック）
+│   │   ├── SortablePage.tsx              # 外側 @dnd-kit/sortable ラッパー（ページ全体・ハンドル＋削除＋ドロップヒント）
+│   │   └── SortableInnerBlock.tsx        # 内側 @dnd-kit/sortable ラッパー（ページ内ブロック・小ハンドル＋削除＋リサイズ＋ドロップヒント）
 │   ├── BookletSettings.tsx               # 設定モーダル（全体/PC/印刷の3セクション）
 │   ├── BookletThemePicker.tsx            # テーマピッカー（カテゴリ別グリッド）
 │   ├── BookletDecorations.tsx            # 装飾レイヤー（CSSパターン）
@@ -616,43 +617,54 @@ docs/
 | `wave` | 控えめなウェーブパターン |
 | `washi` | washi tape 風の斜め帯（表紙の角に配置） |
 
-### BookletConfig（しおり構成データ・localStorage管理・ブロックベース）
+### BookletConfig（しおり構成データ・localStorage管理・**ページ内ブロック2階層モデル**）
 **ファイル**: `src/components/booklet/bookletConfig.ts`
 **localStorage キー**: `tripgen.booklet.config.${shareId}` — trip 単位で別個に保存
 
 ```typescript
-type BookletBlock =
-    | { id: string; kind: 'cover' }
-    | { id: string; kind: 'back-cover' }
-    | { id: string; kind: 'day'; dayIdx: number }
+// プリミティブブロック：ページの中身として配置されるサブブロック
+type PrimitiveBlock =
     | { id: string; kind: 'text'; title: string; content: string; minHeight?: number }
     | { id: string; kind: 'packing'; title: string; content: string; columns: 1|2|3; minHeight?: number }
     | { id: string; kind: 'divider'; style?: 'solid'|'dashed'|'dotted' }
     | { id: string; kind: 'spacer'; height: number }
 
+// しおりの最上位ユニット（ページ）
+type BookletItem =
+    | { id: string; kind: 'cover' }
+    | { id: string; kind: 'back-cover' }
+    | { id: string; kind: 'day'; dayIdx: number; blocksAbove: PrimitiveBlock[]; blocksBelow: PrimitiveBlock[] }
+    | { id: string; kind: 'composite'; blocks: PrimitiveBlock[] }
+
 type BookletConfig = {
-    blocks: BookletBlock[]            // 並び順は配列順
+    items: BookletItem[]
     showPageNumbers: boolean
     showUrlQrCode: boolean
     themeName: string
 }
 ```
 
+**設計思想**: 旧フラット `blocks: BookletBlock[]` を2階層に変更。各 `BookletItem` が1ページ＝1カードとしてレンダリングされ、その中に複数の `PrimitiveBlock` を保持できる。日別ページ（`day`）は `blocksAbove` と `blocksBelow` で旅程ブロックの上下にサブブロックを並べる。これにより「旅程ブロックの途中には他ブロックを挿入不可」を構造的に保証。
+
 **ブロック方式の設計思想**: 固定テンプレート（旧 cover→optional→days→optional→back-cover）を廃止し、ユーザーが自由にブロックを並べ替え・追加・削除できる柔軟構成に変更。PCでD&D並び替え、印刷時はCSSで自動レイアウト・自動改ページ（`break-inside: avoid` ベース）。
 
 **マイグレーション** (`loadBookletConfig(shareId, daysCount)`):
-1. 新フォーマット（`parsed.blocks` 配列あり）→ そのまま使用。`reconcileDayBlocks` で旅程日数の過不足を調整（不足分は背表紙の直前に追加、範囲外の dayIdx は除去）
-2. 旧フォーマット（optionalPages + dayMemos）→ `migrateLegacyConfig` で blocks 配列に変換：
-   - 表紙の後の optional → 該当ブロック
-   - 各日 + 該当日後の optional + dayMemos（テキストブロック「N日目のメモ」化）
-   - 旧 `before-back-cover` 位置は `after-cover` 扱い
-3. データなし → `buildDefaultConfig(daysCount)` で `[cover, day×N, back-cover]` を生成
+1. 最新フォーマット（`parsed.items` あり）→ そのまま使用 + `reconcileDayItems`
+2. 中間フォーマット（`parsed.blocks` フラット配列）→ `migrateFlatBlocksToItems` で items に変換（各 primitive ブロックを単独ページの composite に包む）
+3. 旧フォーマット（optionalPages + dayMemos）→ `migrateLegacyToItems` で items に変換
+4. データなし → `buildDefaultConfig(daysCount)` で `[cover, day×N, back-cover]` を生成
 
-**ブロック編集**:
-- `updateBlock(id, updater)`: 指定IDのブロックだけ更新（タイトル・content・columns・minHeight 等）
-- `deleteBlock(id)`: cover/back-cover/day 以外は削除可能（`SortableBlock.canDelete` で制御）
-- D&D並び替え: `@dnd-kit/sortable` の `arrayMove(blocks, oldIdx, newIdx)`
-- cover/back-cover はドラッグ不可（`NON_DRAGGABLE_KINDS` で制御）
+`reconcileDayItems` は旅程日数の変化に追従（不足分は背表紙の直前に追加、範囲外の dayIdx は除去）。
+
+**ブロック編集（2階層）**:
+- `updatePrimitive(id, updater)`: 全 items を横断して該当 ID の primitive block を更新
+- `deletePrimitive(id)`: primitive block を削除。composite が空になったらページごと消滅
+- `deleteItem(itemId)`: ページ単位の削除（composite のみ削除可能。cover/back-cover/day は保持）
+- D&D並び替え: 2階層 SortableContext
+  - **外側**: `config.items.map(it => it.id)` を items として登録 → ページ単位の並び替え（SortablePage）
+  - **内側**: 各 day/composite item の中で `blocksAbove + day-anchor + blocksBelow` または `blocks` を items として登録 → ページ内ブロックの並び替え（SortableInnerBlock）
+- 同じ親の同じ配列内でのみブロックを並び替え可能（`reorderInnerBlock` が `findBlockOrItem` で親一致をチェック）
+- cover/back-cover はページレベルでドラッグ不可
 
 **ブロック追加（BlockPalette・Canva風サイドバー）**:
 - PC（>960px）では右サイドバーに `position: sticky; top: 80px` で固定表示・スクロールしても画面内に追従
@@ -662,11 +674,16 @@ type BookletConfig = {
 - パレットアイテムは `BLOCK_TEMPLATES` 配列（持ち物リスト・編集メンバー・集合時間・緊急連絡先・メモ・金額メモ・自由ページ・区切り線）。spacer ブロック型は残してあるが、現在はパレットから追加できない（既存データとの互換のため）
 - パレット内部は縦並びの button リスト（アイコン＋ラベル＋⋮⋮）・hoverで枠色変化
 - 2通りの追加方法：
-  1. **クリック**: 表紙直後に新ブロックを挿入（`addBlockFromPalette`）
-  2. **ドラッグ**: @dnd-kit/useDraggable で任意のブロックの**上半分** or **下半分**にドロップ → そのブロックの直前 or 直後に挿入
-- **挿入位置の精密制御**: `handleDragMove` で active.rect の中心と over.rect の中心を比較し `dragHint: { overId, side: 'above'|'below' }` を計算。SortableBlock に `dropHint` を渡し、該当ブロックの上端/下端に青いインジケーター（横長バー）をプレビュー表示
-- **旅程ブロックの保護**: ドロップ位置は常に「ブロックの上 or 下」のいずれかに解決されるため、日別ブロックのタイムライン内部には挿入されない（要件「旅程ブロックの途中に挿入不可」を自然に満たす）
-- DnDContext の `handleDragEnd` で `active.data.current?.palette` をチェックして並び替えか挿入かを分岐。挿入時は `insertBlockAt(templateIdx, overId, side)` を呼ぶ
+  1. **クリック**: 表紙直後に新規 composite ページとして追加（`addBlockFromPalette`）
+  2. **ドラッグ**: @dnd-kit/useDraggable で任意のページ・ブロックの**上半分** or **下半分**にドロップ → `insertFromPalette` が挿入先を判定
+- **挿入先の判定**（`insertFromPalette(template, overId, side)`）:
+  - over.id が day-anchor (`{itemId}__day-anchor`) → 該当日の `blocksAbove`（上半分なら末尾）or `blocksBelow`（下半分なら先頭）に追加
+  - over.id が item の id（cover/back-cover）→ 新規 composite ページとして前後に挿入
+  - over.id が composite item の id → `item.blocks` の先頭 or 末尾に追加（ページ内）
+  - over.id が day item の id → 該当日の `blocksAbove` or `blocksBelow` に追加
+  - over.id が primitive block の id → 同じ親（composite.blocks / day.blocksAbove / day.blocksBelow）の同配列内、target の直前 or 直後に挿入
+- **挿入位置の精密制御**: `handleDragMove` で active.rect の中心と over.rect の中心を比較し `dragHint: { overId, side: 'above'|'below' }` を計算。SortablePage / SortableInnerBlock 双方に `dropHint` を渡し、上端/下端に青いインジケーター（横長バー）をプレビュー
+- **旅程ブロックの保護**: 日別ブロック本体（DayAnchor）はドラッグ不可かつ削除不可で、上下挿入のみ受け付ける。タイムライン内部に他ブロックが入ることはない
 - 印刷時はサイドバー (`.booklet-palette-sidebar`) を非表示、`.booklet-layout` の flex を block に戻して全幅に
 
 **ブロック高さリサイズ**:
