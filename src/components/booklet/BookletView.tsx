@@ -2,10 +2,10 @@
 import { useState, useEffect } from 'react'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import {
-    DndContext, closestCenter, PointerSensor, KeyboardSensor,
+    DndContext, closestCenter, pointerWithin, PointerSensor, KeyboardSensor,
     useDroppable, useSensor, useSensors,
     type DragEndEvent, type DragMoveEvent, type DragCancelEvent,
-    type DragStartEvent,
+    type DragStartEvent, type CollisionDetection,
 } from '@dnd-kit/core'
 import {
     SortableContext, arrayMove,
@@ -58,6 +58,25 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
         useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
         useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
     )
+
+    // カーソルが実際に重なっている要素を優先。重なりが複数ある場合は
+    // 最も小さい（＝最も内側 / 具体的な）droppable を選ぶことで、ページ本体ではなく
+    // その中のブロックが優先される。
+    // pointerWithin はキーボード操作時に無効なので、その場合は closestCenter にフォールバック。
+    const collisionDetection: CollisionDetection = (args) => {
+        if (args.pointerCoordinates) {
+            const ptr = pointerWithin(args)
+            if (ptr.length > 0) {
+                return [...ptr].sort((a, b) => {
+                    const aRect = args.droppableRects.get(a.id)
+                    const bRect = args.droppableRects.get(b.id)
+                    if (!aRect || !bRect) return 0
+                    return (aRect.width * aRect.height) - (bRect.width * bRect.height)
+                })
+            }
+        }
+        return closestCenter(args)
+    }
 
     async function handleSpotUpdate(dayIdx: number, spotIdx: number, update: Partial<Spot>) {
         const newDays = localDays.map((d, di) =>
@@ -568,7 +587,7 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
 
             <DndContext
                 sensors={sensors}
-                collisionDetection={closestCenter}
+                collisionDetection={collisionDetection}
                 onDragStart={handleDragStart}
                 onDragMove={handleDragMove}
                 onDragEnd={handleDragEnd}
