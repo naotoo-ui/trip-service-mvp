@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import type { GenerateInput, Itinerary, PlanInput, SidebarSpot, TripStyle } from '@/types'
+import { ai } from './client'
 
 function getModel() {
     const key = process.env.GEMINI_API_KEY
@@ -319,8 +320,9 @@ export async function generateTripFromArticle(articleText: string): Promise<{
     duration_days: number
     itinerary: Itinerary
 }> {
-    const raw = await callGemini(buildScrapePrompt(articleText))
-    const { title, destination, duration_days, itinerary } = parseTripJson(raw)
+    // ハイブリッドルーター経由(USE_OLLAMA=true なら Ollama、失敗時は Gemini にフォールバック)
+    const { text } = await ai.complete('extract', { prompt: buildScrapePrompt(articleText) })
+    const { title, destination, duration_days, itinerary } = parseTripJson(text)
     return {
         title,
         destination: destination ?? '不明',
