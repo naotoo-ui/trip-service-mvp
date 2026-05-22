@@ -482,7 +482,8 @@ src/
 │   ├── BookletNav.tsx                    # 上部ツールバー（戻る・テーマ・設定・シェア・印刷）
 │   ├── BookletCover.tsx                  # 表紙ブロック（タイトル＋旅行日程・インライン編集・DatePickerOverlay）
 │   ├── BookletBackCover.tsx              # 背表紙ブロック（テーマ装飾のみ・右下に「旅程ジェネレーター」）
-│   ├── BookletDayPage.tsx                # 日別ブロック（タイムライン・宿泊・スポット別メモ/URL/QRコード）
+│   ├── BookletDayHeader.tsx              # 日別ページのタイトルヘッダー（Day N / 日付 / TODAY バッジ）
+│   ├── BookletDayPage.tsx                # 日別ページ本体（タイムライン・宿泊・スポット別メモ/URL/QRコード）
 │   ├── blocks/
 │   │   ├── TextBlock.tsx                 # 汎用テキストインラインブロック（カードなし）
 │   │   ├── PackingBlock.tsx              # 持ち物リストインラインブロック（チェックボックス・1/2/3列）
@@ -677,12 +678,15 @@ type BookletConfig = {
   1. **クリック**: 表紙直後に新規 composite ページとして追加（`addBlockFromPalette`）
   2. **ドラッグ**: @dnd-kit/useDraggable で任意のページ・ブロックの**上半分** or **下半分**にドロップ → `insertFromPalette` が挿入先を判定
 - **挿入先の判定**（`insertFromPalette(template, overId, side)`）:
+  - over.id が `__new-page-gap-{idx}` → 新規 composite ページとして items の idx 位置に挿入
   - over.id が day-anchor (`{itemId}__day-anchor`) → 該当日の `blocksAbove`（上半分なら末尾）or `blocksBelow`（下半分なら先頭）に追加
   - over.id が item の id（cover/back-cover）→ 新規 composite ページとして前後に挿入
   - over.id が composite item の id → `item.blocks` の先頭 or 末尾に追加（ページ内）
   - over.id が day item の id → 該当日の `blocksAbove` or `blocksBelow` に追加
   - over.id が primitive block の id → 同じ親（composite.blocks / day.blocksAbove / day.blocksBelow）の同配列内、target の直前 or 直後に挿入
+- **新規ページとして追加**: パレットからドラッグ中、各ページ間に `NewPageGap`（破線の青いゾーン）が現れる。これに drop すると新規 composite ページとしてその位置に挿入される。`paletteDragActive` state（onDragStart で true / onDragEnd・onDragCancel で false）で表示制御
 - **挿入位置の精密制御**: `handleDragMove` で active.rect の中心と over.rect の中心を比較し `dragHint: { overId, side: 'above'|'below' }` を計算。SortablePage / SortableInnerBlock 双方に `dropHint` を渡し、上端/下端に青いインジケーター（横長バー）をプレビュー
+- **旅程ページの構造**: 旅程ページ（day item）はカード最上部に `BookletDayHeader`（Day N / labelText / 日付）を SortableContext 外で常時表示。その下に `blocksAbove` → 旅程本体（DayAnchor）→ `blocksBelow` を配置。これにより「上に追加」がページタイトルより下・旅程本体より上に挿入される
 - **旅程ブロックの保護**: 日別ブロック本体（DayAnchor）はドラッグ不可かつ削除不可で、上下挿入のみ受け付ける。タイムライン内部に他ブロックが入ることはない
 - 印刷時はサイドバー (`.booklet-palette-sidebar`) を非表示、`.booklet-layout` の flex を block に戻して全幅に
 

@@ -4,9 +4,6 @@ import { QRCodeSVG } from 'qrcode.react'
 import type { ItineraryDay, Spot } from '@/types'
 import type { Theme } from './bookletThemes'
 
-const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土']
-const WEEKDAY_COLORS = ['#dc2626', '#475569', '#475569', '#475569', '#475569', '#475569', '#2563eb']
-
 function toMins(time: string) {
     const [h, m] = time.split(':').map(Number)
     return isNaN(h) ? 0 : h * 60 + (m || 0)
@@ -64,7 +61,6 @@ export default function BookletDayPage({ day, dayIdx, startDate, theme, enableNo
         return -1
     })()
 
-    const labelText = day.label || `${dayIdx + 1}日目`
     const sortedSpots = day.spots
         .map((spot, origIdx) => ({ spot, origIdx }))
         .sort((a, b) => toMins(a.spot.time) - toMins(b.spot.time))
@@ -161,59 +157,6 @@ export default function BookletDayPage({ day, dayIdx, startDate, theme, enableNo
 
     return (
         <div className="booklet-day booklet-inline-block" style={{ position: 'relative', zIndex: 2 }}>
-                {/* 日付ヘッダー */}
-                <header
-                    style={{
-                        position: 'relative', zIndex: 2,
-                        display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between',
-                        gap: 16, paddingBottom: 16, marginBottom: 20,
-                        borderBottom: `2px solid ${theme.accent}`,
-                    }}
-                >
-                    <div>
-                        <p style={{
-                            fontSize: 11, fontWeight: 700, letterSpacing: '0.18em',
-                            textTransform: 'uppercase', color: theme.accent, margin: '0 0 6px',
-                        }}>
-                            Day {dayIdx + 1}
-                        </p>
-                        <h2 style={{
-                            fontSize: 24, fontWeight: 800, color: theme.text,
-                            margin: 0, letterSpacing: '-0.01em',
-                        }}>
-                            {labelText}
-                        </h2>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                        {dateObj && (
-                            <>
-                                <p style={{
-                                    fontSize: 24, fontWeight: 800, color: theme.text,
-                                    margin: 0, lineHeight: 1, fontVariantNumeric: 'tabular-nums',
-                                }}>
-                                    {dateObj.getMonth() + 1}/{dateObj.getDate()}
-                                </p>
-                                <p style={{
-                                    fontSize: 11, fontWeight: 700,
-                                    color: WEEKDAY_COLORS[dateObj.getDay()],
-                                    margin: '4px 0 0',
-                                }}>
-                                    {WEEKDAYS[dateObj.getDay()]}曜日
-                                </p>
-                            </>
-                        )}
-                        {isToday && (
-                            <span style={{
-                                display: 'inline-block', marginTop: 6,
-                                padding: '2px 10px', borderRadius: 99,
-                                background: theme.accent, color: 'white',
-                                fontSize: 10, fontWeight: 700, letterSpacing: '0.05em',
-                                boxShadow: `0 2px 8px ${theme.accent}55`,
-                            }}>TODAY</span>
-                        )}
-                    </div>
-                </header>
-
                 {/* タイムライン */}
                 {sortedSpots.length === 0 ? (
                     <p style={{ textAlign: 'center', color: theme.subText, padding: '20px 0', position: 'relative', zIndex: 2 }}>

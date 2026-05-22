@@ -3,8 +3,9 @@ import { useState, useEffect } from 'react'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import {
     DndContext, closestCenter, PointerSensor, KeyboardSensor,
-    useSensor, useSensors,
+    useDroppable, useSensor, useSensors,
     type DragEndEvent, type DragMoveEvent, type DragCancelEvent,
+    type DragStartEvent,
 } from '@dnd-kit/core'
 import {
     SortableContext, arrayMove,
@@ -15,6 +16,7 @@ import BookletNav from './BookletNav'
 import BookletCover from './BookletCover'
 import BookletBackCover from './BookletBackCover'
 import BookletDayPage from './BookletDayPage'
+import BookletDayHeader from './BookletDayHeader'
 import BookletSettings from './BookletSettings'
 import SortablePage from './blocks/SortablePage'
 import SortableInnerBlock from './blocks/SortableInnerBlock'
@@ -37,6 +39,11 @@ const isDayAnchorId = (id: string) => id.endsWith(DAY_ANCHOR_SUFFIX)
 const dayAnchorOfItem = (itemId: string) => itemId + DAY_ANCHOR_SUFFIX
 const itemOfDayAnchor = (anchorId: string) => anchorId.slice(0, -DAY_ANCHOR_SUFFIX.length)
 
+// 「ページ間：新規ページとして追加」用のドロップゾーン id
+const NEW_PAGE_GAP_PREFIX = '__new-page-gap-'
+const isNewPageGapId = (id: string) => id.startsWith(NEW_PAGE_GAP_PREFIX)
+const gapInsertIdx = (id: string) => parseInt(id.slice(NEW_PAGE_GAP_PREFIX.length), 10)
+
 export default function BookletView({ trip, editToken }: { trip: Trip; editToken?: string }) {
     const editable = !!editToken
     const isMobile = useIsMobile(960)
@@ -45,6 +52,7 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
     const [mounted, setMounted] = useState(false)
     const [localDays, setLocalDays] = useState<ItineraryDay[]>(trip.itinerary.days)
     const [dragHint, setDragHint] = useState<{ overId: string; side: 'above' | 'below' } | null>(null)
+    const [paletteDragActive, setPaletteDragActive] = useState(false)
 
     const sensors = useSensors(
         useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -135,9 +143,27 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
         mapItems(items => items.filter(i => i.id !== itemId))
     }
 
+    // ─── パレットから「ページ間 gap」へのドロップ：新規 composite ページとして挿入 ───
+    function insertNewPageAt(template: BlockTemplate, insertIdx: number) {
+        if (!config) return
+        const newBlock = template.factory()
+        const newItem: BookletItem = { id: generateBlockId(), kind: 'composite', blocks: [newBlock] }
+        const items = [...config.items]
+        const safeIdx = Math.max(0, Math.min(insertIdx, items.length))
+        items.splice(safeIdx, 0, newItem)
+        updateConfig({ ...config, items })
+    }
+
     // ─── パレットから挿入：target の上下に応じて適切な場所へ ───
     function insertFromPalette(template: BlockTemplate, overId: string, side: 'above' | 'below') {
         if (!config) return
+
+        // ページ間 gap → 新規ページ作成
+        if (isNewPageGapId(overId)) {
+            insertNewPageAt(template, gapInsertIdx(overId))
+            return
+        }
+
         const newBlock = template.factory()
 
         // day anchor へのドロップ → 該当日の above/below に追加
@@ -257,17 +283,29 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
         return activeCenter > overCenter ? 'below' : 'above'
     }
 
+    function handleDragStart(e: DragStartEvent) {
+        if (e.active.data.current?.palette) {
+            setPaletteDragActive(true)
+        }
+    }
+
     function handleDragMove(e: DragMoveEvent) {
         const { active, over } = e
         if (!over || !active.data.current?.palette) {
             if (dragHint !== null) setDragHint(null)
             return
         }
+        const overIdStr = String(over.id)
+        // ページ間ギャップへのドロップは side 不要（ヒントだけ overId を更新）
+        if (isNewPageGapId(overIdStr)) {
+            if (dragHint?.overId !== overIdStr) setDragHint({ overId: overIdStr, side: 'above' })
+            return
+        }
         const aRect = active.rect.current.translated
         const oRect = over.rect
         if (!aRect || !oRect) return
         const side = computeDropSide(aRect.top, aRect.height, oRect.top, oRect.height)
-        const next = { overId: String(over.id), side }
+        const next = { overId: overIdStr, side }
         if (dragHint?.overId !== next.overId || dragHint?.side !== next.side) {
             setDragHint(next)
         }
@@ -275,10 +313,12 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
 
     function handleDragCancel(_e: DragCancelEvent) {
         setDragHint(null)
+        setPaletteDragActive(false)
     }
 
     function handleDragEnd(e: DragEndEvent) {
         setDragHint(null)
+        setPaletteDragActive(false)
         const { active, over } = e
         if (!over || !config) return
 
@@ -455,9 +495,20 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
                 ...item.blocksBelow.map(b => b.id),
             ]
             const dayAnchorHint = dragHint?.overId === dayAnchorOfItem(item.id) ? dragHint.side : null
+            const day = localDays[item.dayIdx]
             return (
                 <article className="booklet-page booklet-page-day" style={pageCardStyle()}>
                     <PageDecoration kind={theme.decoration} accent={theme.accent} />
+                    {/* ページタイトル（Day N + 日付）— ソータブル外で常に最上部 */}
+                    {day && (
+                        <BookletDayHeader
+                            day={day}
+                            dayIdx={item.dayIdx}
+                            startDate={trip.itinerary.start_date}
+                            theme={theme}
+                            enableToday={mounted}
+                        />
+                    )}
                     <SortableContext items={innerIds} strategy={verticalListSortingStrategy}>
                         {item.blocksAbove.map(b => renderInnerBlock(b, dragHint?.overId === b.id ? dragHint.side : null))}
                         <SortableInnerBlock
@@ -468,7 +519,7 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
                             dropHint={dayAnchorHint}
                         >
                             <BookletDayPage
-                                day={localDays[item.dayIdx]}
+                                day={day}
                                 dayIdx={item.dayIdx}
                                 startDate={trip.itinerary.start_date}
                                 theme={theme}
@@ -518,6 +569,7 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
             <DndContext
                 sensors={sensors}
                 collisionDetection={closestCenter}
+                onDragStart={handleDragStart}
                 onDragMove={handleDragMove}
                 onDragEnd={handleDragEnd}
                 onDragCancel={handleDragCancel}
@@ -541,23 +593,35 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
                         }}
                     >
                         <SortableContext items={config.items.map(it => it.id)} strategy={verticalListSortingStrategy}>
-                            {config.items.map(item => {
+                            {/* 先頭ギャップ（表紙より前ではないので、表紙の後に表示するために先頭は省略） */}
+                            {config.items.map((item, idx) => {
                                 const pageHint = dragHint?.overId === item.id ? dragHint.side : null
                                 const canDeletePage = item.kind === 'composite'
                                 return (
-                                    <SortablePage
-                                        key={item.id}
-                                        id={item.id}
-                                        kind={item.kind}
-                                        editable={editable}
-                                        canDelete={canDeletePage}
-                                        onDelete={() => deleteItem(item.id)}
-                                        dropHint={pageHint}
-                                    >
-                                        {renderPageContent(item)}
-                                    </SortablePage>
+                                    <div key={item.id}>
+                                        {/* ページの前のギャップ（idx === 0 は不要：表紙の前） */}
+                                        {idx > 0 && editable && (
+                                            <NewPageGap
+                                                insertIdx={idx}
+                                                visible={paletteDragActive}
+                                                highlighted={dragHint?.overId === `${NEW_PAGE_GAP_PREFIX}${idx}`}
+                                            />
+                                        )}
+                                        <SortablePage
+                                            id={item.id}
+                                            kind={item.kind}
+                                            editable={editable}
+                                            canDelete={canDeletePage}
+                                            onDelete={() => deleteItem(item.id)}
+                                            dropHint={pageHint}
+                                        >
+                                            {renderPageContent(item)}
+                                        </SortablePage>
+                                    </div>
                                 )
                             })}
+                            {/* 末尾ギャップ（背表紙の後ろにはページが入らないので、配列末尾＝背表紙の前に挿入） */}
+                            {/* 配列末尾は通常 back-cover なので、その直前へ挿入する用のギャップは不要（直前のループの idx で対応済み） */}
                         </SortableContext>
 
                         {editable && isMobile && (
@@ -612,4 +676,35 @@ function pageNumberStyle(theme: Theme): React.CSSProperties {
         fontVariantNumeric: 'tabular-nums', color: theme.subText,
         margin: '16px 0 -4px', position: 'relative', zIndex: 2,
     }
+}
+
+// ページ間に表示される「新規ページとして追加」用のドロップゾーン
+function NewPageGap({ insertIdx, visible, highlighted }: { insertIdx: number; visible: boolean; highlighted: boolean }) {
+    const id = `${NEW_PAGE_GAP_PREFIX}${insertIdx}`
+    const { setNodeRef, isOver } = useDroppable({ id })
+    const active = isOver || highlighted
+    return (
+        <div
+            ref={setNodeRef}
+            className="no-print booklet-new-page-gap"
+            style={{
+                height: visible ? (active ? 46 : 24) : 0,
+                margin: visible ? '8px 0' : 0,
+                borderRadius: 12,
+                background: active ? 'rgba(37, 99, 235, 0.08)' : 'transparent',
+                border: visible
+                    ? `2px ${active ? 'solid' : 'dashed'} ${active ? '#2563eb' : '#cbd5e1'}`
+                    : 'none',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: '#2563eb',
+                fontSize: 12, fontWeight: 700,
+                letterSpacing: '0.05em',
+                transition: 'height 0.18s, background 0.18s, border-color 0.18s',
+                overflow: 'hidden',
+                pointerEvents: visible ? 'auto' : 'none',
+            }}
+        >
+            {visible && active && '＋ 新規ページとして追加'}
+        </div>
+    )
 }

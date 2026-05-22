@@ -85,6 +85,9 @@ details:not([open]) .faq-toggle::before { content: "＋"; }
     .booklet-palette-sidebar {
         display: none !important;
     }
+    .booklet-new-page-gap {
+        display: none !important;
+    }
     /* ページ内インラインブロックの余白を整理 */
     .booklet-inline-block {
         padding: 0 !important;
