@@ -3,7 +3,8 @@ import { useState, useEffect } from 'react'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import {
     DndContext, closestCenter, PointerSensor, KeyboardSensor,
-    useSensor, useSensors, type DragEndEvent,
+    useSensor, useSensors,
+    type DragEndEvent, type DragMoveEvent, type DragCancelEvent,
 } from '@dnd-kit/core'
 import {
     SortableContext, arrayMove,
@@ -35,6 +36,8 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
     const [settingsOpen, setSettingsOpen] = useState(false)
     const [mounted, setMounted] = useState(false)
     const [localDays, setLocalDays] = useState<ItineraryDay[]>(trip.itinerary.days)
+    // パレットから D&D 中の挿入位置ヒント（どのブロックの上/下に入るか）
+    const [dragHint, setDragHint] = useState<{ overId: string; side: 'above' | 'below' } | null>(null)
 
     const sensors = useSensors(
         useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -99,27 +102,62 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
         updateConfig({ ...config, blocks: next })
     }
 
-    // パレットからD&D：指定の over.id の直後に挿入
-    function insertBlockAfter(templateIdx: number, overId: string) {
+    // パレットからD&D：指定の over.id の前 or 後に挿入
+    function insertBlockAt(templateIdx: number, overId: string, side: 'above' | 'below') {
         if (!config) return
         const template = BLOCK_TEMPLATES[templateIdx]
         if (!template) return
         const newBlock = template.factory()
         const targetIdx = config.blocks.findIndex(b => b.id === overId)
-        const insertAt = targetIdx < 0 ? config.blocks.length : targetIdx + 1
+        const insertAt = targetIdx < 0
+            ? config.blocks.length
+            : (side === 'below' ? targetIdx + 1 : targetIdx)
         const next = [...config.blocks]
         next.splice(insertAt, 0, newBlock)
         updateConfig({ ...config, blocks: next })
     }
 
+    // ドラッグ中の active と over から「上半分/下半分」を判定
+    function computeDropSide(activeRectTop: number, activeHeight: number, overTop: number, overHeight: number): 'above' | 'below' {
+        const activeCenter = activeRectTop + activeHeight / 2
+        const overCenter = overTop + overHeight / 2
+        return activeCenter > overCenter ? 'below' : 'above'
+    }
+
+    function handleDragMove(e: DragMoveEvent) {
+        const { active, over } = e
+        if (!over || !active.data.current?.palette) {
+            if (dragHint !== null) setDragHint(null)
+            return
+        }
+        const aRect = active.rect.current.translated
+        const oRect = over.rect
+        if (!aRect || !oRect) return
+        const side = computeDropSide(aRect.top, aRect.height, oRect.top, oRect.height)
+        const nextHint = { overId: String(over.id), side }
+        if (dragHint?.overId !== nextHint.overId || dragHint?.side !== nextHint.side) {
+            setDragHint(nextHint)
+        }
+    }
+
+    function handleDragCancel(_e: DragCancelEvent) {
+        setDragHint(null)
+    }
+
     function handleDragEnd(e: DragEndEvent) {
+        setDragHint(null)
         const { active, over } = e
         if (!over || !config) return
 
-        // パレット由来のドラッグ
+        // パレット由来のドラッグ → 上半分なら前に、下半分なら後に挿入
         if (active.data.current?.palette) {
             const tIdx = active.data.current.templateIdx as number
-            insertBlockAfter(tIdx, String(over.id))
+            const aRect = active.rect.current.translated
+            const oRect = over.rect
+            const side = aRect && oRect
+                ? computeDropSide(aRect.top, aRect.height, oRect.top, oRect.height)
+                : 'below'
+            insertBlockAt(tIdx, String(over.id), side)
             return
         }
 
@@ -254,7 +292,13 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
                 onOpenSettings={() => setSettingsOpen(true)}
             />
 
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragMove={handleDragMove}
+                onDragEnd={handleDragEnd}
+                onDragCancel={handleDragCancel}
+            >
                 <div
                     className="booklet-layout"
                     style={{
@@ -277,6 +321,7 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
                         <SortableContext items={config.blocks.map(b => b.id)} strategy={verticalListSortingStrategy}>
                             {config.blocks.map(block => {
                                 const rProps = resizeProps(block)
+                                const dropHint = dragHint?.overId === block.id ? dragHint.side : null
                                 return (
                                     <SortableBlock
                                         key={block.id}
@@ -288,6 +333,7 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
                                         resizable={rProps.resizable}
                                         currentHeight={rProps.currentHeight}
                                         onResize={rProps.onResize}
+                                        dropHint={dropHint}
                                     >
                                         {renderBlockContent(block)}
                                     </SortableBlock>

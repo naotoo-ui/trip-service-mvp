@@ -663,8 +663,10 @@ type BookletConfig = {
 - パレット内部は縦並びの button リスト（アイコン＋ラベル＋⋮⋮）・hoverで枠色変化
 - 2通りの追加方法：
   1. **クリック**: 表紙直後に新ブロックを挿入（`addBlockFromPalette`）
-  2. **ドラッグ**: @dnd-kit/useDraggable で任意のブロック上にドロップ → そのブロックの直後に挿入（`active.data.current.palette === true` で判定し `insertBlockAfter` を呼ぶ）
-- DnDContext の `handleDragEnd` で `active.data.current?.palette` をチェックして並び替えか挿入かを分岐
+  2. **ドラッグ**: @dnd-kit/useDraggable で任意のブロックの**上半分** or **下半分**にドロップ → そのブロックの直前 or 直後に挿入
+- **挿入位置の精密制御**: `handleDragMove` で active.rect の中心と over.rect の中心を比較し `dragHint: { overId, side: 'above'|'below' }` を計算。SortableBlock に `dropHint` を渡し、該当ブロックの上端/下端に青いインジケーター（横長バー）をプレビュー表示
+- **旅程ブロックの保護**: ドロップ位置は常に「ブロックの上 or 下」のいずれかに解決されるため、日別ブロックのタイムライン内部には挿入されない（要件「旅程ブロックの途中に挿入不可」を自然に満たす）
+- DnDContext の `handleDragEnd` で `active.data.current?.palette` をチェックして並び替えか挿入かを分岐。挿入時は `insertBlockAt(templateIdx, overId, side)` を呼ぶ
 - 印刷時はサイドバー (`.booklet-palette-sidebar`) を非表示、`.booklet-layout` の flex を block に戻して全幅に
 
 **ブロック高さリサイズ**:

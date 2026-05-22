@@ -13,6 +13,7 @@ type Props = {
     resizable?: boolean
     currentHeight?: number       // ハンドルがスタートする高さ（current minHeight or height）
     onResize?: (newHeight: number) => void
+    dropHint?: 'above' | 'below' | null  // パレットからD&D中の挿入位置プレビュー
     children: React.ReactNode
 }
 
@@ -20,7 +21,7 @@ const NON_DRAGGABLE_KINDS: BookletBlockKind[] = ['cover', 'back-cover']
 
 export default function SortableBlock({
     id, kind, editable, canDelete, onDelete,
-    resizable, currentHeight, onResize, children,
+    resizable, currentHeight, onResize, dropHint, children,
 }: Props) {
     const isDraggable = editable && !NON_DRAGGABLE_KINDS.includes(kind)
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled: !isDraggable })
@@ -67,6 +68,35 @@ export default function SortableBlock({
 
     return (
         <div ref={combineRefs} style={style} className="booklet-block-wrap">
+            {/* パレットD&D中の挿入位置インジケーター（上） */}
+            {dropHint === 'above' && (
+                <div
+                    className="no-print"
+                    aria-hidden="true"
+                    style={{
+                        position: 'absolute', left: 0, right: 0, top: -14,
+                        height: 4, borderRadius: 99,
+                        background: '#2563eb',
+                        boxShadow: '0 0 0 4px rgba(37, 99, 235, 0.15)',
+                        zIndex: 20, pointerEvents: 'none',
+                    }}
+                />
+            )}
+            {/* パレットD&D中の挿入位置インジケーター（下） */}
+            {dropHint === 'below' && (
+                <div
+                    className="no-print"
+                    aria-hidden="true"
+                    style={{
+                        position: 'absolute', left: 0, right: 0, bottom: -14,
+                        height: 4, borderRadius: 99,
+                        background: '#2563eb',
+                        boxShadow: '0 0 0 4px rgba(37, 99, 235, 0.15)',
+                        zIndex: 20, pointerEvents: 'none',
+                    }}
+                />
+            )}
+
             {/* 編集UI：ドラッグハンドル + 削除ボタン */}
             {editable && (
                 <div
