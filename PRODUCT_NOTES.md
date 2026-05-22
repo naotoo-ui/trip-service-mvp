@@ -837,3 +837,37 @@ try { data = JSON.parse(text) } catch {
 - **しおりブロック方式**: `config.blocks: BookletBlock[]` をユーザーがD&Dで並び替え・追加・削除（@dnd-kit）。印刷時は `break-inside: avoid` で自動レイアウト・自動改ページ
 - **しおり旧データ自動マイグレーション**: `optionalPages`/`dayMemos` を持つ旧 localStorage を `migrateLegacyConfig` が blocks 配列に変換（次回保存時に新形式で上書き）
 - **BookletConfig マイグレーション**: 旧 `screen/print` 構造を `loadBookletConfig` で自動変換（`parsed.screen` を source とする）
+
+
+---
+
+## ローカルLLM導入の経緯と判断(2026-05-23)
+
+### 動機
+- Gemini API のコスト削減
+- 将来「ネット検索エージェント」「過去プランRAG」機能を追加する基盤
+
+### 採用構成
+- ランタイム: Ollama(MacBook Air M2/8GB に常駐)
+- モデル: Qwen3 4B(汎用) + Qwen2.5 3B(抽出特化)
+- 戦略: ハイブリッド(ローカル=軽い抽出処理、Gemini=重い生成処理)
+
+### 段階的移行計画
+- [x] フェーズD(基盤整備): Ollama インストール、共通クライアント作成
+- [x] フェーズA(部分ローカル化): `generateTripFromArticle` を Ollama 化
+- [ ] フェーズB(過去プランRAG): 蓄積されたプランからの類似検索・推薦
+- [ ] フェーズC(ネット検索エージェント): 新規機能として開発
+
+### フェーズB:過去プランRAG構想
+旅程プランが蓄積されるにつれ、新規プランを組む際に「行き先・テーマが近い既存プラン」から
+最適なものを提案する。
+
+- Embedding: `nomic-embed-text` (Ollama, 274MB, 高速・無料)
+- ベクトルDB: Supabase の pgvector 拡張(既存DBに統合)
+- LLM(推薦理由生成): Qwen3 4B(既存)
+- ローカルLLM優位性: Embedding は無料・類似検索は LLM 不要・推薦は短文で4B十分
+
+### 参照
+- 全体設計: `~/Documents/ClaudeCode/local-llm/docs/design.md`
+- 統合仕様: `./docs/local-llm-integration.md`
+- 実装プラン: `~/Documents/ClaudeCode/local-llm/docs/plans/2026-05-23-phase-D-foundation-and-phase-A-integration.md`

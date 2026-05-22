@@ -75,7 +75,15 @@
 
 ## 実装ステータス(随時更新)
 
-- [ ] フェーズD: 基盤整備(`local-llm/` 配下の実装)
-- [ ] フェーズA: `generateTripFromArticle` ローカル化
+- [x] フェーズD: 基盤整備(`local-llm/` 配下の実装) — 2026-05-23 完了
+  - shared-client (TDD 30/30 PASS / npm link 接続済)
+  - Modelfile 3種定義 — `ollama create` はユーザー実行待ち
+  - ベンチマーク基盤 (`benchmarks/extract-eval.ts`)
+  - 全ドキュメント完備
+- [x] フェーズA: `generateTripFromArticle` ローカル化 — 2026-05-23 完了
+  - `src/lib/ai/client.ts` 追加(USE_OLLAMA 環境変数で切替)
+  - `generateTripFromArticle` を `ai.complete('extract', ...)` に書き換え
+  - 既存テスト含め 16/16 PASS / 型チェック OK
+  - 実機テストは Ollama インストール後に `scripts/eval-ollama-extract.ts`
 - [ ] フェーズB: 過去プランRAG機能
 - [ ] フェーズC: ネット検索エージェント
