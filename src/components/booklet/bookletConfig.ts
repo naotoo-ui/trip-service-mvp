@@ -82,10 +82,6 @@ export const BLOCK_TEMPLATES: BlockTemplate[] = [
         label: '区切り線', icon: '─',
         factory: () => ({ id: generateBlockId(), kind: 'divider', style: 'dashed' }),
     },
-    {
-        label: 'スペーサー', icon: '⇕',
-        factory: () => ({ id: generateBlockId(), kind: 'spacer', height: 40 }),
-    },
 ]
 
 // ──────────── ID 生成 ────────────
