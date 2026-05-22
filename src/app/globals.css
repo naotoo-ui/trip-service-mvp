@@ -71,10 +71,19 @@ details:not([open]) .faq-toggle::before { content: "＋"; }
         background: white !important;
         padding: 0 !important;
     }
-    /* mainの左パディング（D&Dハンドル領域）を解除 */
+    /* レイアウト：サイドバー削除・mainの左パディング解除 */
+    .booklet-layout {
+        display: block !important;
+        max-width: 100% !important;
+        padding: 0 !important;
+        gap: 0 !important;
+    }
     .booklet-root main {
         padding: 0 !important;
         max-width: 100% !important;
+    }
+    .booklet-palette-sidebar {
+        display: none !important;
     }
     /* ブロックラッパ：D&D変形は印刷で出さない */
     .booklet-block-wrap {

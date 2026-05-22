@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { useIsMobile } from '@/hooks/useIsMobile'
 import {
     DndContext, closestCenter, PointerSensor, KeyboardSensor,
     useSensor, useSensors, type DragEndEvent,
@@ -29,6 +30,7 @@ import {
 
 export default function BookletView({ trip, editToken }: { trip: Trip; editToken?: string }) {
     const editable = !!editToken
+    const isMobile = useIsMobile(960)
     const [config, setConfig] = useState<BookletConfig | null>(null)
     const [settingsOpen, setSettingsOpen] = useState(false)
     const [mounted, setMounted] = useState(false)
@@ -252,21 +254,32 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
                 onOpenSettings={() => setSettingsOpen(true)}
             />
 
-            <main style={{ maxWidth: 800, margin: '0 auto', padding: '24px 16px 24px 56px' }}>
-                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                    <SortableContext items={config.blocks.map(b => b.id)} strategy={verticalListSortingStrategy}>
-                        {config.blocks.map((block, idx) => {
-                            const prevBlock = idx > 0 ? config.blocks[idx - 1] : null
-                            const showPaletteBefore = editable && prevBlock?.kind === 'cover'
-                            const rProps = resizeProps(block)
-                            return (
-                                <div key={block.id}>
-                                    {showPaletteBefore && (
-                                        <div style={{ marginBottom: 18 }}>
-                                            <BlockPalette theme={theme} onAdd={addBlockFromPalette} />
-                                        </div>
-                                    )}
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                <div
+                    className="booklet-layout"
+                    style={{
+                        display: 'flex',
+                        maxWidth: editable && !isMobile ? 1120 : 832,
+                        margin: '0 auto',
+                        gap: 24,
+                        alignItems: 'flex-start',
+                        padding: '24px 16px',
+                    }}
+                >
+                    {/* 中央：しおり本体 */}
+                    <main
+                        style={{
+                            flex: 1, minWidth: 0,
+                            maxWidth: 800,
+                            paddingLeft: editable ? 40 : 0,
+                        }}
+                    >
+                        <SortableContext items={config.blocks.map(b => b.id)} strategy={verticalListSortingStrategy}>
+                            {config.blocks.map(block => {
+                                const rProps = resizeProps(block)
+                                return (
                                     <SortableBlock
+                                        key={block.id}
                                         id={block.id}
                                         kind={block.kind}
                                         editable={editable}
@@ -278,24 +291,47 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
                                     >
                                         {renderBlockContent(block)}
                                     </SortableBlock>
-                                </div>
-                            )
-                        })}
-                    </SortableContext>
-                </DndContext>
+                                )
+                            })}
+                        </SortableContext>
 
-                <footer
-                    className="no-print"
-                    style={{
-                        marginTop: 36, padding: '20px 16px',
-                        textAlign: 'center', fontSize: 11, color: theme.subText,
-                    }}
-                >
-                    <p style={{ margin: 0 }}>
-                        AIが生成した旅程をしおりに変換 ・ 旅程ジェネレーター
-                    </p>
-                </footer>
-            </main>
+                        {/* モバイル時のパレット（サイドバー非表示の代わり） */}
+                        {editable && isMobile && (
+                            <div className="no-print" style={{ marginTop: 24 }}>
+                                <BlockPalette theme={theme} onAdd={addBlockFromPalette} />
+                            </div>
+                        )}
+
+                        <footer
+                            className="no-print"
+                            style={{
+                                marginTop: 36, padding: '20px 16px',
+                                textAlign: 'center', fontSize: 11, color: theme.subText,
+                            }}
+                        >
+                            <p style={{ margin: 0 }}>
+                                AIが生成した旅程をしおりに変換 ・ 旅程ジェネレーター
+                            </p>
+                        </footer>
+                    </main>
+
+                    {/* 右サイドバー：ブロックパレット（PCのみ・スクロール時も画面内に固定） */}
+                    {editable && !isMobile && (
+                        <aside
+                            className="no-print booklet-palette-sidebar"
+                            style={{
+                                width: 240,
+                                flexShrink: 0,
+                                position: 'sticky',
+                                top: 80,
+                                alignSelf: 'flex-start',
+                            }}
+                        >
+                            <BlockPalette theme={theme} onAdd={addBlockFromPalette} />
+                        </aside>
+                    )}
+                </div>
+            </DndContext>
 
             <BookletSettings
                 open={settingsOpen}

@@ -654,13 +654,18 @@ type BookletConfig = {
 - D&D並び替え: `@dnd-kit/sortable` の `arrayMove(blocks, oldIdx, newIdx)`
 - cover/back-cover はドラッグ不可（`NON_DRAGGABLE_KINDS` で制御）
 
-**ブロック追加（BlockPalette）**:
-- 表紙ブロックの直後（編集モード時のみ）に「＋ ページを追加」パレットを表示
+**ブロック追加（BlockPalette・Canva風サイドバー）**:
+- PC（>960px）では右サイドバーに `position: sticky; top: 80px` で固定表示・スクロールしても画面内に追従
+- モバイル（≤960px）ではしおり本体の下に通常配置（useIsMobile(960) で判定）
+- 編集モード時のみ表示
+- レイアウトは flex：左=しおり本体（max-width: 800px）+ 右=パレット（240px）
 - パレットアイテムは `BLOCK_TEMPLATES` 配列（持ち物リスト・編集メンバー・集合時間・緊急連絡先・メモ・金額メモ・自由ページ・区切り線・スペーサー）
+- パレット内部は縦並びの button リスト（アイコン＋ラベル＋⋮⋮）・hoverで枠色変化
 - 2通りの追加方法：
   1. **クリック**: 表紙直後に新ブロックを挿入（`addBlockFromPalette`）
   2. **ドラッグ**: @dnd-kit/useDraggable で任意のブロック上にドロップ → そのブロックの直後に挿入（`active.data.current.palette === true` で判定し `insertBlockAfter` を呼ぶ）
 - DnDContext の `handleDragEnd` で `active.data.current?.palette` をチェックして並び替えか挿入かを分岐
+- 印刷時はサイドバー (`.booklet-palette-sidebar`) を非表示、`.booklet-layout` の flex を block に戻して全幅に
 
 **ブロック高さリサイズ**:
 - text/packing/spacer ブロックに対応
