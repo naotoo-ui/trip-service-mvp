@@ -95,6 +95,10 @@ details:not([open]) .faq-toggle::before { content: "＋"; }
     .booklet-inner-wrap {
         padding: 8px 0 !important;
     }
+    /* 編集モードのコントロール用右余白は印刷時不要 */
+    .booklet-inner-content {
+        padding-right: 0 !important;
+    }
     /* ブロックラッパ：D&D変形は印刷で出さない */
     .booklet-block-wrap {
         transform: none !important;

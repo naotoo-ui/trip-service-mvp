@@ -121,7 +121,13 @@ export default function SortableInnerBlock({
                 </div>
             )}
 
-            {children}
+            {/* コントロールボタン分の右余白を確保（編集モード時のみ・印刷時は globals.css で解除） */}
+            <div
+                className="booklet-inner-content"
+                style={{ paddingRight: editable && (sortableEnabled || canDelete) ? 60 : 0 }}
+            >
+                {children}
+            </div>
 
             {editable && resizable && onResize && (
                 <div
