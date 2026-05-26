@@ -688,6 +688,12 @@ type BookletConfig = {
 - **挿入位置の精密制御**: `handleDragMove` で active.rect の中心と over.rect の中心を比較し `dragHint: { overId, side: 'above'|'below' }` を計算。SortablePage / SortableInnerBlock 双方に `dropHint` を渡し、上端/下端に青いインジケーター（横長バー）をプレビュー
 - **旅程ページの構造**: 旅程ページ（day item）はカード最上部に `BookletDayHeader`（Day N / labelText / 日付）を SortableContext 外で常時表示。その下に `blocksAbove` → 旅程本体（DayAnchor）→ `blocksBelow` を配置。これにより「上に追加」がページタイトルより下・旅程本体より上に挿入される
 - **旅程ブロックの保護**: 日別ブロック本体（DayAnchor）はドラッグ不可かつ削除不可で、上下挿入のみ受け付ける。タイムライン内部に他ブロックが入ることはない
+
+**SortableInnerBlock のコントロール配置**:
+- 並び替えハンドル（⋮⋮）と削除ボタン（✕）はブロック右上に `position: absolute; top: 6; right: 0` で固定表示
+- ブロック内コンテンツは `<div className="booklet-inner-content" style={{ paddingRight: 60 }}>` でラップ（編集モード時のみ）
+- これにより、`PackingBlock` の列数トグル（列 1/2/3）など右寄せの内部UIがコントロールと重ならない
+- 印刷時は `globals.css` の `@media print` で `.booklet-inner-content { padding-right: 0 !important }` に解除
 - 印刷時はサイドバー (`.booklet-palette-sidebar`) を非表示、`.booklet-layout` の flex を block に戻して全幅に
 
 **ブロック高さリサイズ**:
