@@ -673,6 +673,16 @@ type BookletConfig = {
 3. **新規ページとして抽出**: 既存ページの中のブロックを NewPageGap にドロップ → 新規 composite ページとしてそのギャップ位置に独立
 4. **新規ページを既存ページに組み込む**: 単独 composite ページ内のブロックを既存ページや別ブロックにドロップ → 移動先に統合され、元の単独 composite は空になって自動消滅
 
+**composite ページ全体の移動・マージ（外側ハンドル）**:
+ユーザーが composite ページの外側ハンドル（大きい ⋮⋮）を使ってページ単位でドラッグした場合、`mergeCompositeIntoTarget(activeCompositeId, overId, side)` が以下に振り分け：
+- **NewPageGap にドロップ** → ページ単位の移動（`arrayMove` で位置調整）
+- **cover / back-cover にドロップ** → 並び替え（`arrayMove`）
+- **別の composite / day / day-anchor / 別ページの inner block にドロップ** → composite の `blocks` をすべて取り出して移動先に展開し、空になった元 composite を自動削除（＝マージ）
+
+複数ブロック保持の composite を別ページに統合できるよう、`insertBlocksIntoItems(items, blocks[], overId, side)` を追加：単一ブロック用 `insertBlockIntoItems` と同じ overId 解決ルールで、配列を一括 splice する。元の順序を保証。
+
+これにより、内側ハンドル（小さい ⋮⋮）でブロックを単独で運ぶことも、外側ハンドル（大きい ⋮⋮）でページ全体を別ページに移すことも、どちらも可能になっている。`isInsertableDrag` は palette / 内側ブロック / composite ページの3パターンを「挿入可能なドラッグ」と判定し、NewPageGap と dropHint を表示する。
+
 実装は3つの pure ヘルパー関数で構成：
 - `removeBlockById(items, id)`: id でブロックを抽出して `{ items, block }` を返す
 - `insertBlockIntoItems(items, block, overId, side)`: 任意の overId（new-page-gap / day-anchor / item.id / primitive block.id）に応じて適切な位置へ挿入

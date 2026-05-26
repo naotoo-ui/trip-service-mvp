@@ -127,6 +127,85 @@ function insertBlockIntoItems(
     return items
 }
 
+// 複数の primitive block を一括で挿入する（composite ページマージ用）。
+// 元の順序を保ったまま target の上下に挿入される。
+function insertBlocksIntoItems(
+    items: BookletItem[],
+    blocks: PrimitiveBlock[],
+    overId: string,
+    side: 'above' | 'below',
+): BookletItem[] {
+    if (blocks.length === 0) return items
+
+    if (isNewPageGapId(overId)) {
+        const idx = Math.max(0, Math.min(gapInsertIdx(overId), items.length))
+        const newItem: BookletItem = { id: generateBlockId(), kind: 'composite', blocks: [...blocks] }
+        const next = [...items]
+        next.splice(idx, 0, newItem)
+        return next
+    }
+
+    if (isDayAnchorId(overId)) {
+        const itemId = itemOfDayAnchor(overId)
+        return items.map(it => {
+            if (it.id !== itemId || it.kind !== 'day') return it
+            return side === 'above'
+                ? { ...it, blocksAbove: [...it.blocksAbove, ...blocks] }
+                : { ...it, blocksBelow: [...blocks, ...it.blocksBelow] }
+        })
+    }
+
+    const found = findBlockOrItem(items, overId)
+    if (!found) return items
+
+    if (found.array === null) {
+        const item = found.item
+        if (item.kind === 'cover' || item.kind === 'back-cover') {
+            const newItem: BookletItem = { id: generateBlockId(), kind: 'composite', blocks: [...blocks] }
+            const next = [...items]
+            next.splice(side === 'above' ? found.itemIdx : found.itemIdx + 1, 0, newItem)
+            return next
+        }
+        if (item.kind === 'composite') {
+            return items.map((it, i) => {
+                if (i !== found.itemIdx || it.kind !== 'composite') return it
+                return side === 'above'
+                    ? { ...it, blocks: [...blocks, ...it.blocks] }
+                    : { ...it, blocks: [...it.blocks, ...blocks] }
+            })
+        }
+        if (item.kind === 'day') {
+            return items.map((it, i) => {
+                if (i !== found.itemIdx || it.kind !== 'day') return it
+                return side === 'above'
+                    ? { ...it, blocksAbove: [...it.blocksAbove, ...blocks] }
+                    : { ...it, blocksBelow: [...blocks, ...it.blocksBelow] }
+            })
+        }
+        return items
+    }
+
+    const parentItem = found.item
+    if (parentItem.kind === 'composite') {
+        const newArr = [...parentItem.blocks]
+        newArr.splice(side === 'above' ? found.blockIdx : found.blockIdx + 1, 0, ...blocks)
+        return items.map((it, i) =>
+            i === found.itemIdx && it.kind === 'composite' ? { ...it, blocks: newArr } : it
+        )
+    }
+    if (parentItem.kind === 'day') {
+        const arrName = found.array
+        const targetArr = arrName === 'above' ? parentItem.blocksAbove : parentItem.blocksBelow
+        const newArr = [...targetArr]
+        newArr.splice(side === 'above' ? found.blockIdx : found.blockIdx + 1, 0, ...blocks)
+        return items.map((it, i) => {
+            if (i !== found.itemIdx || it.kind !== 'day') return it
+            return arrName === 'above' ? { ...it, blocksAbove: newArr } : { ...it, blocksBelow: newArr }
+        })
+    }
+    return items
+}
+
 // id で primitive block を取り除き、{ items, block } を返す。
 function removeBlockById(items: BookletItem[], blockId: string): { items: BookletItem[]; block: PrimitiveBlock | null } {
     let removed: PrimitiveBlock | null = null
@@ -301,6 +380,23 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
         updateConfig({ ...config, items: cleaned })
     }
 
+    // ─── composite ページ全体を別の場所にマージする（外側ハンドルで composite を
+    //      別の composite/day ページや block 近接にドロップしたケース） ───
+    function mergeCompositeIntoTarget(activeCompositeId: string, overId: string, side: 'above' | 'below') {
+        if (!config) return
+        const source = config.items.find(it => it.id === activeCompositeId)
+        if (!source || source.kind !== 'composite') return
+        if (source.blocks.length === 0) return
+
+        // 自分自身の中（同一 composite 内の block / 自分自身の item.id）にドロップ → 何もしない
+        const overInSelf = source.blocks.some(b => b.id === overId) || overId === activeCompositeId
+        if (overInSelf) return
+
+        const itemsWithoutSource = config.items.filter(it => it.id !== activeCompositeId)
+        const inserted = insertBlocksIntoItems(itemsWithoutSource, source.blocks, overId, side)
+        updateConfig({ ...config, items: cleanupEmptyComposites(inserted) })
+    }
+
     // ─── パレットからクリック挿入：表紙の直後に新規 composite ページとして追加 ───
     function addBlockFromPalette(template: BlockTemplate) {
         if (!config) return
@@ -319,13 +415,15 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
         return activeCenter > overCenter ? 'below' : 'above'
     }
 
-    // パレット由来 or インナーブロックの drag は両方とも「挿入/移動」が可能なので
-    // NewPageGap や dropHint の対象になる。ページ自体の reorder は通常の sortable に任せる。
+    // パレット / インナーブロック / composite ページの drag は「挿入/移動」が可能なので
+    // NewPageGap や dropHint の対象になる。cover/back-cover/day の reorder は外側 sortable に任せる。
     function isInsertableDrag(activeId: string, fromPalette: boolean): boolean {
         if (fromPalette) return true
-        const isPage = config?.items.some(it => it.id === activeId) ?? false
-        const isAnchor = isDayAnchorId(activeId)
-        return !isPage && !isAnchor
+        if (isDayAnchorId(activeId)) return false
+        const item = config?.items.find(it => it.id === activeId)
+        if (!item) return true                            // primitive block
+        if (item.kind === 'composite') return true        // composite はマージ可能
+        return false                                       // cover / back-cover / day
     }
 
     function handleDragStart(e: DragStartEvent) {
@@ -401,25 +499,60 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
         const activeId = String(active.id)
         const overId = String(over.id)
 
-        const isPageActive = config.items.some(it => it.id === activeId)
-        const isPageOver = config.items.some(it => it.id === overId)
+        const activeItem = config.items.find(it => it.id === activeId)
+        const isPageActive = !!activeItem
 
-        // 上位アイテム間 → page reorder
-        if (isPageActive && isPageOver) {
-            const oldIdx = config.items.findIndex(it => it.id === activeId)
-            const newIdx = config.items.findIndex(it => it.id === overId)
-            if (oldIdx < 0 || newIdx < 0) return
-            updateConfig({ ...config, items: arrayMove(config.items, oldIdx, newIdx) })
+        const aRect = active.rect.current.translated
+        const oRect = over.rect
+        const side = aRect && oRect
+            ? computeDropSide(aRect.top, aRect.height, oRect.top, oRect.height)
+            : 'below'
+
+        // composite ページ全体のドラッグ
+        if (isPageActive && activeItem.kind === 'composite') {
+            // ページ間ギャップ → そのギャップ位置へ移動（並び替え）
+            if (isNewPageGapId(overId)) {
+                const oldIdx = config.items.findIndex(it => it.id === activeId)
+                const gIdx = gapInsertIdx(overId)
+                const toIdx = oldIdx < gIdx ? gIdx - 1 : gIdx
+                if (oldIdx >= 0 && toIdx !== oldIdx) {
+                    updateConfig({ ...config, items: arrayMove(config.items, oldIdx, toIdx) })
+                }
+                return
+            }
+            const overItem = config.items.find(it => it.id === overId)
+            // cover / back-cover に対しては並び替えのみ（マージ不可）
+            if (overItem?.kind === 'cover' || overItem?.kind === 'back-cover') {
+                const oldIdx = config.items.findIndex(it => it.id === activeId)
+                const newIdx = config.items.findIndex(it => it.id === overId)
+                if (oldIdx >= 0 && newIdx >= 0) {
+                    updateConfig({ ...config, items: arrayMove(config.items, oldIdx, newIdx) })
+                }
+                return
+            }
+            // それ以外（composite/day item 自体、day-anchor、別ページの inner block）→ マージ
+            mergeCompositeIntoTarget(activeId, overId, side)
             return
         }
 
+        // 日別ページのドラッグ → 並び替えのみ
+        if (isPageActive && activeItem.kind === 'day') {
+            const isPageOver = config.items.some(it => it.id === overId)
+            if (isPageOver) {
+                const oldIdx = config.items.findIndex(it => it.id === activeId)
+                const newIdx = config.items.findIndex(it => it.id === overId)
+                if (oldIdx >= 0 && newIdx >= 0) {
+                    updateConfig({ ...config, items: arrayMove(config.items, oldIdx, newIdx) })
+                }
+            }
+            return
+        }
+
+        // cover / back-cover はドラッグ不可なのでここには来ない
+        if (isPageActive) return
+
         // inner block の移動：同ページ並び替え・クロスページ移動・新規ページ抽出を統一処理
-        if (!isPageActive && !isDayAnchorId(activeId)) {
-            const aRect = active.rect.current.translated
-            const oRect = over.rect
-            const side = aRect && oRect
-                ? computeDropSide(aRect.top, aRect.height, oRect.top, oRect.height)
-                : 'below'
+        if (!isDayAnchorId(activeId)) {
             moveInnerBlock(activeId, overId, side)
         }
     }
