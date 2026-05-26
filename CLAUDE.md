@@ -22,24 +22,27 @@
 
 # ローカルLLM連携(ハイブリッドAI戦略)
 
-このプロジェクトは `~/Documents/ClaudeCode/local-llm/` のローカルLLM基盤と
-連携している。Claude Code で作業する際は以下を念頭に置くこと。
+ハイブリッドAIクライアントは `src/lib/ai/client.ts` に内包されている
+（以前は外部の `~/Documents/ClaudeCode/local-llm/shared-client` を `file:` 依存で
+参照していたが、Vercel が外部パスを解決できずデプロイが失敗していたため、必要な
+コードをこのリポジトリへ vendor した）。
 
 ## 振り分けの現状
 - `generateTripFromArticle` → ローカル開発時は Ollama(Qwen2.5 3B)、本番は Gemini
 - `generateTripFromInput`   → 常に Gemini
 - `generateTripFromPlan`    → 常に Gemini
-- 振り分けは `src/lib/ai/client.ts` で制御(`USE_OLLAMA` 環境変数で切替)
+- 振り分けは `src/lib/ai/client.ts` 内の `aiRoutes` で制御(`USE_OLLAMA` 環境変数で切替)
+- Ollama 接続先は `OLLAMA_HOST` 環境変数（デフォルト `http://localhost:11434`）
 
-## 詳細ドキュメント(必ず参照)
+## 参考ドキュメント
 - 統合仕様(このプロジェクト固有): `docs/local-llm-integration.md`
 - 基盤側の全体設計: `~/Documents/ClaudeCode/local-llm/docs/design.md`
-- 実装プラン: `~/Documents/ClaudeCode/local-llm/docs/plans/`
 - カスタムModelfile定義: `~/Documents/ClaudeCode/local-llm/modelfiles/`
 
 ## AI処理を変更する際の注意
 - 既存3関数のシグネチャは変えない(API route との契約)
 - ローカル/Gemini の切替は環境変数 `USE_OLLAMA` で制御
-- 新しいAI処理を追加する時は、まず `local-llm/shared-client` 側に
-  タスク種別(例:`recommend`, `embed-query`)を増やしてから、
-  本プロジェクトで `ai.complete()` を呼ぶ
+- 新しい AI 処理を追加する時は、`src/lib/ai/client.ts` の `aiRoutes` に
+  タスク種別(例:`recommend`, `embed-query`)を追加してから `ai.complete()` を呼ぶ
+- 外部 local-llm パッケージ側に新タスクを追加した場合、必要な実装はこのリポジトリ
+  にも反映する（vendor 済みのため）

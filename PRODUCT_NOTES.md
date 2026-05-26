@@ -879,6 +879,18 @@ try { data = JSON.parse(text) } catch {
 - [ ] フェーズB(過去プランRAG): 蓄積されたプランからの類似検索・推薦
 - [ ] フェーズC(ネット検索エージェント): 新規機能として開発
 
+### Vercel デプロイ対応(2026-05-23 vendor 化)
+当初は `@local-llm/client` を `file:../local-llm/shared-client` として外部参照していたが、
+Vercel ビルドが外部パスを解決できずデプロイ失敗。修正として、ハイブリッドルーター
+（Gemini + Ollama）の実装を `src/lib/ai/client.ts` 単一ファイルへ vendor し、外部依存を
+完全に剥がした。
+
+- 振り分けロジック (`aiRoutes`)、Gemini/Ollama 呼び出し、フォールバック、ロギングを
+  この1ファイルにまとめている
+- 本番(Vercel) では `NODE_ENV=production` かつ `USE_OLLAMA` が未設定なので、Ollama 呼び出し
+  経路は実行されない(コードは存在するが影響ゼロ)
+- 将来 sibling リポジトリ側に機能追加した場合は、必要部分をこのリポジトリへ反映する
+
 ### フェーズB:過去プランRAG構想
 旅程プランが蓄積されるにつれ、新規プランを組む際に「行き先・テーマが近い既存プラン」から
 最適なものを提案する。
