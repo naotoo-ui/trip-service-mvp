@@ -44,6 +44,125 @@ const NEW_PAGE_GAP_PREFIX = '__new-page-gap-'
 const isNewPageGapId = (id: string) => id.startsWith(NEW_PAGE_GAP_PREFIX)
 const gapInsertIdx = (id: string) => parseInt(id.slice(NEW_PAGE_GAP_PREFIX.length), 10)
 
+// ──────────── データ操作の pure ヘルパー（モジュールレベル） ────────────
+
+// 任意の primitive block を items の指定位置へ挿入。新規 composite ページ生成や、
+// composite/day item 本体・既存 block 近接・day-anchor・new-page-gap の全ケースをカバー。
+function insertBlockIntoItems(
+    items: BookletItem[],
+    block: PrimitiveBlock,
+    overId: string,
+    side: 'above' | 'below',
+): BookletItem[] {
+    // ページ間 gap → 新規 composite ページとして挿入
+    if (isNewPageGapId(overId)) {
+        const idx = Math.max(0, Math.min(gapInsertIdx(overId), items.length))
+        const newItem: BookletItem = { id: generateBlockId(), kind: 'composite', blocks: [block] }
+        const next = [...items]
+        next.splice(idx, 0, newItem)
+        return next
+    }
+
+    // day anchor → 該当日の blocksAbove / blocksBelow に追加
+    if (isDayAnchorId(overId)) {
+        const itemId = itemOfDayAnchor(overId)
+        return items.map(it => {
+            if (it.id !== itemId || it.kind !== 'day') return it
+            return side === 'above'
+                ? { ...it, blocksAbove: [...it.blocksAbove, block] }
+                : { ...it, blocksBelow: [block, ...it.blocksBelow] }
+        })
+    }
+
+    const found = findBlockOrItem(items, overId)
+    if (!found) return items
+
+    // ターゲットが item 本体
+    if (found.array === null) {
+        const item = found.item
+        if (item.kind === 'cover' || item.kind === 'back-cover') {
+            const newItem: BookletItem = { id: generateBlockId(), kind: 'composite', blocks: [block] }
+            const next = [...items]
+            next.splice(side === 'above' ? found.itemIdx : found.itemIdx + 1, 0, newItem)
+            return next
+        }
+        if (item.kind === 'composite') {
+            return items.map((it, i) => {
+                if (i !== found.itemIdx || it.kind !== 'composite') return it
+                return side === 'above'
+                    ? { ...it, blocks: [block, ...it.blocks] }
+                    : { ...it, blocks: [...it.blocks, block] }
+            })
+        }
+        if (item.kind === 'day') {
+            return items.map((it, i) => {
+                if (i !== found.itemIdx || it.kind !== 'day') return it
+                return side === 'above'
+                    ? { ...it, blocksAbove: [...it.blocksAbove, block] }
+                    : { ...it, blocksBelow: [block, ...it.blocksBelow] }
+            })
+        }
+        return items
+    }
+
+    // ターゲットが item 内の primitive block
+    const parentItem = found.item
+    if (parentItem.kind === 'composite') {
+        const newArr = [...parentItem.blocks]
+        newArr.splice(side === 'above' ? found.blockIdx : found.blockIdx + 1, 0, block)
+        return items.map((it, i) =>
+            i === found.itemIdx && it.kind === 'composite' ? { ...it, blocks: newArr } : it
+        )
+    }
+    if (parentItem.kind === 'day') {
+        const arrName = found.array
+        const targetArr = arrName === 'above' ? parentItem.blocksAbove : parentItem.blocksBelow
+        const newArr = [...targetArr]
+        newArr.splice(side === 'above' ? found.blockIdx : found.blockIdx + 1, 0, block)
+        return items.map((it, i) => {
+            if (i !== found.itemIdx || it.kind !== 'day') return it
+            return arrName === 'above' ? { ...it, blocksAbove: newArr } : { ...it, blocksBelow: newArr }
+        })
+    }
+    return items
+}
+
+// id で primitive block を取り除き、{ items, block } を返す。
+function removeBlockById(items: BookletItem[], blockId: string): { items: BookletItem[]; block: PrimitiveBlock | null } {
+    let removed: PrimitiveBlock | null = null
+    const newItems = items.map(it => {
+        if (removed) return it
+        if (it.kind === 'composite') {
+            const idx = it.blocks.findIndex(b => b.id === blockId)
+            if (idx >= 0) {
+                removed = it.blocks[idx]
+                return { ...it, blocks: it.blocks.filter((_, i) => i !== idx) }
+            }
+            return it
+        }
+        if (it.kind === 'day') {
+            const ai = it.blocksAbove.findIndex(b => b.id === blockId)
+            if (ai >= 0) {
+                removed = it.blocksAbove[ai]
+                return { ...it, blocksAbove: it.blocksAbove.filter((_, i) => i !== ai) }
+            }
+            const bi = it.blocksBelow.findIndex(b => b.id === blockId)
+            if (bi >= 0) {
+                removed = it.blocksBelow[bi]
+                return { ...it, blocksBelow: it.blocksBelow.filter((_, i) => i !== bi) }
+            }
+            return it
+        }
+        return it
+    })
+    return { items: newItems, block: removed }
+}
+
+// 空になった composite item を items から取り除く
+function cleanupEmptyComposites(items: BookletItem[]): BookletItem[] {
+    return items.filter(it => it.kind !== 'composite' || it.blocks.length > 0)
+}
+
 export default function BookletView({ trip, editToken }: { trip: Trip; editToken?: string }) {
     const editable = !!editToken
     const isMobile = useIsMobile(960)
@@ -162,101 +281,24 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
         mapItems(items => items.filter(i => i.id !== itemId))
     }
 
-    // ─── パレットから「ページ間 gap」へのドロップ：新規 composite ページとして挿入 ───
-    function insertNewPageAt(template: BlockTemplate, insertIdx: number) {
-        if (!config) return
-        const newBlock = template.factory()
-        const newItem: BookletItem = { id: generateBlockId(), kind: 'composite', blocks: [newBlock] }
-        const items = [...config.items]
-        const safeIdx = Math.max(0, Math.min(insertIdx, items.length))
-        items.splice(safeIdx, 0, newItem)
-        updateConfig({ ...config, items })
-    }
-
-    // ─── パレットから挿入：target の上下に応じて適切な場所へ ───
+    // ─── パレットから挿入：pure ヘルパー `insertBlockIntoItems` に委譲 ───
     function insertFromPalette(template: BlockTemplate, overId: string, side: 'above' | 'below') {
         if (!config) return
-
-        // ページ間 gap → 新規ページ作成
-        if (isNewPageGapId(overId)) {
-            insertNewPageAt(template, gapInsertIdx(overId))
-            return
-        }
-
         const newBlock = template.factory()
+        const next = insertBlockIntoItems(config.items, newBlock, overId, side)
+        updateConfig({ ...config, items: next })
+    }
 
-        // day anchor へのドロップ → 該当日の above/below に追加
-        if (isDayAnchorId(overId)) {
-            const itemId = itemOfDayAnchor(overId)
-            const items = config.items.map(it => {
-                if (it.id !== itemId || it.kind !== 'day') return it
-                if (side === 'above') return { ...it, blocksAbove: [...it.blocksAbove, newBlock] }
-                return { ...it, blocksBelow: [newBlock, ...it.blocksBelow] }
-            })
-            updateConfig({ ...config, items })
-            return
-        }
-
-        const found = findBlockOrItem(config.items, overId)
-        if (!found) return
-
-        // case A: target は item 自体（cover/back-cover/day/composite）
-        if (found.array === null) {
-            const item = found.item
-            if (item.kind === 'cover' || item.kind === 'back-cover') {
-                // 表紙/背表紙の前後は新規 composite ページとして追加
-                const newItem: BookletItem = { id: generateBlockId(), kind: 'composite', blocks: [newBlock] }
-                const items = [...config.items]
-                items.splice(side === 'above' ? found.itemIdx : found.itemIdx + 1, 0, newItem)
-                updateConfig({ ...config, items })
-                return
-            }
-            if (item.kind === 'composite') {
-                const items = config.items.map((it, i) => {
-                    if (i !== found.itemIdx || it.kind !== 'composite') return it
-                    if (side === 'above') return { ...it, blocks: [newBlock, ...it.blocks] }
-                    return { ...it, blocks: [...it.blocks, newBlock] }
-                })
-                updateConfig({ ...config, items })
-                return
-            }
-            if (item.kind === 'day') {
-                const items = config.items.map((it, i) => {
-                    if (i !== found.itemIdx || it.kind !== 'day') return it
-                    if (side === 'above') return { ...it, blocksAbove: [...it.blocksAbove, newBlock] }
-                    return { ...it, blocksBelow: [newBlock, ...it.blocksBelow] }
-                })
-                updateConfig({ ...config, items })
-                return
-            }
-            return
-        }
-
-        // case B: target は item 内のプリミティブブロック
-        const parentItem = found.item
-        if (parentItem.kind === 'composite') {
-            const newArr = [...parentItem.blocks]
-            newArr.splice(side === 'above' ? found.blockIdx : found.blockIdx + 1, 0, newBlock)
-            const items = config.items.map((it, i) =>
-                i === found.itemIdx && it.kind === 'composite' ? { ...it, blocks: newArr } : it
-            )
-            updateConfig({ ...config, items })
-            return
-        }
-        if (parentItem.kind === 'day') {
-            const arrName = found.array
-            const targetArr = arrName === 'above' ? parentItem.blocksAbove : parentItem.blocksBelow
-            const newArr = [...targetArr]
-            newArr.splice(side === 'above' ? found.blockIdx : found.blockIdx + 1, 0, newBlock)
-            const items = config.items.map((it, i) => {
-                if (i !== found.itemIdx || it.kind !== 'day') return it
-                return arrName === 'above'
-                    ? { ...it, blocksAbove: newArr }
-                    : { ...it, blocksBelow: newArr }
-            })
-            updateConfig({ ...config, items })
-            return
-        }
+    // ─── ページ内ブロックを別の位置に移動（同じページ内 reorder / クロスページ移動 /
+    //      composite 取り出し→新規ページ化 すべて統一） ───
+    function moveInnerBlock(activeId: string, overId: string, side: 'above' | 'below') {
+        if (!config) return
+        if (activeId === overId) return
+        const { items: removed, block } = removeBlockById(config.items, activeId)
+        if (!block) return
+        const inserted = insertBlockIntoItems(removed, block, overId, side)
+        const cleaned = cleanupEmptyComposites(inserted)
+        updateConfig({ ...config, items: cleaned })
     }
 
     // ─── パレットからクリック挿入：表紙の直後に新規 composite ページとして追加 ───
@@ -271,50 +313,50 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
         updateConfig({ ...config, items })
     }
 
-    // ─── inner block 並び替え（同じ parent 配列内のみ） ───
-    function reorderInnerBlock(activeId: string, overId: string) {
-        if (!config) return
-        // どちらも同じ親の同じ配列に属する必要がある
-        const a = findBlockOrItem(config.items, activeId)
-        const b = findBlockOrItem(config.items, overId)
-        if (!a || !b || a.itemIdx !== b.itemIdx || a.array !== b.array) return
-        if (a.blockIdx === b.blockIdx) return
-
-        const items = config.items.map((it, i) => {
-            if (i !== a.itemIdx) return it
-            if (it.kind === 'composite' && a.array === 'blocks') {
-                return { ...it, blocks: arrayMove(it.blocks, a.blockIdx, b.blockIdx) }
-            }
-            if (it.kind === 'day' && a.array === 'above') {
-                return { ...it, blocksAbove: arrayMove(it.blocksAbove, a.blockIdx, b.blockIdx) }
-            }
-            if (it.kind === 'day' && a.array === 'below') {
-                return { ...it, blocksBelow: arrayMove(it.blocksBelow, a.blockIdx, b.blockIdx) }
-            }
-            return it
-        })
-        updateConfig({ ...config, items })
-    }
-
     function computeDropSide(activeRectTop: number, activeHeight: number, overTop: number, overHeight: number): 'above' | 'below' {
         const activeCenter = activeRectTop + activeHeight / 2
         const overCenter = overTop + overHeight / 2
         return activeCenter > overCenter ? 'below' : 'above'
     }
 
+    // パレット由来 or インナーブロックの drag は両方とも「挿入/移動」が可能なので
+    // NewPageGap や dropHint の対象になる。ページ自体の reorder は通常の sortable に任せる。
+    function isInsertableDrag(activeId: string, fromPalette: boolean): boolean {
+        if (fromPalette) return true
+        const isPage = config?.items.some(it => it.id === activeId) ?? false
+        const isAnchor = isDayAnchorId(activeId)
+        return !isPage && !isAnchor
+    }
+
     function handleDragStart(e: DragStartEvent) {
-        if (e.active.data.current?.palette) {
+        const aId = String(e.active.id)
+        const fromPalette = !!e.active.data.current?.palette
+        if (isInsertableDrag(aId, fromPalette)) {
             setPaletteDragActive(true)
         }
     }
 
     function handleDragMove(e: DragMoveEvent) {
         const { active, over } = e
-        if (!over || !active.data.current?.palette) {
+        if (!over) {
+            if (dragHint !== null) setDragHint(null)
+            return
+        }
+        const aId = String(active.id)
+        const fromPalette = !!active.data.current?.palette
+        if (!isInsertableDrag(aId, fromPalette)) {
+            // ページ並び替えなどは sortable の標準演出で行うので hint は出さない
             if (dragHint !== null) setDragHint(null)
             return
         }
         const overIdStr = String(over.id)
+
+        // 自分の上にホバーしている場合はヒント不要
+        if (overIdStr === aId) {
+            if (dragHint !== null) setDragHint(null)
+            return
+        }
+
         // ページ間ギャップへのドロップは side 不要（ヒントだけ overId を更新）
         if (isNewPageGapId(overIdStr)) {
             if (dragHint?.overId !== overIdStr) setDragHint({ overId: overIdStr, side: 'above' })
@@ -359,9 +401,10 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
         const activeId = String(active.id)
         const overId = String(over.id)
 
-        // 同じ contextに属する：上位アイテム間（page reorder）
         const isPageActive = config.items.some(it => it.id === activeId)
         const isPageOver = config.items.some(it => it.id === overId)
+
+        // 上位アイテム間 → page reorder
         if (isPageActive && isPageOver) {
             const oldIdx = config.items.findIndex(it => it.id === activeId)
             const newIdx = config.items.findIndex(it => it.id === overId)
@@ -370,9 +413,14 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
             return
         }
 
-        // inner block reorder（同じ親の同じ配列内）
-        if (!isPageActive && !isDayAnchorId(activeId) && !isDayAnchorId(overId)) {
-            reorderInnerBlock(activeId, overId)
+        // inner block の移動：同ページ並び替え・クロスページ移動・新規ページ抽出を統一処理
+        if (!isPageActive && !isDayAnchorId(activeId)) {
+            const aRect = active.rect.current.translated
+            const oRect = over.rect
+            const side = aRect && oRect
+                ? computeDropSide(aRect.top, aRect.height, oRect.top, oRect.height)
+                : 'below'
+            moveInnerBlock(activeId, overId, side)
         }
     }
 

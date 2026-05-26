@@ -664,8 +664,23 @@ type BookletConfig = {
 - D&D並び替え: 2階層 SortableContext
   - **外側**: `config.items.map(it => it.id)` を items として登録 → ページ単位の並び替え（SortablePage）
   - **内側**: 各 day/composite item の中で `blocksAbove + day-anchor + blocksBelow` または `blocks` を items として登録 → ページ内ブロックの並び替え（SortableInnerBlock）
-- 同じ親の同じ配列内でのみブロックを並び替え可能（`reorderInnerBlock` が `findBlockOrItem` で親一致をチェック）
 - cover/back-cover はページレベルでドラッグ不可
+
+**inner block の自由配置（クロスページ移動 + 新規ページ抽出）**:
+`moveInnerBlock(activeId, overId, side)` がドロップ位置に応じて以下をすべて統一処理：
+1. **同ページ内の並び替え**: 同じ親（composite.blocks / day.blocksAbove / day.blocksBelow）の中で reorder
+2. **クロスページ移動**: 既存ページ A の中のブロックを、ドラッグして別ページ B（または別の day の above/below）にドロップ → B に移動
+3. **新規ページとして抽出**: 既存ページの中のブロックを NewPageGap にドロップ → 新規 composite ページとしてそのギャップ位置に独立
+4. **新規ページを既存ページに組み込む**: 単独 composite ページ内のブロックを既存ページや別ブロックにドロップ → 移動先に統合され、元の単独 composite は空になって自動消滅
+
+実装は3つの pure ヘルパー関数で構成：
+- `removeBlockById(items, id)`: id でブロックを抽出して `{ items, block }` を返す
+- `insertBlockIntoItems(items, block, overId, side)`: 任意の overId（new-page-gap / day-anchor / item.id / primitive block.id）に応じて適切な位置へ挿入
+- `cleanupEmptyComposites(items)`: 空になった composite item を items から取り除く（抽出により単独 composite が空になった場合の後始末）
+
+`insertFromPalette` も `insertBlockIntoItems` に委譲しており、パレットからの新規ブロック挿入とインナーブロック移動が同じロジックを共有する。
+
+`isInsertableDrag(activeId, fromPalette)` で「挿入/移動可能なドラッグかどうか」を判定し、パレット由来またはインナーブロック由来であれば NewPageGap と dropHint を表示。ページ自体の reorder（外側 sortable）は対象外。
 
 **ブロック追加（BlockPalette・Canva風サイドバー）**:
 - PC（>960px）では右サイドバーに `position: sticky; top: 80px` で固定表示・スクロールしても画面内に追従
