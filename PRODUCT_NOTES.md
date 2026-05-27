@@ -686,7 +686,7 @@ type BookletConfig = {
 **ドラッグ中の視覚最適化**:
 - 外側 SortableContext の strategy は `paletteDragActive` が true の間 `noShuffleStrategy`（`() => null`）に切り替わる。これにより composite ドラッグ中に他ページがシャッフルアニメーションで動かず、NewPageGap が常にはっきり見える。
 - 通常の page reorder（day ドラッグ等）では `verticalListSortingStrategy` のまま動作する。
-- `NewPageGap` は `visible=true` の時点で常時ラベル「＋ ここに配置」を表示し、ホバー時は青色が濃くなる。高さも 36→54px に拡大して discoverability を向上。
+- `NewPageGap` は `visible=true` の時点では青いダッシュ枠だけを表示し、`active`（実際にカーソルが乗っている）のときだけ「＋ ここに配置」ラベルを表示する。これによりページ上の DropIndicator と非アクティブな gap のラベルが視覚的に重複しない（= 実際に挿入される箇所だけが明確に強調される）。
 - ドロップ方向（above/below）判定は `currentPointerY(activatorEvent, delta.y)` で実際のカーソル Y を算出し `computeDropSideByPointer` でターゲット中心と比較。これにより縦長の composite ページや大きな packing ブロックをドラッグしているときでも、カーソルがターゲット下半分にあれば確実に 'below' 判定（＝下部に青いゾーンが出る）となる。
 
 実装は3つの pure ヘルパー関数で構成：

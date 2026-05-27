@@ -934,7 +934,7 @@ function NewPageGap({ insertIdx, visible, highlighted }: { insertIdx: number; vi
                 pointerEvents: visible ? 'auto' : 'none',
             }}
         >
-            {visible && '＋ ここに配置'}
+            {active && '＋ ここに配置'}
         </div>
     )
 }
