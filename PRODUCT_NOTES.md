@@ -683,6 +683,11 @@ type BookletConfig = {
 
 これにより、内側ハンドル（小さい ⋮⋮）でブロックを単独で運ぶことも、外側ハンドル（大きい ⋮⋮）でページ全体を別ページに移すことも、どちらも可能になっている。`isInsertableDrag` は palette / 内側ブロック / composite ページの3パターンを「挿入可能なドラッグ」と判定し、NewPageGap と dropHint を表示する。
 
+**ドラッグ中の視覚最適化**:
+- 外側 SortableContext の strategy は `paletteDragActive` が true の間 `noShuffleStrategy`（`() => null`）に切り替わる。これにより composite ドラッグ中に他ページがシャッフルアニメーションで動かず、NewPageGap が常にはっきり見える。
+- 通常の page reorder（day ドラッグ等）では `verticalListSortingStrategy` のまま動作する。
+- `NewPageGap` は `visible=true` の時点で常時ラベル（「＋ ここに新規ページとして追加」）を表示し、ホバー時は「＋ ここに配置」に切り替わって青色が濃くなる。高さも 36→54px に拡大して discoverability を向上。
+
 実装は3つの pure ヘルパー関数で構成：
 - `removeBlockById(items, id)`: id でブロックを抽出して `{ items, block }` を返す
 - `insertBlockIntoItems(items, block, overId, side)`: 任意の overId（new-page-gap / day-anchor / item.id / primitive block.id）に応じて適切な位置へ挿入

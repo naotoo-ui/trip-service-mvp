@@ -10,6 +10,7 @@ import {
 import {
     SortableContext, arrayMove,
     sortableKeyboardCoordinates, verticalListSortingStrategy,
+    type SortingStrategy,
 } from '@dnd-kit/sortable'
 import type { Trip, ItineraryDay, Spot } from '@/types'
 import BookletNav from './BookletNav'
@@ -38,6 +39,10 @@ const DAY_ANCHOR_SUFFIX = '__day-anchor'
 const isDayAnchorId = (id: string) => id.endsWith(DAY_ANCHOR_SUFFIX)
 const dayAnchorOfItem = (itemId: string) => itemId + DAY_ANCHOR_SUFFIX
 const itemOfDayAnchor = (anchorId: string) => anchorId.slice(0, -DAY_ANCHOR_SUFFIX.length)
+
+// パレット/インナーブロック/composite ドラッグ中に外側ページを視覚的にシャッフルしない
+// （= NewPageGap や dropHint をはっきり見せるため）
+const noShuffleStrategy: SortingStrategy = () => null
 
 // 「ページ間：新規ページとして追加」用のドロップゾーン id
 const NEW_PAGE_GAP_PREFIX = '__new-page-gap-'
@@ -792,7 +797,10 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
                             paddingLeft: editable ? 44 : 0,
                         }}
                     >
-                        <SortableContext items={config.items.map(it => it.id)} strategy={verticalListSortingStrategy}>
+                        <SortableContext
+                            items={config.items.map(it => it.id)}
+                            strategy={paletteDragActive ? noShuffleStrategy : verticalListSortingStrategy}
+                        >
                             {/* 先頭ギャップ（表紙より前ではないので、表紙の後に表示するために先頭は省略） */}
                             {config.items.map((item, idx) => {
                                 const pageHint = dragHint?.overId === item.id ? dragHint.side : null
@@ -879,6 +887,8 @@ function pageNumberStyle(theme: Theme): React.CSSProperties {
 }
 
 // ページ間に表示される「新規ページとして追加」用のドロップゾーン
+// パレット/インナーブロック/composite どのドラッグでも見えるよう、visible=true の時点で
+// ラベルを常時表示し、ホバー時はさらに強調する。
 function NewPageGap({ insertIdx, visible, highlighted }: { insertIdx: number; visible: boolean; highlighted: boolean }) {
     const id = `${NEW_PAGE_GAP_PREFIX}${insertIdx}`
     const { setNodeRef, isOver } = useDroppable({ id })
@@ -888,23 +898,23 @@ function NewPageGap({ insertIdx, visible, highlighted }: { insertIdx: number; vi
             ref={setNodeRef}
             className="no-print booklet-new-page-gap"
             style={{
-                height: visible ? (active ? 46 : 24) : 0,
-                margin: visible ? '8px 0' : 0,
+                height: visible ? (active ? 54 : 36) : 0,
+                margin: visible ? '10px 0' : 0,
                 borderRadius: 12,
-                background: active ? 'rgba(37, 99, 235, 0.08)' : 'transparent',
+                background: active ? 'rgba(37, 99, 235, 0.12)' : visible ? 'rgba(37, 99, 235, 0.03)' : 'transparent',
                 border: visible
-                    ? `2px ${active ? 'solid' : 'dashed'} ${active ? '#2563eb' : '#cbd5e1'}`
+                    ? `2px ${active ? 'solid' : 'dashed'} ${active ? '#2563eb' : '#93c5fd'}`
                     : 'none',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 color: '#2563eb',
-                fontSize: 12, fontWeight: 700,
+                fontSize: active ? 13 : 12, fontWeight: 700,
                 letterSpacing: '0.05em',
-                transition: 'height 0.18s, background 0.18s, border-color 0.18s',
+                transition: 'height 0.18s, background 0.18s, border-color 0.18s, font-size 0.18s',
                 overflow: 'hidden',
                 pointerEvents: visible ? 'auto' : 'none',
             }}
         >
-            {visible && active && '＋ 新規ページとして追加'}
+            {visible && (active ? '＋ ここに配置' : '＋ ここに新規ページとして追加')}
         </div>
     )
 }
