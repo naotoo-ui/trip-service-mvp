@@ -414,10 +414,29 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
         updateConfig({ ...config, items })
     }
 
-    function computeDropSide(activeRectTop: number, activeHeight: number, overTop: number, overHeight: number): 'above' | 'below' {
-        const activeCenter = activeRectTop + activeHeight / 2
+    // ターゲット rect とカーソル Y 位置から「上半分 / 下半分」を判定。
+    // 縦長の active（例: composite ページ全体）でも、カーソル位置で正しく判定するため。
+    function computeDropSideByPointer(pointerY: number | null, overTop: number, overHeight: number,
+        fallbackActiveTop: number, fallbackActiveHeight: number): 'above' | 'below' {
         const overCenter = overTop + overHeight / 2
+        if (pointerY !== null) return pointerY > overCenter ? 'below' : 'above'
+        // フォールバック：active rect の中心比較
+        const activeCenter = fallbackActiveTop + fallbackActiveHeight / 2
         return activeCenter > overCenter ? 'below' : 'above'
+    }
+
+    // @dnd-kit の active.activatorEvent（押下時のイベント）の clientY と delta.y から
+    // 現在のカーソル Y を算出する。
+    function currentPointerY(activatorEvent: Event | null, deltaY: number): number | null {
+        if (!activatorEvent) return null
+        if ('clientY' in activatorEvent && typeof (activatorEvent as MouseEvent).clientY === 'number') {
+            return (activatorEvent as MouseEvent).clientY + deltaY
+        }
+        if ('touches' in activatorEvent) {
+            const t = (activatorEvent as TouchEvent).touches[0]
+            if (t) return t.clientY + deltaY
+        }
+        return null
     }
 
     // パレット / インナーブロック / composite ページの drag は「挿入/移動」が可能なので
@@ -467,8 +486,13 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
         }
         const aRect = active.rect.current.translated
         const oRect = over.rect
-        if (!aRect || !oRect) return
-        const side = computeDropSide(aRect.top, aRect.height, oRect.top, oRect.height)
+        if (!oRect) return
+        const pointerY = currentPointerY(e.activatorEvent, e.delta.y)
+        const side = computeDropSideByPointer(
+            pointerY,
+            oRect.top, oRect.height,
+            aRect?.top ?? 0, aRect?.height ?? 0,
+        )
         const next = { overId: overIdStr, side }
         if (dragHint?.overId !== next.overId || dragHint?.side !== next.side) {
             setDragHint(next)
@@ -486,16 +510,18 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
         const { active, over } = e
         if (!over || !config) return
 
+        const pointerY = currentPointerY(e.activatorEvent, e.delta.y)
+        const aRect = active.rect.current.translated
+        const oRect = over.rect
+        const side: 'above' | 'below' = oRect
+            ? computeDropSideByPointer(pointerY, oRect.top, oRect.height, aRect?.top ?? 0, aRect?.height ?? 0)
+            : 'below'
+
         // パレット由来 → 挿入
         if (active.data.current?.palette) {
             const tIdx = active.data.current.templateIdx as number
             const template = BLOCK_TEMPLATES[tIdx]
             if (!template) return
-            const aRect = active.rect.current.translated
-            const oRect = over.rect
-            const side = aRect && oRect
-                ? computeDropSide(aRect.top, aRect.height, oRect.top, oRect.height)
-                : 'below'
             insertFromPalette(template, String(over.id), side)
             return
         }
@@ -506,12 +532,6 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
 
         const activeItem = config.items.find(it => it.id === activeId)
         const isPageActive = !!activeItem
-
-        const aRect = active.rect.current.translated
-        const oRect = over.rect
-        const side = aRect && oRect
-            ? computeDropSide(aRect.top, aRect.height, oRect.top, oRect.height)
-            : 'below'
 
         // composite ページ全体のドラッグ
         if (isPageActive && activeItem.kind === 'composite') {
@@ -914,7 +934,7 @@ function NewPageGap({ insertIdx, visible, highlighted }: { insertIdx: number; vi
                 pointerEvents: visible ? 'auto' : 'none',
             }}
         >
-            {visible && (active ? '＋ ここに配置' : '＋ ここに新規ページとして追加')}
+            {visible && '＋ ここに配置'}
         </div>
     )
 }
