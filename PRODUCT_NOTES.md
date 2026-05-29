@@ -1,7 +1,100 @@
 # tripServiceMVP プロダクトノート
 
 > Claude Code が毎回このファイルを読み込みます。
-> 最終更新: 2026-05-21
+> 最終更新: 2026-05-29
+
+---
+
+## 🧭 最新ステータスサマリ（2026-05-29 時点）
+
+過去のセッションで進めてきた作業をいったん「完了 / 進行中 / 未着手 / ブロッカー」で整理。
+ここを見れば現時点でやるべきことが分かるよう構成しています。
+
+### ✅ 直近で完了したこと（2026-05 大型対応）
+
+**しおり機能のブロックベース化（完全に新方式へ移行）**
+- 固定テンプレート（cover→optional→days→back-cover）を廃止し、`config.items: BookletItem[]`
+  の **2階層モデル**（ページ＝Item / ページ内のサブブロック＝PrimitiveBlock）に刷新
+- ページ種別: `cover` / `back-cover` / `day` / `composite`（複数 primitive を内包）
+- プリミティブ種別: `text` / `packing` / `divider` / `spacer`
+- 旧 `optionalPages + dayMemos` / フラット `blocks[]` 形式は自動マイグレーションで items 形式へ
+- 印刷時は `break-inside: avoid` ベースで用紙サイズに応じた自動レイアウト・自動改ページ
+
+**ドラッグ&ドロップ周りの体験設計**
+- 右サイドバーに Canva 風ブロックパレット（`paletteSidebar`・PC > 960px のみ・`position: sticky`）
+- パレット → クリックで先頭追加 / ドラッグで好きな位置へ挿入
+- インナーブロック（小さい ⋮⋮）= ページ内並び替え・別ページへの移動・新規ページ抽出
+- 外側ページハンドル（大きい ⋮⋮）= ページごとの並び替え + composite を別ページにマージ
+- ページ間に `NewPageGap`（破線→active で「＋ ここに配置」表示）
+- 旅程ページの上部にカーソルがあれば旅程ヘッダーの下・旅程本体の上に挿入される
+  （`BookletDayHeader` をソータブル外で常時表示）
+- 上下方向判定はカーソル Y 位置（`activatorEvent + delta.y`）で行うため、縦長の
+  composite/packing でも「下部」へ確実にドロップ可能
+- `paletteDragActive` 中は外側 sortable の `verticalListSortingStrategy` を抑制して
+  NewPageGap が他ページのシャッフル演出に埋もれないようにする
+- pure ヘルパー `insertBlockIntoItems` / `insertBlocksIntoItems` / `removeBlockById` /
+  `cleanupEmptyComposites` を導入。`insertFromPalette` / `moveInnerBlock` /
+  `mergeCompositeIntoTarget` がすべてこのヘルパーに集約
+
+**しおり中身の細かい改善**
+- 表紙の日程ピッカー UI（`DatePickerOverlay`・固定幅 9.5em で初回ギャップ問題解消）
+- 日付順序の警告は修正するまで残す（`isDateOrderInvalid` の判定をドラフト・保存値の両方で）
+- 旅程ヘッダーを `BookletDayHeader` に分離（ページタイトル化）
+- スポット別「＋ メモを追加」「＋ URLを追加」アクションバー（横並び・`paddingRight: 60` で
+  並べ替え/削除ボタンと衝突しないように内側コンテンツを退避）
+- スポット URL を印刷時に QR コード化するオプション（`config.showUrlQrCode`・qrcode.react）
+- 背表紙は装飾円のみ＋右下に「旅程ジェネレーター」表記
+- しおり設定モーダルを3セクション化（全体 / スマホPC表示用 / 印刷用）
+
+**インフラ・基盤**
+- ハイブリッド AI ルーターを `src/lib/ai/client.ts` に内蔵化（旧 `@local-llm/client` の
+  外部 `file:../local-llm/shared-client` 依存を撤去）。Vercel ビルドが復旧。
+- ローカル開発時のみ Ollama(Qwen2.5 3B) で `generateTripFromArticle` を実行、
+  本番は Gemini 1本（`USE_OLLAMA` 環境変数で切替）
+
+### 🔨 進行中・調整中
+
+- **しおり機能の運用品質**: ブロックモデル刷新直後なので、印刷時の細かなレイアウトや
+  リサイズハンドルの当たり判定など実利用フィードバックでの微調整段階
+- **観光地画像の自動補完（Wikimedia Commons）**: 未着手だがコストゼロで価値が高い。
+  着手すれば Phase 2 が完了する
+
+### ⏳ 未着手（公開直前に必須の整備）
+
+1. **429 エラーハンドリング改善**（30分）— `/api/plan` `/api/generate` `/api/scrape`
+2. **ユーザーあたりレート制限**（2〜3時間）— localStorage + IP / cookie ベース
+3. **Sentry エラー監視**（1時間）— 無料枠で十分
+4. **AI 精度改善**（2〜4時間）— プロンプト強化＋生成後バリデーション
+5. **Gemini Tier 1 切替**（5分 + $10）— 上記4項目完了後
+
+### ⏳ 未着手（中期：マネタイズ前の改善）
+
+- 旅程の公開/非公開設定（`trips.is_public`）
+- 観光地画像の自動補完（Wikimedia Commons）
+- タグ機能 / SEOページ自動生成 / 人気ランキング（Phase 3）
+- PWA化・チェックリスト自動生成・しおり拡張（Phase 4）
+- しおりテーマ拡張（20〜30パターン、一部有料） ← Phase 4/5 横断の独自案
+
+### ⏳ 未着手（マネタイズ・差別化）
+
+- アフィリエイト導線（HotelDetailModal・スポット詳細にじゃらん/楽天/KKday リンク）
+- 認証導入（Supabase Auth magic link → /me ダッシュボード）
+- しおりテーマパック有料化 / ブランド非表示の単体販売
+- Phase 7 系（AIチャット相談・予算最適化・共同編集・LINE連携）
+
+### ⚠️ 現在のブロッカー
+
+- **Gemini API Free Tier の1日20リクエスト制限**：公開運用には不適。
+  Tier 1（$10 前払い）への切替判断が必要（→ 詳細は「AI コスト・ライセンス」セクション）
+- ローカル LLM 連携：`@local-llm/client` 外部依存は撤去済みなので Vercel 影響は解消。
+  ただし将来 sibling リポジトリ側に機能追加した場合は手動で `src/lib/ai/client.ts`
+  に反映する必要あり
+
+### 📌 直近の判断ポイント
+
+- **公開前の必須5項目**を完了させてから Tier 1 切替 → 公開、の順序を維持
+- しおり機能のフィードバックを集めて Phase 4 残り（チェックリスト・PWA）の優先順位を決める
+- マネタイズはまずアフィリエイト導線が低コスト高 ROI。しおりテーマ有料化は需要を見て判断
 
 ---
 
@@ -38,7 +131,7 @@
 | **Phase 1** MVP | ✅ 完了 | 6 / 6 |
 | **Phase 2** 初期改善 | 🔨 80% | 4 / 5 |
 | **Phase 3** バイラル・SEO | 🔨 20% | 1 / 5（+派生実装多数） |
-| **Phase 4** UX強化 | 🔨 25% | 1 / 4（しおり実装済） |
+| **Phase 4** UX強化 | 🔨 40% | しおり機能はブロックベース構成へ刷新済（D&D・QR印刷・テーマ拡張済）。チェックリスト/PWA/オフライン閲覧は未着手 |
 | **Phase 5** 軽い収益化 | ❌ 未着手 | 0 / 3 |
 | **Phase 6** 本格収益化 | ❌ 未着手 | 0 / 4 |
 | **Phase 7** 差別化拡張 | ❌ 未着手 | 0 / 5 |
@@ -80,11 +173,15 @@
 - [x] LP強化（ヒーロー統合フォーム・How it works・みんなのプラン・Features・FAQ・最終CTA）
 - [x] モダンヘッダー（ガラスモーフィズム・グラデーションロゴ・将来のアバター用スロット）
 
-### Phase 4 — UX強化（25%完了）
-- [x] **しおり（Web + 印刷 / PDF）自動生成** — `/trips/[id]/booklet`・3テーマ・NOW/NEXT バッジ・A4印刷最適化
+### Phase 4 — UX強化（40%完了）
+- [x] **しおり（Web + 印刷 / PDF）自動生成** — `/trips/[id]/booklet`・13テーマ・NOW/NEXT バッジ・A4印刷最適化
+- [x] **しおりのブロックベース構成への刷新** — `config.items: BookletItem[]` の2階層モデル・PC でドラッグ&ドロップ並び替え・新規ページ抽出・既存ページへのマージ・Canva 風サイドバー
+- [x] **しおりブロック編集 UI** — テキスト/持ち物リスト/区切り線/スペーサー、ページ内の上下挿入、高さリサイズ
+- [x] **スポット別メモ・URL・QR コード**（`config.showUrlQrCode` で印刷時 QR コード化）
 - [ ] チェックリスト自動生成（持ち物・やること）
 - [ ] 日ごとのToDo管理
 - [ ] オフライン閲覧対応（PWA・読み取り専用キャッシュ）
+- [ ] しおりテーマ拡張（20〜30 パターン、一部有料）
 
 ### Phase 5 — 軽い収益化（未着手）
 - [ ] 高度AI機能の有料化（細かい条件指定・複数プラン提案）
@@ -143,6 +240,10 @@
 #### インフラ
 - [x] GitHub Actions による Supabase keep-alive（3日ごと定期ping）
 - [x] Spot の `address` フィールド（AI生成・市区町村＋町名 → Maps 検索精度向上）
+
+#### AI 基盤
+- [x] **ハイブリッド AI ルーター内蔵化**（`src/lib/ai/client.ts`）— 旧外部 `@local-llm/client` 依存を撤去し Vercel デプロイ復旧。`USE_OLLAMA` 環境変数で本番(Gemini) / ローカル(Ollama Qwen2.5 3B) を切替
+- [x] `generateTripFromArticle` をハイブリッドルーター経由に切替（フォールバックで Gemini）
 
 ---
 
