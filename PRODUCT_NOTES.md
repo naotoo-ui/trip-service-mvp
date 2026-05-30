@@ -1,7 +1,42 @@
 # tripServiceMVP プロダクトノート
 
 > Claude Code が毎回このファイルを読み込みます。
-> 最終更新: 2026-05-29
+> 最終更新: 2026-05-30
+
+---
+
+## 🆕 2026-05-30 追加：モデルプラン3000件の投入と /models ページ
+
+Phase 3「旅程テンプレート化」の実装。国内外の人気旅先を網羅した **3000件のモデル旅程**
+を Supabase に投入し、新ルート `/models` で目的地・日数・キーワードで絞り込み閲覧できる
+ようになった。
+
+**実装内容**
+- DB マイグレーション `002_add_is_official.sql`: `trips.is_official BOOLEAN` 追加
+- ジェネレータ `scripts/generate-model-trips/`:
+  - 国内35エリア（京都・沖縄・札幌・東京・大阪…）約20スポット/エリア
+  - 海外30都市（ソウル・台北・パリ・ロンドン・ローマ…）約10〜15スポット/都市
+  - 欧州周遊10ルート（パリ→ロンドン、ローマ→フィレンツェ→ベネチア…）
+  - 出発地（東京/大阪/名古屋/福岡/札幌）× 日数 × テーマで variant 展開
+  - 既存 `gemini.ts` の移動論理（detectRegion / DOMESTIC_TRAVEL_HOURS）を移植して
+    1日目・最終日のスポット数を距離に応じて制限
+- 新 UI: `/models` 軽量リスト（行表示・絵文字・タイトル・目的地・日数・希望）
+  - フィルタ: 目的地プルダウン / 日数 / キーワード検索
+  - ページング: 100件/ページ
+  - クリック → 既存 `/trips/[share_id]` カレンダーへ遷移
+- `/explore` を `is_official=false` のみに変更（モデルプランと分離）
+- ヘッダー/フッターに「モデル」リンク追加
+
+**容量実績**: 1旅程平均 3.35 KB × 3000 = 約 10 MB（Supabase 無料枠 500 MB の **2.08%**）
+
+**コマンド**
+```bash
+# 生成 + 投入（既存の is_official=true を delete してから入れ直し）
+npx ts-node --compiler-options '{"module":"commonjs"}' scripts/generate-model-trips/index.ts 3000
+
+# 使用量チェック
+npx ts-node --compiler-options '{"module":"commonjs"}' scripts/check-supabase-usage.ts
+```
 
 ---
 

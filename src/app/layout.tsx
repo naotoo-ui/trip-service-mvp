@@ -113,6 +113,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                                 <span style={{ fontSize: 14 }}>🔍</span>
                                 <span className="nav-label">探す</span>
                             </Link>
+                            <Link href="/models" style={navLinkStyle} className="nav-hover">
+                                <span style={{ fontSize: 14 }}>📚</span>
+                                <span className="nav-label">モデル</span>
+                            </Link>
                             <RecentTripsButton />
                             <Link href="/" style={ctaButtonStyle} className="cta-hover">
                                 <span>＋</span>
@@ -150,6 +154,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                         <nav style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                             <Link href="/" style={{ color: '#64748b', textDecoration: 'none' }}>作成</Link>
                             <Link href="/explore" style={{ color: '#64748b', textDecoration: 'none' }}>探す</Link>
+                            <Link href="/models" style={{ color: '#64748b', textDecoration: 'none' }}>モデルプラン</Link>
                         </nav>
                     </div>
                 </footer>
