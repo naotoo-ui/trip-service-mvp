@@ -20,8 +20,11 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY)
 
 // 出発地リスト
+// 国内: 国内旅行は出発地で初日のスポット数・移動時間が大きく変わるため複数用意
+// 海外: 国際線は基本的に東京・大阪どちらも内容が同じになるため、東京発をベースにする
+//      （大阪発は重複を避けるため variant 展開で除外）
 const DOMESTIC_ORIGINS = ['東京', '大阪', '名古屋', '福岡', '札幌']
-const OVERSEAS_ORIGINS = ['東京', '大阪']
+const OVERSEAS_ORIGINS = ['東京']
 
 // 8文字 share_id
 function generateShareId(): string {
@@ -150,18 +153,23 @@ async function main() {
 
     console.log(`展開: 国内 ${domestic.length} / 海外 ${overseas.length} / 周遊 ${routes.length}`)
 
-    // ビルド
+    // ビルド（null は variant スキップ＝品質維持）
     const drafts: DraftTrip[] = []
+    let skipped = 0
     for (const { dest, variant } of domestic) {
         try {
-            drafts.push(sanitizeDraft(buildItinerary(dest, variant)))
+            const built = buildItinerary(dest, variant)
+            if (built) drafts.push(sanitizeDraft(built))
+            else skipped++
         } catch (e) {
             console.warn(`国内ビルド失敗: ${dest.id}/${variant.theme}/${variant.duration_days}日`, e)
         }
     }
     for (const { dest, variant } of overseas) {
         try {
-            drafts.push(sanitizeDraft(buildItinerary(dest, variant)))
+            const built = buildItinerary(dest, variant)
+            if (built) drafts.push(sanitizeDraft(built))
+            else skipped++
         } catch (e) {
             console.warn(`海外ビルド失敗: ${dest.id}/${variant.theme}/${variant.duration_days}日`, e)
         }
@@ -173,13 +181,15 @@ async function main() {
                 if (!dest) throw new Error(`leg destination not found: ${leg.destinationId}`)
                 return { dest, days: leg.days }
             })
-            drafts.push(sanitizeDraft(buildMultiCountryItinerary(legs, variant, route.name)))
+            const built = buildMultiCountryItinerary(legs, variant, route.name)
+            if (built) drafts.push(sanitizeDraft(built))
+            else skipped++
         } catch (e) {
             console.warn(`周遊ビルド失敗: ${route.id}/${variant.theme}`, e)
         }
     }
 
-    console.log(`ビルド成功: ${drafts.length}件`)
+    console.log(`ビルド成功: ${drafts.length}件 / スキップ: ${skipped}件（テーマ非適合）`)
 
     // 件数調整：上限を超えたらシャッフル後にtruncate
     const finalDrafts = drafts.length > targetCount
