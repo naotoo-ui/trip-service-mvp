@@ -26,7 +26,8 @@ type Props = {
     onShowBorderChange?: (show: boolean) => void
 }
 
-const FONT_SIZE_OPTIONS = [12, 14, 16, 18, 20, 24, 28, 32]
+const FONT_SIZE_MIN = 8
+const FONT_SIZE_MAX = 64
 const FONT_WEIGHT_OPTIONS = [
     { label: '細', value: 300 },
     { label: '標準', value: 400 },
@@ -157,17 +158,11 @@ export default function TextBlock({
                     {/* 寄せ（Canva 風：押下で left → center → right → left を循環） */}
                     <AlignCycleButton align={effectiveAlign} onChange={a => onAlignChange?.(a)} />
 
-                    {/* フォントサイズ */}
-                    <select
+                    {/* フォントサイズ（Canva 風: A/A アイコン押下でスライダー＋±ポップオーバー） */}
+                    <FontSizeControl
                         value={effectiveFontSize}
-                        onChange={e => onFontSizeChange?.(Number(e.target.value))}
-                        style={selectStyle}
-                        title="文字サイズ"
-                    >
-                        {FONT_SIZE_OPTIONS.map(s => (
-                            <option key={s} value={s}>{s}px</option>
-                        ))}
-                    </select>
+                        onChange={v => onFontSizeChange?.(v)}
+                    />
 
                     {/* フォント太さ */}
                     <select
@@ -342,6 +337,121 @@ function AlignCycleButton({ align, onChange }: {
             <AlignIcon align={align} />
         </button>
     )
+}
+
+// ──────────── フォントサイズ コントロール ────────────
+
+function FontSizeControl({ value, onChange }: {
+    value: number
+    onChange: (v: number) => void
+}) {
+    const [open, setOpen] = useState(false)
+    const wrapRef = useRef<HTMLDivElement | null>(null)
+
+    useEffect(() => {
+        if (!open) return
+        function onDocClick(e: MouseEvent) {
+            if (!wrapRef.current) return
+            if (wrapRef.current.contains(e.target as Node)) return
+            setOpen(false)
+        }
+        document.addEventListener('mousedown', onDocClick)
+        return () => document.removeEventListener('mousedown', onDocClick)
+    }, [open])
+
+    function clamp(v: number): number {
+        return Math.max(FONT_SIZE_MIN, Math.min(FONT_SIZE_MAX, Math.round(v)))
+    }
+
+    return (
+        <div ref={wrapRef} style={{ position: 'relative' }}>
+            <button
+                type="button"
+                onClick={() => setOpen(o => !o)}
+                title="フォントサイズ"
+                style={{
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    gap: 2, height: 28, padding: '0 8px',
+                    border: '1px solid #d1d5db', borderRadius: 6,
+                    background: open ? '#eff6ff' : 'white',
+                    color: '#374151',
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                }}
+            >
+                <span style={{ fontSize: 10, fontWeight: 700, lineHeight: 1 }}>A</span>
+                <span style={{ fontSize: 16, fontWeight: 700, lineHeight: 1 }}>A</span>
+            </button>
+
+            {open && (
+                <div
+                    style={{
+                        position: 'absolute', top: 'calc(100% + 6px)', left: 0,
+                        background: 'white', border: '1px solid #d1d5db', borderRadius: 10,
+                        boxShadow: '0 8px 20px rgba(0,0,0,0.12)',
+                        padding: 12, zIndex: 100,
+                        minWidth: 220,
+                        display: 'flex', flexDirection: 'column', gap: 10,
+                    }}
+                >
+                    <div style={{
+                        fontSize: 11, fontWeight: 700, color: '#6b7280',
+                        letterSpacing: '0.04em', textTransform: 'uppercase',
+                    }}>フォントサイズ</div>
+
+                    {/* スライダー */}
+                    <input
+                        type="range"
+                        min={FONT_SIZE_MIN}
+                        max={FONT_SIZE_MAX}
+                        step={1}
+                        value={value}
+                        onChange={e => onChange(clamp(Number(e.target.value)))}
+                        style={{ width: '100%' }}
+                    />
+
+                    {/* ± + 数値表示 */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <button
+                            type="button"
+                            onClick={() => onChange(clamp(value - 1))}
+                            aria-label="サイズを小さく"
+                            style={stepperButtonStyle}
+                        >−</button>
+                        <input
+                            type="number"
+                            min={FONT_SIZE_MIN}
+                            max={FONT_SIZE_MAX}
+                            value={value}
+                            onChange={e => onChange(clamp(Number(e.target.value) || value))}
+                            style={{
+                                width: 56, height: 30, textAlign: 'center',
+                                border: '1px solid #d1d5db', borderRadius: 6,
+                                fontSize: 13, fontWeight: 600, color: '#111827',
+                                fontFamily: 'inherit', outline: 'none',
+                                MozAppearance: 'textfield',
+                            }}
+                        />
+                        <span style={{ fontSize: 12, color: '#6b7280' }}>px</span>
+                        <button
+                            type="button"
+                            onClick={() => onChange(clamp(value + 1))}
+                            aria-label="サイズを大きく"
+                            style={stepperButtonStyle}
+                        >＋</button>
+                    </div>
+                </div>
+            )}
+        </div>
+    )
+}
+
+const stepperButtonStyle: React.CSSProperties = {
+    width: 30, height: 30, padding: 0,
+    border: '1px solid #d1d5db', borderRadius: 6,
+    background: 'white', color: '#374151',
+    fontSize: 16, fontWeight: 700, lineHeight: 1,
+    cursor: 'pointer',
 }
 
 function AlignIcon({ align }: { align: TextAlign }) {
