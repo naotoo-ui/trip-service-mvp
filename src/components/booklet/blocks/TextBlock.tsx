@@ -154,12 +154,8 @@ export default function TextBlock({
                         border: `1px solid ${theme.paperBorder ?? '#e5e7eb'}`,
                     }}
                 >
-                    {/* 寄せ */}
-                    <div style={toolGroupStyle}>
-                        <ToolButton active={effectiveAlign === 'left'} onClick={() => onAlignChange?.('left')} title="左寄せ">⬅︎</ToolButton>
-                        <ToolButton active={effectiveAlign === 'center'} onClick={() => onAlignChange?.('center')} title="センター寄せ">↔︎</ToolButton>
-                        <ToolButton active={effectiveAlign === 'right'} onClick={() => onAlignChange?.('right')} title="右寄せ">➡︎</ToolButton>
-                    </div>
+                    {/* 寄せ（Canva 風：押下で left → center → right → left を循環） */}
+                    <AlignCycleButton align={effectiveAlign} onChange={a => onAlignChange?.(a)} />
 
                     {/* フォントサイズ */}
                     <select
@@ -276,11 +272,6 @@ export default function TextBlock({
 
 // ──────────── ツールバー部品 ────────────
 
-const toolGroupStyle: React.CSSProperties = {
-    display: 'flex', gap: 2, padding: 2,
-    border: '1px solid #d1d5db', borderRadius: 6, background: 'white',
-}
-
 const toolButtonBaseStyle: React.CSSProperties = {
     padding: '4px 8px', fontSize: 12, fontWeight: 600,
     border: '1px solid #d1d5db', borderRadius: 6,
@@ -315,5 +306,61 @@ function ToolButton({ active, onClick, title, children }: {
                 cursor: 'pointer', whiteSpace: 'nowrap',
             }}
         >{children}</button>
+    )
+}
+
+// ──────────── 寄せ循環ボタン（Canva 風） ────────────
+
+const NEXT_ALIGN: Record<TextAlign, TextAlign> = {
+    left: 'center',
+    center: 'right',
+    right: 'left',
+}
+const ALIGN_NEXT_LABEL: Record<TextAlign, string> = {
+    left: '左寄せ（クリックでセンターに）',
+    center: 'センター寄せ（クリックで右に）',
+    right: '右寄せ（クリックで左に）',
+}
+
+function AlignCycleButton({ align, onChange }: {
+    align: TextAlign
+    onChange: (align: TextAlign) => void
+}) {
+    return (
+        <button
+            type="button"
+            onClick={() => onChange(NEXT_ALIGN[align])}
+            title={ALIGN_NEXT_LABEL[align]}
+            style={{
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                width: 32, height: 28, padding: 0,
+                border: '1px solid #d1d5db', borderRadius: 6,
+                background: 'white', color: '#374151',
+                cursor: 'pointer',
+            }}
+        >
+            <AlignIcon align={align} />
+        </button>
+    )
+}
+
+function AlignIcon({ align }: { align: TextAlign }) {
+    // 4本の横線で寄せを表現するアイコン。SVG 16x16
+    // 各行の長さと x 起点を寄せに合わせて調整
+    const lineY = [3, 6.5, 10, 13.5]
+    const lengths = [12, 8, 11, 6]
+
+    function xFor(len: number): number {
+        if (align === 'left') return 2
+        if (align === 'right') return 14 - len
+        return (16 - len) / 2  // center
+    }
+
+    return (
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
+            {lineY.map((y, i) => (
+                <rect key={i} x={xFor(lengths[i])} y={y} width={lengths[i]} height={1.4} rx={0.5} />
+            ))}
+        </svg>
     )
 }
