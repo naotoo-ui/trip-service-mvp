@@ -424,4 +424,163 @@ export const ROUTES_DOMESTIC_SINGLE: Route[] = [
         popularity: 4,
         titleSuffixes: ['グラバー園と中華街', '稲佐山の夜景', '軍艦島と平和公園', 'ハウステンボスも'],
     },
+
+    // ──────────── 追加エリア（DOMESTIC_EXTRA・NICHE 由来） ────────────
+
+    // 奈良
+    {
+        id: 'r-nara',
+        name: '奈良',
+        legs: [{ destinationId: 'nara', days: 2 }],
+        suitableThemes: ['sg', 'hs', 'wh', 'fm', 'cp'],
+        suitableOrigins: ['東京', '名古屋', '福岡'],
+        durations: [2, 3],
+        popularity: 3,
+        titleSuffixes: ['東大寺と鹿', '法隆寺と世界遺産', 'ならまち散策', '飛鳥古墳巡り'],
+    },
+
+    // 鹿児島
+    {
+        id: 'r-kagoshima',
+        name: '鹿児島',
+        legs: [{ destinationId: 'kagoshima', days: 2 }],
+        suitableThemes: ['sg', 'np', 'on', 'gm'],
+        suitableOrigins: ['東京', '大阪', '名古屋', '福岡'],
+        durations: [2, 3],
+        popularity: 3,
+        titleSuffixes: ['桜島と仙巌園', '指宿砂むしと開聞岳', '霧島温泉巡り'],
+    },
+
+    // 松山・道後
+    {
+        id: 'r-matsuyama-dogo',
+        name: '松山・道後',
+        legs: [{ destinationId: 'matsuyama-dogo', days: 2 }],
+        suitableThemes: ['on', 'hs', 'cp'],
+        suitableOrigins: ['東京', '大阪', '名古屋', '福岡'],
+        durations: [2, 3],
+        popularity: 3,
+        titleSuffixes: ['道後温泉本館', '松山城と道後', '坊ちゃんゆかりの地'],
+    },
+
+    // しまなみ海道
+    {
+        id: 'r-shimanami',
+        name: 'しまなみ海道',
+        legs: [{ destinationId: 'shimanami', days: 2 }],
+        suitableThemes: ['ex', 'np', 'cp', 'nt'],
+        suitableOrigins: ['東京', '大阪', '福岡'],
+        durations: [2, 3],
+        popularity: 3,
+        titleSuffixes: ['尾道＋サイクリング', '島々の絶景巡り', 'しまなみ自転車旅'],
+    },
+
+    // 五島列島
+    {
+        id: 'r-goto',
+        name: '五島列島',
+        legs: [{ destinationId: 'goto-islands', days: 3 }],
+        suitableThemes: ['np', 'wh', 'bc', 'cp'],
+        suitableOrigins: ['東京', '大阪', '福岡'],
+        durations: [3, 4],
+        popularity: 2,
+        titleSuffixes: ['潜伏キリシタン世界遺産', '日本一の白浜', '隠れ教会巡り'],
+    },
+
+    // 佐渡島
+    {
+        id: 'r-sado',
+        name: '佐渡島',
+        legs: [{ destinationId: 'sado', days: 3 }],
+        suitableThemes: ['sg', 'hs', 'np', 'ex'],
+        suitableOrigins: ['東京', '大阪'],
+        durations: [3, 4],
+        popularity: 2,
+        titleSuffixes: ['佐渡金山と宿根木', 'たらい舟と海岸絶景'],
+    },
+
+    // 角館・乳頭温泉
+    {
+        id: 'r-kakunodate',
+        name: '角館・乳頭温泉',
+        legs: [{ destinationId: 'kakunodate', days: 2 }],
+        suitableThemes: ['on', 'sg', 'hs', 'np'],
+        suitableOrigins: ['東京', '大阪'],
+        durations: [2, 3],
+        popularity: 3,
+        titleSuffixes: ['武家屋敷と秘湯', '乳頭温泉郷で湯巡り', '田沢湖と角館'],
+        titlePrefix: '',
+    },
+
+    // 銀山温泉
+    {
+        id: 'r-ginzan',
+        name: '銀山温泉',
+        legs: [{ destinationId: 'ginzan', days: 2 }],
+        suitableThemes: ['on', 'cp', 'hs', 'np'],
+        suitableOrigins: ['東京', '大阪', '名古屋'],
+        durations: [2],
+        popularity: 4,
+        titleSuffixes: ['大正レトロな湯けむり', 'カップル温泉旅', '千と千尋の世界へ', '雪化粧の温泉街'],
+    },
+
+    // 能登半島
+    {
+        id: 'r-noto',
+        name: '能登半島',
+        legs: [{ destinationId: 'noto', days: 2 }],
+        suitableThemes: ['np', 'on', 'gm'],
+        suitableOrigins: ['東京', '大阪', '名古屋', '福岡'],
+        durations: [2, 3, 4],
+        popularity: 3,
+        titleSuffixes: ['輪島朝市と千枚田', 'なぎさドライブと和倉温泉', '能登の絶景巡り'],
+    },
+
+    // 高千穂峡
+    {
+        id: 'r-takachiho',
+        name: '高千穂峡',
+        legs: [{ destinationId: 'takachiho', days: 2 }],
+        suitableThemes: ['np', 'hs', 'cp'],
+        suitableOrigins: ['東京', '大阪', '福岡'],
+        durations: [2, 3],
+        popularity: 3,
+        titleSuffixes: ['神話の里と真名井の滝', '夜神楽と天岩戸', '雲海と神社巡り'],
+    },
+
+    // 城崎温泉・天橋立
+    {
+        id: 'r-kinosaki-amanohashidate',
+        name: '城崎温泉・天橋立',
+        legs: [{ destinationId: 'kinosaki-amanohashidate', days: 2 }],
+        suitableThemes: ['on', 'np', 'cp'],
+        suitableOrigins: ['東京', '大阪', '名古屋'],
+        durations: [3, 4],
+        popularity: 4,
+        titleSuffixes: ['外湯巡りと松葉ガニ', '日本三景と温泉', '伊根の舟屋も', 'カップル湯けむり旅'],
+    },
+
+    // 上高地・乗鞍
+    {
+        id: 'r-kamikochi',
+        name: '上高地・乗鞍',
+        legs: [{ destinationId: 'kamikochi', days: 2 }],
+        suitableThemes: ['nt', 'np', 'ex'],
+        suitableOrigins: ['東京', '大阪', '名古屋'],
+        durations: [2, 3],
+        popularity: 3,
+        titleSuffixes: ['河童橋と大正池', '上高地ハイキング', '乗鞍高原温泉と絶景'],
+    },
+
+    // 諏訪・茅野
+    {
+        id: 'r-suwa',
+        name: '諏訪・茅野',
+        legs: [{ destinationId: 'suwa', days: 2 }],
+        suitableThemes: ['sg', 'hs', 'on', 'np'],
+        suitableOrigins: ['東京', '大阪', '名古屋'],
+        durations: [2],
+        popularity: 2,
+        titleSuffixes: ['諏訪大社と湖畔温泉', '八ヶ岳と地酒巡り'],
+    },
 ]

@@ -143,4 +143,117 @@ export const ROUTES_AMERICAS_OCEANIA_ETC: Route[] = [
         popularity: 3,
         titleSuffixes: ['ドバイ・アブダビ周遊', '王宮とモスク巡り', '砂漠の冒険'],
     },
+
+    // ──────────── ペルー（マチュピチュ） ────────────
+    {
+        id: 'r-machu-picchu',
+        name: 'ペルー（マチュピチュ・クスコ）',
+        legs: [{ destinationId: 'machu-picchu', days: 5 }],
+        suitableThemes: ['sg', 'hs', 'wh', 'np'],
+        suitableOrigins: ['東京', '大阪'],
+        durations: [7, 8, 9],
+        popularity: 4,
+        titleSuffixes: ['マチュピチュとクスコ', 'インカ帝国を辿る', '空中都市と古都', '聖なる谷とマチュピチュ'],
+    },
+
+    // ──────────── ウユニ塩湖 ────────────
+    {
+        id: 'r-uyuni',
+        name: 'ウユニ塩湖',
+        legs: [{ destinationId: 'uyuni', days: 4 }],
+        suitableThemes: ['np', 'cp', 'ex'],
+        suitableOrigins: ['東京', '大阪'],
+        durations: [6, 7, 8],
+        popularity: 3,
+        titleSuffixes: ['天空の鏡ウユニ塩湖', '世界一の絶景', 'ボリビア絶景旅'],
+    },
+    {
+        id: 'r-peru-bolivia',
+        name: 'ペルー・ボリビア周遊',
+        legs: [
+            { destinationId: 'machu-picchu', days: 4 },
+            { destinationId: 'uyuni', days: 3 },
+        ],
+        suitableThemes: ['np', 'sg', 'wh'],
+        suitableOrigins: ['東京', '大阪'],
+        durations: [9, 10, 11],
+        popularity: 2,
+        titleSuffixes: ['マチュピチュとウユニ', '南米2大絶景'],
+    },
+
+    // ──────────── カンクン・リビエラマヤ ────────────
+    {
+        id: 'r-cancun',
+        name: 'カンクン・リビエラマヤ',
+        legs: [{ destinationId: 'cancun', days: 5 }],
+        suitableThemes: ['bc', 'sg', 'cp', 'fm', 'np'],
+        suitableOrigins: ['東京', '大阪'],
+        durations: [5, 6, 7],
+        popularity: 4,
+        titleSuffixes: ['カリブ海とマヤ遺跡', 'チチェンイッツァとビーチ', 'セノーテとトゥルム', 'ハネムーンカンクン'],
+    },
+
+    // ──────────── エジプト ────────────
+    {
+        id: 'r-egypt-classic',
+        name: 'エジプト周遊',
+        legs: [{ destinationId: 'egypt', days: 6 }],
+        suitableThemes: ['sg', 'hs', 'wh'],
+        suitableOrigins: ['東京', '大阪'],
+        durations: [7, 8, 9],
+        popularity: 4,
+        titleSuffixes: ['ピラミッドとナイル川', 'カイロ＋ルクソール＋アスワン', '古代エジプト世界遺産', 'クルーズで巡る古都'],
+    },
+
+    // ──────────── モロッコ ────────────
+    {
+        id: 'r-morocco-classic',
+        name: 'モロッコ周遊',
+        legs: [{ destinationId: 'morocco', days: 6 }],
+        suitableThemes: ['sg', 'hs', 'wh', 'sp', 'ex'],
+        suitableOrigins: ['東京', '大阪'],
+        durations: [7, 8, 9],
+        popularity: 4,
+        titleSuffixes: ['マラケシュとフェズ', 'シャウエンとサハラ砂漠', '迷宮メディナと砂漠の星', 'モロッコ世界遺産巡り'],
+    },
+    {
+        id: 'r-morocco-spain',
+        name: 'モロッコ＋スペイン',
+        legs: [
+            { destinationId: 'morocco', days: 4 },
+            { destinationId: 'madrid', days: 2 },
+        ],
+        suitableThemes: ['sg', 'hs', 'ar'],
+        suitableOrigins: ['東京', '大阪'],
+        durations: [7, 8],
+        popularity: 2,
+        titleSuffixes: ['スペイン＋モロッコ', 'イスラム文化を辿る'],
+    },
+
+    // ──────────── サファリ ────────────
+    {
+        id: 'r-safari',
+        name: 'ケニア・タンザニアサファリ',
+        legs: [{ destinationId: 'safari', days: 6 }],
+        suitableThemes: ['nt', 'np', 'ex', 'wh'],
+        suitableOrigins: ['東京', '大阪'],
+        durations: [7, 8, 9],
+        popularity: 3,
+        titleSuffixes: ['ビッグ5サファリ', 'マサイマラとセレンゲティ', 'アフリカ大自然満喫', '気球サファリ'],
+    },
+
+    // ──────────── ドバイ＋エジプト ────────────
+    {
+        id: 'r-dubai-egypt',
+        name: 'ドバイ＋エジプト',
+        legs: [
+            { destinationId: 'dubai', days: 3 },
+            { destinationId: 'egypt', days: 4 },
+        ],
+        suitableThemes: ['sg', 'hs', 'wh'],
+        suitableOrigins: ['東京', '大阪'],
+        durations: [7, 8, 9],
+        popularity: 2,
+        titleSuffixes: ['中東2国周遊', 'ドバイ＋ピラミッド', '近未来と古代'],
+    },
 ]

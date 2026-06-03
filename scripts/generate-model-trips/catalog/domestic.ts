@@ -4,6 +4,7 @@ import { DOMESTIC_PART2 } from './domestic-2'
 import { DOMESTIC_PART3 } from './domestic-3'
 import { DOMESTIC_PART4 } from './domestic-4'
 import { DOMESTIC_EXTRA } from './domestic-extra'
+import { DOMESTIC_NICHE } from './domestic-niche'
 
 export const DOMESTIC_DESTINATIONS: DestinationEntry[] = [
     ...DOMESTIC_PART1,
@@ -11,4 +12,5 @@ export const DOMESTIC_DESTINATIONS: DestinationEntry[] = [
     ...DOMESTIC_PART3,
     ...DOMESTIC_PART4,
     ...DOMESTIC_EXTRA,
+    ...DOMESTIC_NICHE,
 ]
