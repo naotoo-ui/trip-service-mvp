@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useRef, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import type { Theme } from '../bookletThemes'
 import type { TextAlign } from '../bookletConfig'
 
@@ -338,13 +339,46 @@ function FontSizeControl({ value, onChange }: {
     onChange: (v: number) => void
 }) {
     const [open, setOpen] = useState(false)
-    const wrapRef = useRef<HTMLDivElement | null>(null)
+    const buttonRef = useRef<HTMLButtonElement | null>(null)
+    const popoverRef = useRef<HTMLDivElement | null>(null)
+    const [pos, setPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 })
+
+    useEffect(() => {
+        if (!open || !buttonRef.current) return
+        function recalc() {
+            if (!buttonRef.current) return
+            const rect = buttonRef.current.getBoundingClientRect()
+            const popoverWidth = 240
+            const popoverHeightApprox = 160
+            const margin = 8
+
+            let left = rect.left
+            if (left + popoverWidth > window.innerWidth - margin) {
+                left = window.innerWidth - popoverWidth - margin
+            }
+            if (left < margin) left = margin
+
+            let top = rect.bottom + 6
+            if (top + popoverHeightApprox > window.innerHeight - margin) {
+                top = Math.max(margin, rect.top - popoverHeightApprox - 6)
+            }
+            setPos({ top, left })
+        }
+        recalc()
+        window.addEventListener('resize', recalc)
+        window.addEventListener('scroll', recalc, true)
+        return () => {
+            window.removeEventListener('resize', recalc)
+            window.removeEventListener('scroll', recalc, true)
+        }
+    }, [open])
 
     useEffect(() => {
         if (!open) return
         function onDocClick(e: MouseEvent) {
-            if (!wrapRef.current) return
-            if (wrapRef.current.contains(e.target as Node)) return
+            const t = e.target as Node
+            if (buttonRef.current?.contains(t)) return
+            if (popoverRef.current?.contains(t)) return
             setOpen(false)
         }
         document.addEventListener('mousedown', onDocClick)
@@ -356,8 +390,9 @@ function FontSizeControl({ value, onChange }: {
     }
 
     return (
-        <div ref={wrapRef} style={{ position: 'relative' }}>
+        <>
             <button
+                ref={buttonRef}
                 type="button"
                 onClick={() => setOpen(o => !o)}
                 title="フォントサイズ"
@@ -375,13 +410,14 @@ function FontSizeControl({ value, onChange }: {
                 <span style={{ fontSize: 16, fontWeight: 700, lineHeight: 1 }}>A</span>
             </button>
 
-            {open && (
+            {open && typeof document !== 'undefined' && createPortal(
                 <div
+                    ref={popoverRef}
                     style={{
-                        position: 'absolute', top: 'calc(100% + 6px)', left: 0,
+                        position: 'fixed', top: pos.top, left: pos.left,
                         background: 'white', border: '1px solid #d1d5db', borderRadius: 10,
                         boxShadow: '0 8px 20px rgba(0,0,0,0.12)',
-                        padding: 12, zIndex: 100,
+                        padding: 12, zIndex: 9999,
                         minWidth: 220,
                         display: 'flex', flexDirection: 'column', gap: 10,
                     }}
@@ -432,9 +468,10 @@ function FontSizeControl({ value, onChange }: {
                             style={stepperButtonStyle}
                         >＋</button>
                     </div>
-                </div>
+                </div>,
+                document.body,
             )}
-        </div>
+        </>
     )
 }
 
@@ -460,13 +497,49 @@ function ColorPickerControl({ value, onChange }: {
     onChange: (color: string) => void
 }) {
     const [open, setOpen] = useState(false)
-    const wrapRef = useRef<HTMLDivElement | null>(null)
+    const buttonRef = useRef<HTMLButtonElement | null>(null)
+    const popoverRef = useRef<HTMLDivElement | null>(null)
+    const [pos, setPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 })
 
+    // ボタン位置を元にポップオーバーの座標を画面内に収めて計算
+    useEffect(() => {
+        if (!open || !buttonRef.current) return
+        function recalc() {
+            if (!buttonRef.current) return
+            const rect = buttonRef.current.getBoundingClientRect()
+            const popoverWidth = 240
+            const popoverHeightApprox = 340
+            const margin = 8
+
+            let left = rect.left
+            if (left + popoverWidth > window.innerWidth - margin) {
+                left = window.innerWidth - popoverWidth - margin
+            }
+            if (left < margin) left = margin
+
+            let top = rect.bottom + 6
+            if (top + popoverHeightApprox > window.innerHeight - margin) {
+                // 下側に出ないなら上側に出す
+                top = Math.max(margin, rect.top - popoverHeightApprox - 6)
+            }
+            setPos({ top, left })
+        }
+        recalc()
+        window.addEventListener('resize', recalc)
+        window.addEventListener('scroll', recalc, true)
+        return () => {
+            window.removeEventListener('resize', recalc)
+            window.removeEventListener('scroll', recalc, true)
+        }
+    }, [open])
+
+    // 外側クリックで閉じる（ボタンとポップオーバーは除く）
     useEffect(() => {
         if (!open) return
         function onDocClick(e: MouseEvent) {
-            if (!wrapRef.current) return
-            if (wrapRef.current.contains(e.target as Node)) return
+            const t = e.target as Node
+            if (buttonRef.current?.contains(t)) return
+            if (popoverRef.current?.contains(t)) return
             setOpen(false)
         }
         document.addEventListener('mousedown', onDocClick)
@@ -476,8 +549,9 @@ function ColorPickerControl({ value, onChange }: {
     const hex = value.startsWith('#') ? value : '#000000'
 
     return (
-        <div ref={wrapRef} style={{ position: 'relative' }}>
+        <>
             <button
+                ref={buttonRef}
                 type="button"
                 onClick={() => setOpen(o => !o)}
                 title="文字色"
@@ -500,8 +574,20 @@ function ColorPickerControl({ value, onChange }: {
                 }} />
             </button>
 
-            {open && <ColorPickerPopover value={hex} onChange={onChange} />}
-        </div>
+            {open && typeof document !== 'undefined' && createPortal(
+                <div
+                    ref={popoverRef}
+                    style={{
+                        position: 'fixed',
+                        top: pos.top, left: pos.left,
+                        zIndex: 9999,
+                    }}
+                >
+                    <ColorPickerPopover value={hex} onChange={onChange} />
+                </div>,
+                document.body,
+            )}
+        </>
     )
 }
 
@@ -608,10 +694,9 @@ function ColorPickerPopover({ value, onChange }: {
     return (
         <div
             style={{
-                position: 'absolute', top: 'calc(100% + 6px)', left: 0,
                 background: 'white', border: '1px solid #d1d5db', borderRadius: 12,
                 boxShadow: '0 8px 20px rgba(0,0,0,0.12)',
-                padding: 12, zIndex: 100,
+                padding: 12,
                 width: 240,
                 display: 'flex', flexDirection: 'column', gap: 12,
             }}
