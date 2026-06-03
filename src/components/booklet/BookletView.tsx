@@ -644,8 +644,20 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
                         theme={theme}
                         editable={editable}
                         minHeight={block.minHeight}
+                        align={block.align}
+                        fontSize={block.fontSize}
+                        fontWeight={block.fontWeight}
+                        color={block.color}
+                        imageUrl={block.imageUrl}
+                        showBorder={block.showBorder}
                         onTitleChange={editable ? (title => updatePrimitive(block.id, b => b.kind === 'text' ? { ...b, title } : b)) : undefined}
                         onContentChange={editable ? (content => updatePrimitive(block.id, b => b.kind === 'text' ? { ...b, content } : b)) : undefined}
+                        onAlignChange={editable ? (align => updatePrimitive(block.id, b => b.kind === 'text' ? { ...b, align } : b)) : undefined}
+                        onFontSizeChange={editable ? (fontSize => updatePrimitive(block.id, b => b.kind === 'text' ? { ...b, fontSize } : b)) : undefined}
+                        onFontWeightChange={editable ? (fontWeight => updatePrimitive(block.id, b => b.kind === 'text' ? { ...b, fontWeight } : b)) : undefined}
+                        onColorChange={editable ? (color => updatePrimitive(block.id, b => b.kind === 'text' ? { ...b, color } : b)) : undefined}
+                        onImageChange={editable ? (imageUrl => updatePrimitive(block.id, b => b.kind === 'text' ? { ...b, imageUrl } : b)) : undefined}
+                        onShowBorderChange={editable ? (showBorder => updatePrimitive(block.id, b => b.kind === 'text' ? { ...b, showBorder } : b)) : undefined}
                     />
                 )
             case 'packing':

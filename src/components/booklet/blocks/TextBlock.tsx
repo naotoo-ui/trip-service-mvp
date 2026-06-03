@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import type { Theme } from '../bookletThemes'
+import type { TextAlign } from '../bookletConfig'
 
 type Props = {
     title: string
@@ -8,18 +9,46 @@ type Props = {
     theme: Theme
     editable: boolean
     minHeight?: number
+    // 拡張プロパティ（自由ページ仕様）
+    align?: TextAlign
+    fontSize?: number
+    fontWeight?: number
+    color?: string
+    imageUrl?: string
+    showBorder?: boolean
     onTitleChange?: (title: string) => void
     onContentChange?: (content: string) => void
+    onAlignChange?: (align: TextAlign) => void
+    onFontSizeChange?: (size: number) => void
+    onFontWeightChange?: (weight: number) => void
+    onColorChange?: (color: string) => void
+    onImageChange?: (imageUrl: string | undefined) => void
+    onShowBorderChange?: (show: boolean) => void
 }
+
+const FONT_SIZE_OPTIONS = [12, 14, 16, 18, 20, 24, 28, 32]
+const FONT_WEIGHT_OPTIONS = [
+    { label: '細', value: 300 },
+    { label: '標準', value: 400 },
+    { label: '中', value: 500 },
+    { label: '太', value: 700 },
+    { label: '極太', value: 900 },
+]
 
 // インラインで描画される（ページコンテナ内の1セクション）。
 // 外側 article / 装飾 / ページ番号は BookletView の page コンテナが提供する。
-export default function TextBlock({ title, content, theme, editable, minHeight, onTitleChange, onContentChange }: Props) {
+export default function TextBlock({
+    title, content, theme, editable, minHeight,
+    align, fontSize, fontWeight, color, imageUrl, showBorder,
+    onTitleChange, onContentChange,
+    onAlignChange, onFontSizeChange, onFontWeightChange, onColorChange, onImageChange, onShowBorderChange,
+}: Props) {
     const [titleDraft, setTitleDraft] = useState(title)
     const [contentDraft, setContentDraft] = useState(content)
     const lastTitleRef = useRef(title)
     const lastContentRef = useRef(content)
     const taRef = useRef<HTMLTextAreaElement | null>(null)
+    const fileInputRef = useRef<HTMLInputElement | null>(null)
 
     useEffect(() => {
         if (title !== lastTitleRef.current) { setTitleDraft(title); lastTitleRef.current = title }
@@ -32,7 +61,7 @@ export default function TextBlock({ title, content, theme, editable, minHeight, 
         if (!taRef.current) return
         taRef.current.style.height = 'auto'
         taRef.current.style.height = `${Math.max(minHeight ?? 120, taRef.current.scrollHeight)}px`
-    }, [contentDraft, minHeight])
+    }, [contentDraft, minHeight, fontSize])
 
     function commitTitle() {
         if (titleDraft !== lastTitleRef.current) {
@@ -45,6 +74,43 @@ export default function TextBlock({ title, content, theme, editable, minHeight, 
             lastContentRef.current = contentDraft
             onContentChange?.(contentDraft)
         }
+    }
+
+    function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+        const file = e.target.files?.[0]
+        if (!file) return
+        const reader = new FileReader()
+        reader.onload = ev => {
+            const result = ev.target?.result
+            if (typeof result === 'string') {
+                onImageChange?.(result)
+            }
+        }
+        reader.readAsDataURL(file)
+        e.target.value = ''  // 同じファイルを再選択できるようにリセット
+    }
+
+    function handleRemoveImage() {
+        onImageChange?.(undefined)
+    }
+
+    // 適用するスタイル値（既定値を補完）
+    const effectiveAlign: TextAlign = align ?? 'left'
+    const effectiveFontSize = fontSize ?? 14
+    const effectiveFontWeight = fontWeight ?? 400
+    const effectiveColor = color ?? theme.text
+    const effectiveShowBorder = showBorder ?? true
+
+    const contentBoxStyle: React.CSSProperties = {
+        width: '100%', minHeight: minHeight ?? 120, padding: 12,
+        border: effectiveShowBorder ? `1.5px dashed ${theme.timelineBar}` : '1.5px solid transparent',
+        borderRadius: 10,
+        background: theme.pageBg,
+        fontSize: effectiveFontSize, color: effectiveColor,
+        fontWeight: effectiveFontWeight,
+        textAlign: effectiveAlign,
+        fontFamily: 'inherit', lineHeight: 1.7,
+        boxSizing: 'border-box',
     }
 
     return (
@@ -76,6 +142,114 @@ export default function TextBlock({ title, content, theme, editable, minHeight, 
                 )}
             </header>
 
+            {/* 編集ツールバー（編集モードのみ表示・印刷時は非表示） */}
+            {editable && (
+                <div
+                    className="booklet-text-toolbar"
+                    style={{
+                        display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center',
+                        padding: '8px 10px', marginBottom: 10,
+                        background: theme.paperBg ?? '#fafafa',
+                        borderRadius: 8,
+                        border: `1px solid ${theme.paperBorder ?? '#e5e7eb'}`,
+                    }}
+                >
+                    {/* 寄せ */}
+                    <div style={toolGroupStyle}>
+                        <ToolButton active={effectiveAlign === 'left'} onClick={() => onAlignChange?.('left')} title="左寄せ">⬅︎</ToolButton>
+                        <ToolButton active={effectiveAlign === 'center'} onClick={() => onAlignChange?.('center')} title="センター寄せ">↔︎</ToolButton>
+                        <ToolButton active={effectiveAlign === 'right'} onClick={() => onAlignChange?.('right')} title="右寄せ">➡︎</ToolButton>
+                    </div>
+
+                    {/* フォントサイズ */}
+                    <select
+                        value={effectiveFontSize}
+                        onChange={e => onFontSizeChange?.(Number(e.target.value))}
+                        style={selectStyle}
+                        title="文字サイズ"
+                    >
+                        {FONT_SIZE_OPTIONS.map(s => (
+                            <option key={s} value={s}>{s}px</option>
+                        ))}
+                    </select>
+
+                    {/* フォント太さ */}
+                    <select
+                        value={effectiveFontWeight}
+                        onChange={e => onFontWeightChange?.(Number(e.target.value))}
+                        style={selectStyle}
+                        title="太さ"
+                    >
+                        {FONT_WEIGHT_OPTIONS.map(w => (
+                            <option key={w.value} value={w.value}>{w.label}</option>
+                        ))}
+                    </select>
+
+                    {/* カラー */}
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 4 }} title="文字色">
+                        <span style={{ fontSize: 11, color: theme.subText ?? '#6b7280' }}>色</span>
+                        <input
+                            type="color"
+                            value={effectiveColor.startsWith('#') ? effectiveColor : '#000000'}
+                            onChange={e => onColorChange?.(e.target.value)}
+                            style={{
+                                width: 28, height: 24, padding: 0, border: '1px solid #d1d5db',
+                                borderRadius: 4, cursor: 'pointer',
+                            }}
+                        />
+                    </label>
+
+                    {/* 画像挿入 */}
+                    <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        style={toolButtonBaseStyle}
+                        title="画像を挿入"
+                    >
+                        🖼 画像
+                    </button>
+                    <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageUpload}
+                        style={{ display: 'none' }}
+                    />
+                    {imageUrl && (
+                        <button
+                            type="button"
+                            onClick={handleRemoveImage}
+                            style={{ ...toolButtonBaseStyle, color: '#dc2626', borderColor: '#fca5a5' }}
+                            title="画像を削除"
+                        >× 画像削除</button>
+                    )}
+
+                    {/* 枠線表示切替 */}
+                    <ToolButton
+                        active={effectiveShowBorder}
+                        onClick={() => onShowBorderChange?.(!effectiveShowBorder)}
+                        title="点線枠の表示/非表示"
+                    >
+                        {effectiveShowBorder ? '⊟ 枠あり' : '☐ 枠なし'}
+                    </ToolButton>
+                </div>
+            )}
+
+            {/* 画像（編集モード・閲覧モード共通で表示） */}
+            {imageUrl && (
+                <div style={{ marginBottom: 12, textAlign: effectiveAlign }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                        src={imageUrl}
+                        alt=""
+                        style={{
+                            maxWidth: '100%', maxHeight: 320,
+                            borderRadius: 8, display: 'inline-block',
+                        }}
+                    />
+                </div>
+            )}
+
             <div>
                 {editable ? (
                     <textarea
@@ -84,30 +258,62 @@ export default function TextBlock({ title, content, theme, editable, minHeight, 
                         onChange={e => setContentDraft(e.target.value)}
                         onBlur={commitContent}
                         placeholder="自由に入力できます..."
-                        style={{
-                            width: '100%', minHeight: minHeight ?? 120, padding: 12,
-                            border: `1.5px dashed ${theme.timelineBar}`,
-                            borderRadius: 10,
-                            background: theme.pageBg,
-                            fontSize: 14, color: theme.text,
-                            fontFamily: 'inherit', lineHeight: 1.7,
-                            resize: 'none', outline: 'none',
-                            boxSizing: 'border-box',
-                        }}
+                        style={{ ...contentBoxStyle, resize: 'none', outline: 'none' }}
                     />
                 ) : (
                     <pre style={{
+                        ...contentBoxStyle,
                         whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-                        margin: 0, padding: 12,
-                        background: theme.pageBg, borderRadius: 10,
-                        fontSize: 14, color: theme.text,
-                        fontFamily: 'inherit', lineHeight: 1.7,
-                        minHeight: minHeight ?? 120,
+                        margin: 0,
                     }}>
                         {content || <span style={{ color: theme.subText, opacity: 0.6 }}>（内容なし）</span>}
                     </pre>
                 )}
             </div>
         </div>
+    )
+}
+
+// ──────────── ツールバー部品 ────────────
+
+const toolGroupStyle: React.CSSProperties = {
+    display: 'flex', gap: 2, padding: 2,
+    border: '1px solid #d1d5db', borderRadius: 6, background: 'white',
+}
+
+const toolButtonBaseStyle: React.CSSProperties = {
+    padding: '4px 8px', fontSize: 12, fontWeight: 600,
+    border: '1px solid #d1d5db', borderRadius: 6,
+    background: 'white', color: '#374151',
+    cursor: 'pointer', whiteSpace: 'nowrap',
+}
+
+const selectStyle: React.CSSProperties = {
+    padding: '4px 6px', fontSize: 12,
+    border: '1px solid #d1d5db', borderRadius: 6,
+    background: 'white', color: '#374151',
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+}
+
+function ToolButton({ active, onClick, title, children }: {
+    active: boolean
+    onClick: () => void
+    title: string
+    children: React.ReactNode
+}) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            title={title}
+            style={{
+                padding: '4px 8px', fontSize: 12, fontWeight: 600,
+                border: 'none', borderRadius: 4,
+                background: active ? '#2563eb' : 'transparent',
+                color: active ? 'white' : '#374151',
+                cursor: 'pointer', whiteSpace: 'nowrap',
+            }}
+        >{children}</button>
     )
 }

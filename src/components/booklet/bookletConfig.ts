@@ -4,8 +4,19 @@
 
 // ──────────── プリミティブブロック（ページ内のサブブロック） ────────────
 
+export type TextAlign = 'left' | 'center' | 'right'
+
 export type PrimitiveBlock =
-    | { id: string; kind: 'text'; title: string; content: string; minHeight?: number }
+    | {
+        id: string; kind: 'text'; title: string; content: string; minHeight?: number
+        // 自由ページ拡張: スタイル
+        align?: TextAlign           // 既定 'left'
+        fontSize?: number           // 既定 14 (px)
+        fontWeight?: number         // 既定 400
+        color?: string              // 既定 テーマの text 色
+        imageUrl?: string           // base64 or URL（差し込み画像）
+        showBorder?: boolean        // 既定 true（青の点線枠）
+    }
     | { id: string; kind: 'packing'; title: string; content: string; columns: 1 | 2 | 3; minHeight?: number }
     | { id: string; kind: 'divider'; style?: 'solid' | 'dashed' | 'dotted' }
     | { id: string; kind: 'spacer'; height: number }

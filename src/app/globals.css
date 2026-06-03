@@ -161,6 +161,7 @@ details:not([open]) .faq-toggle::before { content: "＋"; }
 /* 印刷時はアニメーションを無効化（紙ではモーションが見えない＋一貫性） */
 @media print {
     .now-badge { animation: none !important; }
+    .booklet-text-toolbar { display: none !important; }
 }
 
 /* ローディングアニメーション */
