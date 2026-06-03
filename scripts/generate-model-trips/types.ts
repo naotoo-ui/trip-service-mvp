@@ -108,3 +108,30 @@ export interface Variant {
     // 周遊ルート用
     routeId?: string
 }
+
+// ──────────── Route: 旅行ルート ────────────
+// 「目的地の性質に応じた、現実的なプランパターン」を表す。
+// 単一目的地でも複数目的地（周遊）でもこれで表現する。
+// 1ルート＝1旅行パターン。テーマや出発地でバリエーション展開する。
+export interface Route {
+    id: string
+    name: string                          // 「京都・大阪 王道周遊」「北海道・道東周遊」など、表示・タイトル用
+    legs: RouteLeg[]                      // 1つなら単独・複数なら周遊
+    suitableThemes: TopTheme[]            // このルートに似合うテーマ（1-5）
+    suitableOrigins: ('東京'|'大阪'|'名古屋'|'福岡'|'札幌')[]   // 想定される出発地
+    durations: number[]                   // 適した日数の候補（例 [3, 4]）
+    seasonal?: 'spring'|'summer'|'autumn'|'winter'  // 季節限定なら
+    seasonalNote?: string                 // 「桜」「紅葉」「ねぶた祭り」など
+    popularity: 1|2|3|4|5|6               // 1-6。variant 数の目安
+    titlePrefix?: string                  // 「春の」「紅葉の」「冬の」など
+    isOverseas?: boolean                  // 海外向けの判定
+    // タイトル末尾のサフィックス候補（与えなければデフォルト）
+    titleSuffixes?: string[]
+    // 希望文（wishes）の候補
+    wishesPhrases?: string[]
+}
+
+export interface RouteLeg {
+    destinationId: string                 // catalog の destination.id
+    days: number                          // この目的地での滞在日数
+}

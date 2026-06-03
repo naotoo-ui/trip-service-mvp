@@ -1,6 +1,6 @@
 import type { Itinerary, ItineraryDay, SidebarSpot, HotelInfo, Spot } from '../../../src/types'
 import type {
-    DestinationEntry, SpotEntry, ThemeCode, TopTheme, Variant, DraftTrip,
+    DestinationEntry, SpotEntry, ThemeCode, TopTheme, Variant, DraftTrip, Route,
 } from '../types'
 import { THEME_LABELS } from '../types'
 import { computeDayLimits, detectOriginRegion } from '../transport-logic'
@@ -462,6 +462,222 @@ export function buildMultiCountryItinerary(
         is_official: true,
         itinerary,
     }
+}
+
+// ──────────── Route ベースのビルダー（新方針） ────────────
+// Route は単一/複数 leg を持つ「現実的な旅行パターン」。
+// テーマ・出発地・日数の variant でタイトルや wishes を差別化しつつ、
+// 中身は leg 単位で各 destination のスポットを配置する。
+export function buildRouteItinerary(
+    legs: { dest: DestinationEntry; days: number }[],
+    route: Route,
+    theme: TopTheme,
+    origin: string | undefined,
+    requestedDays: number,
+): DraftTrip | null {
+    // 全 leg がテーマをサポートできなくても、最低 1 つは合致させる
+    // （周遊なら都市ごとにテーマ適合度が違うのは普通なので緩めに）
+    const themeOk = legs.some(l => destinationSupportsTheme(l.dest, theme))
+    if (!themeOk) return null
+
+    // 日数に応じて legs の days を調整（requestedDays が定義 days と異なる場合）
+    const definedTotal = legs.reduce((s, l) => s + l.days, 0)
+    const adjustedLegs = adjustLegDays(legs, requestedDays, definedTotal)
+    const totalDays = adjustedLegs.reduce((s, l) => s + l.days, 0)
+    if (totalDays === 0) return null
+
+    const variant: Variant = {
+        destinationId: route.id,
+        duration_days: totalDays,
+        theme, origin,
+        routeId: route.id,
+    }
+
+    const used = new Set<string>()
+    const days: ItineraryDay[] = []
+    let dayCursor = 0
+    const firstDest = adjustedLegs[0].dest
+    const isMulti = adjustedLegs.length > 1
+
+    for (let legIdx = 0; legIdx < adjustedLegs.length; legIdx++) {
+        const { dest, days: legDays } = adjustedLegs[legIdx]
+        // 各 leg のテーマ：適合しなければ最も近い適合テーマにフォールバック
+        const usableTheme = destinationSupportsTheme(dest, theme)
+            ? theme
+            : pickFallbackTheme(dest, theme)
+        for (let i = 0; i < legDays; i++) {
+            const isOverallFirst = dayCursor === 0
+            const isOverallLast = dayCursor === totalDays - 1
+            const day = buildOneDay(
+                dest,
+                isOverallFirst ? 0 : isOverallLast ? totalDays - 1 : 1,
+                totalDays,
+                { ...variant, theme: usableTheme },
+                used,
+            )
+            day.day = dayCursor + 1
+            // 複数都市の場合、入り日と最終日にラベル工夫
+            if (isMulti) {
+                if (i === 0 && legIdx > 0) {
+                    day.label = `${dest.titleAlias ?? dest.name}入り・${day.label}`
+                }
+                if (i === legDays - 1 && legIdx < adjustedLegs.length - 1) {
+                    day.label = `${dest.titleAlias ?? dest.name}最終日`
+                }
+            }
+            days.push(day)
+            dayCursor++
+        }
+    }
+
+    // 出発地の移動 spot を Day 1 先頭に挿入
+    if (origin) {
+        const outbound = makeOutboundSpot(
+            origin,
+            firstDest.id,
+            firstDest.titleAlias ?? firstDest.name,
+            firstDest.region,
+            firstDest.country,
+            getOutboundStartHour(origin, firstDest.country, firstDest.region),
+        )
+        if (outbound) {
+            days[0] = prependOutboundTravel(days[0], outbound.spot)
+        }
+        // 帰路
+        if (days.length > 1) {
+            const lastDest = adjustedLegs[adjustedLegs.length - 1].dest
+            const ret = makeReturnSpot(
+                origin, lastDest.id, lastDest.titleAlias ?? lastDest.name,
+                lastDest.region, lastDest.country, 14,
+            )
+            if (ret) {
+                days[days.length - 1] = appendReturnTravel(days[days.length - 1], ret, 14)
+            }
+        }
+    }
+
+    // 中身チェック
+    const isOverseasWithOrigin = firstDest.country !== '日本' && !!origin
+    const allowedEmpty = isOverseasWithOrigin ? 2 : 1
+    const daysWithContent = days.filter(d => d.spots.length > 0).length
+    if (daysWithContent < totalDays - allowedEmpty) return null
+
+    // タイトル・希望生成
+    const title = buildRouteTitle(route, theme, origin, totalDays)
+    const wishes = buildRouteWishes(route, theme, origin)
+    const destLabel = isMulti
+        ? route.name
+        : (firstDest.titleAlias ?? firstDest.name)
+
+    const itinerary: Itinerary = {
+        days,
+        trip_style: firstDest.trip_style,
+        trip_style_reason: isMulti
+            ? `${adjustedLegs.length}都市を巡る周遊。都市間は鉄道・飛行機・市内は地下鉄等`
+            : tripStyleReason(firstDest),
+        sidebar_spots: buildRouteSidebarSpots(adjustedLegs, used, theme),
+    }
+
+    return {
+        title,
+        destination: destLabel,
+        duration_days: totalDays,
+        wishes,
+        is_official: true,
+        itinerary,
+    }
+}
+
+// 各 leg の日数を、リクエスト日数に合わせて再調整
+function adjustLegDays(
+    legs: { dest: DestinationEntry; days: number }[],
+    requested: number,
+    defined: number,
+): { dest: DestinationEntry; days: number }[] {
+    if (requested === defined) return legs
+    const diff = requested - defined
+    if (diff > 0) {
+        // 日数追加：最初の leg を中心に増やす
+        const adjusted = legs.map(l => ({ ...l }))
+        let remaining = diff
+        // 主要 leg（最初）に +
+        for (let i = 0; i < adjusted.length && remaining > 0; i++) {
+            adjusted[i].days += 1
+            remaining--
+            if (remaining > 0 && i === adjusted.length - 1) i = -1  // 一周
+        }
+        return adjusted
+    } else {
+        // 日数削減：最後の leg から減らす
+        const adjusted = legs.map(l => ({ ...l }))
+        let remaining = -diff
+        for (let i = adjusted.length - 1; i >= 0 && remaining > 0; i--) {
+            const reduce = Math.min(adjusted[i].days - 1, remaining)
+            if (reduce > 0) {
+                adjusted[i].days -= reduce
+                remaining -= reduce
+            }
+        }
+        return adjusted.filter(l => l.days > 0)
+    }
+}
+
+function pickFallbackTheme(dest: DestinationEntry, _wantTheme: TopTheme): TopTheme {
+    // dest がサポートするテーマの中から最も spot 数が多いものを採用
+    let best: TopTheme = 'sg'
+    let bestCount = 0
+    for (const t of dest.themes) {
+        const cnt = dest.spots.filter(s => s.th.includes(t as ThemeCode)).length
+        if (cnt > bestCount) { best = t; bestCount = cnt }
+    }
+    return best
+}
+
+function buildRouteSidebarSpots(
+    legs: { dest: DestinationEntry; days: number }[],
+    used: Set<string>,
+    theme: TopTheme,
+): SidebarSpot[] {
+    // 全 leg の dest から、使われていない上位スポットを混ぜる
+    const result: SidebarSpot[] = []
+    for (const { dest } of legs) {
+        result.push(...buildSidebarSpots(dest, used, theme).slice(0, 3))
+    }
+    return result.slice(0, 8)
+}
+
+// ルートタイトル生成：複数候補のうち、ハッシュで安定的に1つ選択
+function buildRouteTitle(
+    route: Route,
+    theme: TopTheme,
+    origin: string | undefined,
+    totalDays: number,
+): string {
+    const nights = totalDays - 1
+    const dayLabel = totalDays === 1 ? '日帰り' : `${nights}泊${totalDays}日`
+    const originPart = origin ? `${origin}発・` : ''
+    const seasonal = route.titlePrefix ?? ''
+    const suffixes = route.titleSuffixes ?? defaultSuffixesFor(theme)
+    const sufIdx = stableHash(`${route.id}-${theme}-${origin ?? ''}-${totalDays}`) % suffixes.length
+    return `${originPart}${seasonal}${route.name} ${dayLabel} ${suffixes[sufIdx]}`
+}
+
+function defaultSuffixesFor(theme: TopTheme): string[] {
+    return THEME_SHAPES[theme].titleSuffixes.length > 0
+        ? THEME_SHAPES[theme].titleSuffixes
+        : ['モデルコース']
+}
+
+function buildRouteWishes(
+    route: Route,
+    theme: TopTheme,
+    origin: string | undefined,
+): string {
+    const phrases = route.wishesPhrases ?? THEME_SHAPES[theme].wishesPhrases
+    const idx = stableHash(`${route.id}-${theme}-${origin ?? ''}`) % phrases.length
+    const themed = phrases[idx]
+    const originPart = origin ? `${origin}出発・` : ''
+    return `${originPart}${themed}`
 }
 
 export function sanitizeDraft(draft: DraftTrip): DraftTrip {

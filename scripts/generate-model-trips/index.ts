@@ -5,28 +5,26 @@ dotenv.config({ path: '.env.local' })
 import { createClient } from '@supabase/supabase-js'
 import { DOMESTIC_DESTINATIONS } from './catalog/domestic'
 import { OVERSEAS_DESTINATIONS } from './catalog/overseas'
-import { EUROPE_ROUTES } from './catalog/europe-tour'
-import { buildItinerary, buildMultiCountryItinerary, sanitizeDraft } from './builders/itinerary-builder'
-import type { DestinationEntry, MultiCountryRoute, Variant, DraftTrip, TopTheme } from './types'
+import { ALL_ROUTES } from './catalog/routes'
+import { buildRouteItinerary, sanitizeDraft } from './builders/itinerary-builder'
+import type { DraftTrip, Route, TopTheme, DestinationEntry } from './types'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
 if (!SUPABASE_URL || !SUPABASE_KEY) {
-    console.error('NEXT_PUBLIC_SUPABASE_URL と (SUPABASE_SERVICE_ROLE_KEY または NEXT_PUBLIC_SUPABASE_ANON_KEY) が必要です')
+    console.error('NEXT_PUBLIC_SUPABASE_URL と SUPABASE キーが必要です')
     process.exit(1)
 }
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY)
 
-// 出発地リスト
-// 国内: 国内旅行は出発地で初日のスポット数・移動時間が大きく変わるため複数用意
-// 海外: 国際線は基本的に東京・大阪どちらも内容が同じになるため、東京発をベースにする
-//      （大阪発は重複を避けるため variant 展開で除外）
-const DOMESTIC_ORIGINS = ['東京', '大阪', '名古屋', '福岡', '札幌']
-const OVERSEAS_ORIGINS = ['東京']
+// 全 destination をルックアップできる Map
+const ALL_DESTINATIONS = new Map<string, DestinationEntry>()
+for (const d of [...DOMESTIC_DESTINATIONS, ...OVERSEAS_DESTINATIONS]) {
+    ALL_DESTINATIONS.set(d.id, d)
+}
 
-// 8文字 share_id
 function generateShareId(): string {
     const chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
     return Array.from({ length: 8 }, () =>
@@ -34,171 +32,124 @@ function generateShareId(): string {
     ).join('')
 }
 
-// 国内の variant 展開
-function expandDomesticVariants(): { dest: DestinationEntry; variant: Variant }[] {
-    const result: { dest: DestinationEntry; variant: Variant }[] = []
-    for (const dest of DOMESTIC_DESTINATIONS) {
-        const themes = dest.themes
-        const durations = pickDurations(dest)
-        for (const days of durations) {
-            for (const theme of themes) {
-                for (const origin of DOMESTIC_ORIGINS) {
-                    // 同地方の出発地 → 日帰り可・距離考慮済み
-                    result.push({
-                        dest,
-                        variant: { destinationId: dest.id, duration_days: days, theme, origin },
-                    })
-                }
-                // 出発地なしバージョン（汎用）
-                result.push({
-                    dest,
-                    variant: { destinationId: dest.id, duration_days: days, theme },
-                })
+// ──────────── Variant 展開 ────────────
+// Route ごとに、テーマと出発地と日数の組み合わせを限定的に展開する。
+// popularity に応じて variant 数を可変（1〜6 件程度）に。
+
+type VariantSpec = {
+    route: Route
+    theme: TopTheme
+    origin?: string
+    duration_days: number
+}
+
+function expandVariantsFromRoute(route: Route): VariantSpec[] {
+    const result: VariantSpec[] = []
+    // バリエーション総数の上限（人気度から）
+    const maxVariants = route.popularity
+
+    // 候補の組み合わせを全列挙
+    const candidates: VariantSpec[] = []
+    for (const theme of route.suitableThemes) {
+        for (const dur of route.durations) {
+            for (const origin of route.suitableOrigins) {
+                candidates.push({ route, theme, origin, duration_days: dur })
             }
+            // 出発地なしバージョン（汎用）も入れる
+            candidates.push({ route, theme, duration_days: dur })
         }
     }
+
+    // popularity 件まで間引いて、テーマと出発地のバランスを取る
+    // シンプル戦略: candidates をシャッフル風に並べて先頭から maxVariants 件
+    // ただし theme と origin が偏らないよう、優先度を計算
+    const picked = pickBalanced(candidates, maxVariants)
+    result.push(...picked)
     return result
 }
 
-function pickDurations(dest: DestinationEntry): number[] {
-    // 離島・北海道は最低2泊3日推奨
-    if (dest.region === 'okinawa_remote' || dest.region === 'hokkaido') return [3, 4, 5]
-    if (dest.region === 'okinawa_main') return [2, 3, 4, 5]
-    return [2, 3, 4]
-}
+// テーマ・出発地・日数が偏らないようバランスよく N 件選ぶ
+function pickBalanced(candidates: VariantSpec[], n: number): VariantSpec[] {
+    if (candidates.length <= n) return candidates
+    const picked: VariantSpec[] = []
+    const themeCount = new Map<string, number>()
+    const originCount = new Map<string, number>()
+    const durationCount = new Map<number, number>()
 
-// 海外の variant 展開
-function expandOverseasVariants(): { dest: DestinationEntry; variant: Variant }[] {
-    const result: { dest: DestinationEntry; variant: Variant }[] = []
-    for (const dest of OVERSEAS_DESTINATIONS) {
-        const themes = dest.themes
-        const durations = overseasDurations(dest)
-        for (const days of durations) {
-            for (const theme of themes) {
-                for (const origin of OVERSEAS_ORIGINS) {
-                    result.push({
-                        dest,
-                        variant: { destinationId: dest.id, duration_days: days, theme, origin },
-                    })
-                }
-                result.push({
-                    dest,
-                    variant: { destinationId: dest.id, duration_days: days, theme },
-                })
-            }
-        }
+    function score(c: VariantSpec): number {
+        const tc = themeCount.get(c.theme) ?? 0
+        const oc = originCount.get(c.origin ?? '_none') ?? 0
+        const dc = durationCount.get(c.duration_days) ?? 0
+        // 偏りが少ない（カウントが小さい）ものを優先
+        return -(tc * 10 + oc * 5 + dc * 3)
     }
-    return result
-}
 
-function overseasDurations(dest: DestinationEntry): number[] {
-    // 距離別の典型日数
-    if (dest.region === 'overseas_asia_near') return [3, 4, 5]
-    if (dest.region === 'overseas_asia_far') return [4, 5, 6]
-    if (dest.region === 'overseas_oceania') return [5, 6, 7]
-    if (dest.region === 'overseas_europe') return [5, 6, 7]
-    if (dest.region === 'overseas_america') return [5, 6, 7]
-    if (dest.region === 'overseas_middleeast') return [4, 5, 6]
-    return [4, 5]
-}
-
-// 欧州周遊の variant 展開
-function expandRouteVariants(): { route: MultiCountryRoute; variant: Variant }[] {
-    const result: { route: MultiCountryRoute; variant: Variant }[] = []
-    for (const route of EUROPE_ROUTES) {
-        const totalDays = route.legs.reduce((s, l) => s + l.days, 0)
-        // 周遊の長さは固定（route 定義時に決定）
-        for (const theme of route.themes) {
-            for (const origin of OVERSEAS_ORIGINS) {
-                result.push({
-                    route,
-                    variant: { destinationId: route.id, duration_days: totalDays, theme, origin, routeId: route.id },
-                })
-            }
-            result.push({
-                route,
-                variant: { destinationId: route.id, duration_days: totalDays, theme, routeId: route.id },
-            })
-        }
+    const remaining = candidates.slice()
+    while (picked.length < n && remaining.length > 0) {
+        remaining.sort((a, b) => score(b) - score(a))
+        const top = remaining.shift()!
+        picked.push(top)
+        themeCount.set(top.theme, (themeCount.get(top.theme) ?? 0) + 1)
+        originCount.set(top.origin ?? '_none', (originCount.get(top.origin ?? '_none') ?? 0) + 1)
+        durationCount.set(top.duration_days, (durationCount.get(top.duration_days) ?? 0) + 1)
     }
-    return result
+    return picked
 }
 
-// メイン
+// ──────────── メイン ────────────
+
 async function main() {
     const arg = process.argv[2]
-    const targetCount = arg ? Number(arg) : 3000
+    const targetCount = arg ? Number(arg) : 10000
 
-    console.log('==== モデル旅程ジェネレータ ====')
-    console.log(`目標件数: ${targetCount}`)
+    console.log('==== モデル旅程ジェネレータ (Route ベース版) ====')
+    console.log(`目標件数: ${targetCount}（上限。実際は Route × variants で決定）`)
 
-    // 既存の is_official を全削除（冪等性のため）
     if (!process.argv.includes('--keep')) {
         console.log('既存の is_official=true レコードを削除中...')
         const { error: delErr, count } = await supabase
             .from('trips')
             .delete({ count: 'exact' })
             .eq('is_official', true)
-        if (delErr) {
-            console.error('削除エラー:', delErr.message)
-        } else {
-            console.log(`削除: ${count ?? 0}件`)
-        }
+        if (delErr) console.error('削除エラー:', delErr.message)
+        else console.log(`削除: ${count ?? 0}件`)
     }
 
-    // variant 展開
-    const domestic = expandDomesticVariants()
-    const overseas = expandOverseasVariants()
-    const routes = expandRouteVariants()
+    console.log(`登録 Route 数: ${ALL_ROUTES.length}`)
+    const variants: VariantSpec[] = []
+    for (const route of ALL_ROUTES) {
+        const expanded = expandVariantsFromRoute(route)
+        variants.push(...expanded)
+    }
+    console.log(`展開 variant 数: ${variants.length}`)
 
-    console.log(`展開: 国内 ${domestic.length} / 海外 ${overseas.length} / 周遊 ${routes.length}`)
-
-    // ビルド（null は variant スキップ＝品質維持）
     const drafts: DraftTrip[] = []
     let skipped = 0
-    for (const { dest, variant } of domestic) {
+    let skipReasons = { destNotFound: 0, build: 0 }
+    for (const v of variants) {
         try {
-            const built = buildItinerary(dest, variant)
-            if (built) drafts.push(sanitizeDraft(built))
-            else skipped++
-        } catch (e) {
-            console.warn(`国内ビルド失敗: ${dest.id}/${variant.theme}/${variant.duration_days}日`, e)
-        }
-    }
-    for (const { dest, variant } of overseas) {
-        try {
-            const built = buildItinerary(dest, variant)
-            if (built) drafts.push(sanitizeDraft(built))
-            else skipped++
-        } catch (e) {
-            console.warn(`海外ビルド失敗: ${dest.id}/${variant.theme}/${variant.duration_days}日`, e)
-        }
-    }
-    for (const { route, variant } of routes) {
-        try {
-            const legs = route.legs.map(leg => {
-                const dest = OVERSEAS_DESTINATIONS.find(d => d.id === leg.destinationId)
-                if (!dest) throw new Error(`leg destination not found: ${leg.destinationId}`)
-                return { dest, days: leg.days }
+            const legs = v.route.legs.map(l => {
+                const dest = ALL_DESTINATIONS.get(l.destinationId)
+                if (!dest) throw new Error(`destination not found: ${l.destinationId}`)
+                return { dest, days: l.days }
             })
-            const built = buildMultiCountryItinerary(legs, variant, route.name)
+            const built = buildRouteItinerary(legs, v.route, v.theme, v.origin, v.duration_days)
             if (built) drafts.push(sanitizeDraft(built))
-            else skipped++
+            else { skipped++; skipReasons.build++ }
         } catch (e) {
-            console.warn(`周遊ビルド失敗: ${route.id}/${variant.theme}`, e)
+            skipped++; skipReasons.destNotFound++
+            const msg = e instanceof Error ? e.message : String(e)
+            console.warn(`スキップ ${v.route.id}/${v.theme}: ${msg}`)
         }
     }
+    console.log(`ビルド成功: ${drafts.length}件 / スキップ: ${skipped}件（dest未定義 ${skipReasons.destNotFound} / build失敗 ${skipReasons.build}）`)
 
-    console.log(`ビルド成功: ${drafts.length}件 / スキップ: ${skipped}件（テーマ非適合）`)
-
-    // 件数調整：上限を超えたらシャッフル後にtruncate
     const finalDrafts = drafts.length > targetCount
         ? shuffle(drafts).slice(0, targetCount)
         : drafts
 
     console.log(`投入予定: ${finalDrafts.length}件`)
 
-    // バルクインサート（1000件ずつ）
     const BATCH = 500
     let inserted = 0
     for (let i = 0; i < finalDrafts.length; i += BATCH) {
@@ -212,9 +163,8 @@ async function main() {
             is_official: true,
         }))
         const { error } = await supabase.from('trips').insert(batch)
-        if (error) {
-            console.error(`バッチ ${i / BATCH + 1} エラー:`, error.message)
-        } else {
+        if (error) console.error(`バッチ ${i / BATCH + 1} エラー:`, error.message)
+        else {
             inserted += batch.length
             console.log(`バッチ ${i / BATCH + 1}: ${batch.length}件投入（累計 ${inserted}）`)
         }
@@ -233,7 +183,4 @@ function shuffle<T>(arr: T[]): T[] {
     return a
 }
 
-main().catch(e => {
-    console.error(e)
-    process.exit(1)
-})
+main().catch(e => { console.error(e); process.exit(1) })

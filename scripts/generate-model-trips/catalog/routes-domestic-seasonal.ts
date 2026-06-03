@@ -1,0 +1,196 @@
+import type { Route } from '../types'
+
+// 国内 季節限定ルート
+// タイトルに「春の〜」「紅葉の〜」を冠してテーマと組み合わせる
+// destination のスポットに季節要素（桜・紅葉スポット）がある場合に活きる
+
+export const ROUTES_DOMESTIC_SEASONAL: Route[] = [
+    // ──── 桜（春） ────
+    {
+        id: 'r-spring-kyoto',
+        name: '京都桜巡り',
+        legs: [{ destinationId: 'kyoto', days: 3 }],
+        suitableThemes: ['sg', 'np', 'cp'],
+        suitableOrigins: ['東京', '大阪', '名古屋', '福岡'],
+        durations: [3, 4],
+        seasonal: 'spring',
+        titlePrefix: '春の',
+        popularity: 4,
+        titleSuffixes: ['桜と古都散策', '嵐山と祇園の桜', '京都桜の名所めぐり', '春の世界遺産巡り'],
+        wishesPhrases: ['桜の名所を効率よく巡りたい', '京都の桜を満喫', '春の古都で写真を撮りたい'],
+    },
+
+    {
+        id: 'r-spring-tokyo',
+        name: '東京桜巡り',
+        legs: [{ destinationId: 'tokyo', days: 2 }],
+        suitableThemes: ['sg', 'np', 'cp'],
+        suitableOrigins: ['大阪', '名古屋', '福岡', '札幌'],
+        durations: [2, 3],
+        seasonal: 'spring',
+        titlePrefix: '春の',
+        popularity: 3,
+        titleSuffixes: ['上野と千鳥ヶ淵の桜', '東京の桜名所巡り', '隅田川桜まつり'],
+        wishesPhrases: ['東京の桜を巡りたい', '都心の桜スポット狙い'],
+    },
+
+    {
+        id: 'r-spring-aomori',
+        name: '青森桜（弘前城）',
+        legs: [{ destinationId: 'aomori', days: 2 }],
+        suitableThemes: ['sg', 'np'],
+        suitableOrigins: ['東京', '大阪', '名古屋'],
+        durations: [3],
+        seasonal: 'spring',
+        titlePrefix: '春の',
+        popularity: 3,
+        titleSuffixes: ['弘前城桜まつり', '日本三大桜・弘前城', '東北の遅咲き桜'],
+        wishesPhrases: ['日本一の桜を見たい', '弘前城公園の桜が目的'],
+    },
+
+    {
+        id: 'r-spring-izu',
+        name: '伊豆河津桜',
+        legs: [{ destinationId: 'izu', days: 2 }],
+        suitableThemes: ['np', 'cp', 'on'],
+        suitableOrigins: ['東京', '大阪', '名古屋'],
+        durations: [2, 3],
+        seasonal: 'spring',
+        titlePrefix: '早春の',
+        popularity: 2,
+        titleSuffixes: ['河津桜まつり', '早咲き桜と温泉', '河津桜と熱海'],
+        wishesPhrases: ['一足早い桜を見たい', '早咲きの河津桜と温泉'],
+    },
+
+    // ──── 紅葉（秋） ────
+    {
+        id: 'r-autumn-kyoto',
+        name: '京都紅葉',
+        legs: [{ destinationId: 'kyoto', days: 3 }],
+        suitableThemes: ['sg', 'np', 'cp', 'hs'],
+        suitableOrigins: ['東京', '大阪', '名古屋', '福岡'],
+        durations: [3, 4],
+        seasonal: 'autumn',
+        titlePrefix: '紅葉の',
+        popularity: 5,
+        titleSuffixes: ['紅葉の名所巡り', '嵐山と東山の錦秋', '紅葉ライトアップ巡り', '東福寺・永観堂の紅葉'],
+        wishesPhrases: ['京都の紅葉を満喫したい', '紅葉ライトアップを巡りたい'],
+    },
+
+    {
+        id: 'r-autumn-nikko',
+        name: '日光紅葉',
+        legs: [{ destinationId: 'nikko', days: 2 }],
+        suitableThemes: ['np', 'sg', 'wh'],
+        suitableOrigins: ['東京', '大阪', '名古屋'],
+        durations: [2, 3],
+        seasonal: 'autumn',
+        titlePrefix: '紅葉の',
+        popularity: 3,
+        titleSuffixes: ['いろは坂と中禅寺湖', '世界遺産＋紅葉', '日光紅葉ハイライト'],
+        wishesPhrases: ['日光の紅葉を堪能', 'いろは坂と中禅寺湖の絶景'],
+    },
+
+    {
+        id: 'r-autumn-hakone',
+        name: '箱根紅葉',
+        legs: [{ destinationId: 'hakone', days: 2 }],
+        suitableThemes: ['np', 'on', 'ar', 'cp'],
+        suitableOrigins: ['東京', '大阪', '名古屋'],
+        durations: [2, 3],
+        seasonal: 'autumn',
+        titlePrefix: '紅葉の',
+        popularity: 3,
+        titleSuffixes: ['仙石原すすきと温泉', '紅葉と美術館巡り', '芦ノ湖の秋色'],
+        wishesPhrases: ['秋の箱根を満喫', '温泉と紅葉狩り'],
+    },
+
+    {
+        id: 'r-autumn-fuji-kawaguchi',
+        name: '河口湖紅葉',
+        legs: [{ destinationId: 'fuji-kawaguchi', days: 2 }],
+        suitableThemes: ['np', 'cp'],
+        suitableOrigins: ['東京', '大阪', '名古屋'],
+        durations: [2, 3],
+        seasonal: 'autumn',
+        titlePrefix: '紅葉の',
+        popularity: 3,
+        titleSuffixes: ['紅葉回廊と富士', '逆さ富士と秋色', '河口湖もみじ祭り'],
+        wishesPhrases: ['富士と紅葉を一緒に', '河口湖の紅葉撮影'],
+    },
+
+    // ──── スキー（冬） ────
+    {
+        id: 'r-winter-furano',
+        name: '富良野スキー',
+        legs: [{ destinationId: 'asahikawa-furano', days: 3 }],
+        suitableThemes: ['ex', 'fm', 'cp'],
+        suitableOrigins: ['東京', '大阪'],
+        durations: [3, 4],
+        seasonal: 'winter',
+        titlePrefix: '冬の',
+        popularity: 2,
+        titleSuffixes: ['北海道スキー＆温泉', 'パウダースノーを満喫'],
+        wishesPhrases: ['パウダースノーを滑りたい', 'スキーと温泉を楽しむ'],
+    },
+
+    {
+        id: 'r-winter-zao',
+        name: '蔵王樹氷',
+        legs: [{ destinationId: 'zao', days: 2 }],
+        suitableThemes: ['np', 'on', 'ex'],
+        suitableOrigins: ['東京', '大阪'],
+        durations: [2, 3],
+        seasonal: 'winter',
+        titlePrefix: '冬の',
+        popularity: 2,
+        titleSuffixes: ['樹氷ライトアップ', '蔵王樹氷と温泉', 'スノーモンスターと温泉'],
+        wishesPhrases: ['樹氷の絶景を見たい', '冬の蔵王を満喫'],
+    },
+
+    {
+        id: 'r-winter-shirakawago',
+        name: '白川郷ライトアップ',
+        legs: [{ destinationId: 'takayama-shirakawago', days: 2 }],
+        suitableThemes: ['np', 'sg', 'wh'],
+        suitableOrigins: ['東京', '大阪', '名古屋'],
+        durations: [2, 3],
+        seasonal: 'winter',
+        titlePrefix: '冬の',
+        popularity: 3,
+        titleSuffixes: ['白川郷ライトアップと飛騨高山', '雪の合掌造り集落', '冬の世界遺産'],
+        wishesPhrases: ['ライトアップを見たい', '雪化粧の合掌造り'],
+    },
+
+    // ──── 夏 ────
+    {
+        id: 'r-summer-okinawa',
+        name: '夏の沖縄',
+        legs: [{ destinationId: 'okinawa-main', days: 3 }],
+        suitableThemes: ['bc', 'fm', 'ex', 'np'],
+        suitableOrigins: ['東京', '大阪', '名古屋'],
+        durations: [3, 4],
+        seasonal: 'summer',
+        titlePrefix: '夏の',
+        popularity: 4,
+        titleSuffixes: ['ビーチとマリン体験', '青の洞窟シュノーケル', '家族で楽しむ夏沖縄', '南国リゾートでバカンス'],
+        wishesPhrases: ['夏のビーチを満喫', 'マリンアクティビティを楽しむ'],
+    },
+
+    {
+        id: 'r-summer-hokkaido',
+        name: '夏の北海道',
+        legs: [
+            { destinationId: 'sapporo-otaru', days: 2 },
+            { destinationId: 'asahikawa-furano', days: 2 },
+        ],
+        suitableThemes: ['np', 'nt', 'gm'],
+        suitableOrigins: ['東京', '大阪', '名古屋', '福岡'],
+        durations: [4, 5],
+        seasonal: 'summer',
+        titlePrefix: '夏の',
+        popularity: 4,
+        titleSuffixes: ['ラベンダーと避暑', '夏の北海道2大都市', 'ファーム富田の紫', '涼しい北海道で街と花'],
+        wishesPhrases: ['夏の避暑を楽しむ', 'ラベンダー満開の北海道'],
+    },
+]
