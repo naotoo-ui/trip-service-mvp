@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import type { Theme } from '../bookletThemes'
 import type { TextAlign } from '../bookletConfig'
 
@@ -164,6 +164,12 @@ export default function TextBlock({
                         onChange={v => onFontSizeChange?.(v)}
                     />
 
+                    {/* 文字色（Canva 風: A の下に現在色のライン + ポップオーバーで色相スライダー＋SVピッカー＋プリセット） */}
+                    <ColorPickerControl
+                        value={effectiveColor}
+                        onChange={c => onColorChange?.(c)}
+                    />
+
                     {/* フォント太さ */}
                     <select
                         value={effectiveFontWeight}
@@ -175,20 +181,6 @@ export default function TextBlock({
                             <option key={w.value} value={w.value}>{w.label}</option>
                         ))}
                     </select>
-
-                    {/* カラー */}
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 4 }} title="文字色">
-                        <span style={{ fontSize: 11, color: theme.subText ?? '#6b7280' }}>色</span>
-                        <input
-                            type="color"
-                            value={effectiveColor.startsWith('#') ? effectiveColor : '#000000'}
-                            onChange={e => onColorChange?.(e.target.value)}
-                            style={{
-                                width: 28, height: 24, padding: 0, border: '1px solid #d1d5db',
-                                borderRadius: 4, cursor: 'pointer',
-                            }}
-                        />
-                    </label>
 
                     {/* 画像挿入 */}
                     <button
@@ -452,6 +444,357 @@ const stepperButtonStyle: React.CSSProperties = {
     background: 'white', color: '#374151',
     fontSize: 16, fontWeight: 700, lineHeight: 1,
     cursor: 'pointer',
+}
+
+// ──────────── カラーピッカー コントロール ────────────
+
+const COLOR_PRESETS: string[] = [
+    '#000000', '#5C5C5C', '#9A9A9A', '#D1D1D1', '#FFFFFF',
+    '#FF3B30', '#FF9500', '#FFCC00', '#34C759', '#00C7BE',
+    '#30B0C7', '#007AFF', '#5856D6', '#AF52DE', '#FF2D55',
+    '#8B4513', '#FF7F50', '#FFB6C1', '#A0522D', '#2E8B57',
+]
+
+function ColorPickerControl({ value, onChange }: {
+    value: string
+    onChange: (color: string) => void
+}) {
+    const [open, setOpen] = useState(false)
+    const wrapRef = useRef<HTMLDivElement | null>(null)
+
+    useEffect(() => {
+        if (!open) return
+        function onDocClick(e: MouseEvent) {
+            if (!wrapRef.current) return
+            if (wrapRef.current.contains(e.target as Node)) return
+            setOpen(false)
+        }
+        document.addEventListener('mousedown', onDocClick)
+        return () => document.removeEventListener('mousedown', onDocClick)
+    }, [open])
+
+    const hex = value.startsWith('#') ? value : '#000000'
+
+    return (
+        <div ref={wrapRef} style={{ position: 'relative' }}>
+            <button
+                type="button"
+                onClick={() => setOpen(o => !o)}
+                title="文字色"
+                style={{
+                    display: 'inline-flex', flexDirection: 'column', alignItems: 'center',
+                    justifyContent: 'center', gap: 2,
+                    width: 32, height: 28, padding: '2px 0',
+                    border: '1px solid #d1d5db', borderRadius: 6,
+                    background: open ? '#eff6ff' : 'white',
+                    color: '#374151',
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                }}
+            >
+                <span style={{ fontSize: 14, fontWeight: 800, lineHeight: 1 }}>A</span>
+                <span style={{
+                    display: 'block', width: 18, height: 4,
+                    borderRadius: 2, background: hex,
+                    border: hex.toLowerCase() === '#ffffff' ? '1px solid #d1d5db' : 'none',
+                }} />
+            </button>
+
+            {open && <ColorPickerPopover value={hex} onChange={onChange} />}
+        </div>
+    )
+}
+
+function ColorPickerPopover({ value, onChange }: {
+    value: string
+    onChange: (color: string) => void
+}) {
+    // 内部状態は HSV（外部は HEX）。外からの更新と区別するため lastEmitted を保持
+    const initial = useMemo(() => hexToHsv(value), [])
+    const [h, setH] = useState(initial[0])
+    const [s, setS] = useState(initial[1])
+    const [v, setV] = useState(initial[2])
+    const [hexInput, setHexInput] = useState(value.toUpperCase())
+    const lastEmittedRef = useRef(value.toUpperCase())
+
+    // 外部から value が変わった時に HSV を同期（プリセット選択時など）
+    useEffect(() => {
+        const up = value.toUpperCase()
+        if (up === lastEmittedRef.current) return
+        const [nh, ns, nv] = hexToHsv(value)
+        setH(nh); setS(ns); setV(nv)
+        setHexInput(up)
+    }, [value])
+
+    function emit(nh: number, ns: number, nv: number) {
+        const hex = rgbToHex(hsvToRgb(nh, ns, nv))
+        lastEmittedRef.current = hex
+        setHexInput(hex)
+        onChange(hex)
+    }
+
+    // ──────── SV ピッカー ────────
+    const svRef = useRef<HTMLDivElement | null>(null)
+    const svDragging = useRef(false)
+
+    function updateSV(clientX: number, clientY: number) {
+        if (!svRef.current) return
+        const rect = svRef.current.getBoundingClientRect()
+        const ns = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
+        const nv = Math.max(0, Math.min(1, 1 - (clientY - rect.top) / rect.height))
+        setS(ns); setV(nv)
+        emit(h, ns, nv)
+    }
+
+    function onSVPointerDown(e: React.PointerEvent) {
+        svDragging.current = true
+        ;(e.target as Element).setPointerCapture(e.pointerId)
+        updateSV(e.clientX, e.clientY)
+    }
+    function onSVPointerMove(e: React.PointerEvent) {
+        if (!svDragging.current) return
+        updateSV(e.clientX, e.clientY)
+    }
+    function onSVPointerUp(e: React.PointerEvent) {
+        svDragging.current = false
+        ;(e.target as Element).releasePointerCapture(e.pointerId)
+    }
+
+    // ──────── HUE スライダー ────────
+    const hueRef = useRef<HTMLDivElement | null>(null)
+    const hueDragging = useRef(false)
+
+    function updateHue(clientX: number) {
+        if (!hueRef.current) return
+        const rect = hueRef.current.getBoundingClientRect()
+        const nh = Math.max(0, Math.min(360, ((clientX - rect.left) / rect.width) * 360))
+        setH(nh)
+        emit(nh, s, v)
+    }
+
+    function onHuePointerDown(e: React.PointerEvent) {
+        hueDragging.current = true
+        ;(e.target as Element).setPointerCapture(e.pointerId)
+        updateHue(e.clientX)
+    }
+    function onHuePointerMove(e: React.PointerEvent) {
+        if (!hueDragging.current) return
+        updateHue(e.clientX)
+    }
+    function onHuePointerUp(e: React.PointerEvent) {
+        hueDragging.current = false
+        ;(e.target as Element).releasePointerCapture(e.pointerId)
+    }
+
+    // ──────── 16進入力 ────────
+    function commitHex() {
+        const cleaned = hexInput.trim().replace(/^#/, '')
+        if (/^[0-9a-fA-F]{6}$/.test(cleaned)) {
+            const hex = `#${cleaned.toUpperCase()}`
+            const [nh, ns, nv] = hexToHsv(hex)
+            setH(nh); setS(ns); setV(nv)
+            lastEmittedRef.current = hex
+            setHexInput(hex)
+            onChange(hex)
+        } else {
+            // 不正値は元に戻す
+            setHexInput(lastEmittedRef.current)
+        }
+    }
+
+    const pureHueColor = rgbToHex(hsvToRgb(h, 1, 1))
+    const currentHex = rgbToHex(hsvToRgb(h, s, v))
+
+    return (
+        <div
+            style={{
+                position: 'absolute', top: 'calc(100% + 6px)', left: 0,
+                background: 'white', border: '1px solid #d1d5db', borderRadius: 12,
+                boxShadow: '0 8px 20px rgba(0,0,0,0.12)',
+                padding: 12, zIndex: 100,
+                width: 240,
+                display: 'flex', flexDirection: 'column', gap: 12,
+            }}
+        >
+            {/* プリセット */}
+            <div>
+                <div style={{
+                    fontSize: 11, fontWeight: 700, color: '#6b7280',
+                    letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 6,
+                }}>プリセット</div>
+                <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(10, 1fr)', gap: 4,
+                }}>
+                    {COLOR_PRESETS.map(c => {
+                        const isSelected = c.toUpperCase() === currentHex.toUpperCase()
+                        return (
+                            <button
+                                key={c}
+                                type="button"
+                                onClick={() => {
+                                    const [nh, ns, nv] = hexToHsv(c)
+                                    setH(nh); setS(ns); setV(nv)
+                                    emit(nh, ns, nv)
+                                }}
+                                aria-label={`色 ${c}`}
+                                style={{
+                                    width: '100%', aspectRatio: '1',
+                                    background: c, borderRadius: 4,
+                                    border: isSelected
+                                        ? '2px solid #2563eb'
+                                        : c.toUpperCase() === '#FFFFFF'
+                                            ? '1px solid #d1d5db' : 'none',
+                                    cursor: 'pointer', padding: 0,
+                                }}
+                            />
+                        )
+                    })}
+                </div>
+            </div>
+
+            {/* SV ピッカー（角を丸める） */}
+            <div
+                ref={svRef}
+                onPointerDown={onSVPointerDown}
+                onPointerMove={onSVPointerMove}
+                onPointerUp={onSVPointerUp}
+                onPointerCancel={onSVPointerUp}
+                style={{
+                    position: 'relative',
+                    width: '100%', height: 140,
+                    borderRadius: 10,
+                    background: `
+                        linear-gradient(to top, #000, transparent),
+                        linear-gradient(to right, #fff, ${pureHueColor})
+                    `,
+                    cursor: 'crosshair',
+                    touchAction: 'none',
+                }}
+            >
+                <div
+                    style={{
+                        position: 'absolute',
+                        left: `${s * 100}%`, top: `${(1 - v) * 100}%`,
+                        width: 14, height: 14,
+                        transform: 'translate(-50%, -50%)',
+                        borderRadius: '50%',
+                        border: '2px solid white',
+                        boxShadow: '0 0 0 1px rgba(0,0,0,0.4)',
+                        background: currentHex,
+                        pointerEvents: 'none',
+                    }}
+                />
+            </div>
+
+            {/* 色相スライダー（角を丸める） */}
+            <div
+                ref={hueRef}
+                onPointerDown={onHuePointerDown}
+                onPointerMove={onHuePointerMove}
+                onPointerUp={onHuePointerUp}
+                onPointerCancel={onHuePointerUp}
+                style={{
+                    position: 'relative',
+                    width: '100%', height: 14,
+                    borderRadius: 7,
+                    background: 'linear-gradient(to right, #f00 0%, #ff0 17%, #0f0 33%, #0ff 50%, #00f 67%, #f0f 83%, #f00 100%)',
+                    cursor: 'pointer',
+                    touchAction: 'none',
+                }}
+            >
+                <div
+                    style={{
+                        position: 'absolute',
+                        left: `${(h / 360) * 100}%`, top: '50%',
+                        width: 16, height: 16,
+                        transform: 'translate(-50%, -50%)',
+                        borderRadius: '50%',
+                        background: 'white',
+                        border: '2px solid white',
+                        boxShadow: '0 0 0 1px rgba(0,0,0,0.4)',
+                        pointerEvents: 'none',
+                    }}
+                />
+            </div>
+
+            {/* 16進入力 */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{
+                    display: 'inline-block', width: 24, height: 24,
+                    borderRadius: 6, background: currentHex,
+                    border: currentHex.toUpperCase() === '#FFFFFF' ? '1px solid #d1d5db' : 'none',
+                }} />
+                <input
+                    type="text"
+                    value={hexInput}
+                    onChange={e => setHexInput(e.target.value.toUpperCase())}
+                    onBlur={commitHex}
+                    onKeyDown={e => { if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur() }}
+                    maxLength={7}
+                    style={{
+                        flex: 1, height: 28, padding: '0 8px',
+                        border: '1px solid #d1d5db', borderRadius: 6,
+                        fontSize: 13, fontWeight: 600,
+                        color: '#111827',
+                        fontFamily: 'monospace', outline: 'none',
+                    }}
+                />
+            </div>
+        </div>
+    )
+}
+
+// ──────────── 色変換ユーティリティ ────────────
+
+type RGB = [number, number, number]
+
+function hexToRgb(hex: string): RGB {
+    const clean = hex.replace('#', '').padEnd(6, '0').slice(0, 6)
+    return [
+        parseInt(clean.slice(0, 2), 16) || 0,
+        parseInt(clean.slice(2, 4), 16) || 0,
+        parseInt(clean.slice(4, 6), 16) || 0,
+    ]
+}
+
+function rgbToHex([r, g, b]: RGB): string {
+    return '#' + [r, g, b].map(c =>
+        Math.round(Math.max(0, Math.min(255, c))).toString(16).padStart(2, '0').toUpperCase()
+    ).join('')
+}
+
+// h: 0-360, s: 0-1, v: 0-1
+function hsvToRgb(h: number, s: number, v: number): RGB {
+    const c = v * s
+    const hp = (h % 360) / 60
+    const x = c * (1 - Math.abs((hp % 2) - 1))
+    let r = 0, g = 0, b = 0
+    if (0 <= hp && hp < 1) { r = c; g = x; b = 0 }
+    else if (hp < 2)        { r = x; g = c; b = 0 }
+    else if (hp < 3)        { r = 0; g = c; b = x }
+    else if (hp < 4)        { r = 0; g = x; b = c }
+    else if (hp < 5)        { r = x; g = 0; b = c }
+    else                    { r = c; g = 0; b = x }
+    const m = v - c
+    return [(r + m) * 255, (g + m) * 255, (b + m) * 255]
+}
+
+function hexToHsv(hex: string): [number, number, number] {
+    const [r, g, b] = hexToRgb(hex).map(c => c / 255) as [number, number, number]
+    const max = Math.max(r, g, b), min = Math.min(r, g, b)
+    const d = max - min
+    let h = 0
+    const s = max === 0 ? 0 : d / max
+    const v = max
+    if (d !== 0) {
+        if (max === r)      h = ((g - b) / d) % 6
+        else if (max === g) h = (b - r) / d + 2
+        else                h = (r - g) / d + 4
+        h *= 60
+        if (h < 0) h += 360
+    }
+    return [h, s, v]
 }
 
 function AlignIcon({ align }: { align: TextAlign }) {
