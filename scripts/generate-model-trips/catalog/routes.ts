@@ -5,6 +5,7 @@ import { ROUTES_DOMESTIC_SEASONAL } from './routes-domestic-seasonal'
 import { ROUTES_ASIA } from './routes-asia'
 import { ROUTES_EUROPE } from './routes-europe'
 import { ROUTES_AMERICAS_OCEANIA_ETC } from './routes-americas-oceania-etc'
+import { ROUTES_EXTRA } from './routes-extra'
 
 export const ALL_ROUTES: Route[] = [
     ...ROUTES_DOMESTIC_SINGLE,
@@ -13,4 +14,5 @@ export const ALL_ROUTES: Route[] = [
     ...ROUTES_ASIA,
     ...ROUTES_EUROPE,
     ...ROUTES_AMERICAS_OCEANIA_ETC,
+    ...ROUTES_EXTRA,
 ]
