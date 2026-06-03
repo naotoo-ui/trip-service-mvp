@@ -82,4 +82,65 @@ export const ROUTES_AMERICAS_OCEANIA_ETC: Route[] = [
         popularity: 4,
         titleSuffixes: ['ブルジュ・ハリファとモール', 'デザートサファリ', '砂漠と摩天楼', '近未来都市と砂漠'],
     },
+
+    // ──────────── 北米 周遊 ────────────
+    {
+        id: 'r-us-east-coast',
+        name: 'アメリカ東海岸（NY中心）',
+        legs: [{ destinationId: 'newyork', days: 5 }],
+        suitableThemes: ['sg', 'ar', 'gm', 'hs', 'sp'],
+        suitableOrigins: ['東京', '大阪'],
+        durations: [6, 7],
+        popularity: 3,
+        titleSuffixes: ['東海岸ハイライト', 'NYワシントン日帰り', '東海岸主要都市'],
+    },
+    {
+        id: 'r-us-west-coast',
+        name: 'アメリカ西海岸（LA中心）',
+        legs: [{ destinationId: 'la', days: 5 }],
+        suitableThemes: ['sg', 'fm', 'cp', 'sp', 'np'],
+        suitableOrigins: ['東京', '大阪'],
+        durations: [6, 7],
+        popularity: 3,
+        titleSuffixes: ['西海岸ハイライト', 'ハリウッドとビーチ', 'ロサンゼルス満喫'],
+    },
+
+    // ──────────── ハワイ周遊 ────────────
+    {
+        id: 'r-hawaii-multi',
+        name: 'ハワイ・オアフ＋α',
+        legs: [{ destinationId: 'hawaii-oahu', days: 6 }],
+        suitableThemes: ['bc', 'np', 'fm', 'cp'],
+        suitableOrigins: ['東京', '大阪', '名古屋', '福岡'],
+        durations: [6, 7, 8],
+        popularity: 4,
+        titleSuffixes: ['ハワイで過ごす長旅', 'オアフ＋マウイ気分', 'ハワイ満喫長期滞在', 'ハネムーンハワイ'],
+    },
+
+    // ──────────── オーストラリア周遊 ────────────
+    {
+        id: 'r-sydney-melbourne',
+        name: 'シドニー・メルボルン',
+        legs: [
+            { destinationId: 'sydney', days: 3 },
+            { destinationId: 'melbourne', days: 3 },
+        ],
+        suitableThemes: ['sg', 'np', 'gm', 'ar'],
+        suitableOrigins: ['東京', '大阪'],
+        durations: [6, 7, 8],
+        popularity: 3,
+        titleSuffixes: ['豪州2大都市', 'オペラハウスとグレートオーシャンロード', '東岸縦断'],
+    },
+
+    // ──────────── ドバイ＋エジプト風（ドバイ強化のみ） ────────────
+    {
+        id: 'r-dubai-deep',
+        name: 'ドバイ＋アブダビ',
+        legs: [{ destinationId: 'dubai', days: 5 }],
+        suitableThemes: ['sg', 'sp', 'np', 'cp', 'ng', 'ex'],
+        suitableOrigins: ['東京', '大阪'],
+        durations: [5, 6],
+        popularity: 3,
+        titleSuffixes: ['ドバイ・アブダビ周遊', '王宮とモスク巡り', '砂漠の冒険'],
+    },
 ]

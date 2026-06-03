@@ -212,4 +212,69 @@ export const ROUTES_ASIA: Route[] = [
         popularity: 2,
         titleSuffixes: ['イントラムロスとセブ島', 'フィリピン定番'],
     },
+
+    // ──────────── アンコールワット ────────────
+    {
+        id: 'r-angkor-classic',
+        name: 'アンコールワット',
+        legs: [{ destinationId: 'angkor', days: 4 }],
+        suitableThemes: ['sg', 'hs', 'wh', 'ar'],
+        suitableOrigins: ['東京', '大阪'],
+        durations: [4, 5],
+        popularity: 4,
+        titleSuffixes: ['世界遺産アンコール遺跡群', '密林の古代遺跡', 'クメール文明を辿る', '神秘の遺跡巡り'],
+    },
+    {
+        id: 'r-bangkok-angkor',
+        name: 'バンコク・アンコールワット',
+        legs: [
+            { destinationId: 'bangkok', days: 3 },
+            { destinationId: 'angkor', days: 3 },
+        ],
+        suitableThemes: ['sg', 'hs', 'wh', 'gm'],
+        suitableOrigins: ['東京', '大阪'],
+        durations: [6, 7],
+        popularity: 3,
+        titleSuffixes: ['タイ＋カンボジア', 'バンコクと世界遺産', '東南アジア2大遺跡'],
+    },
+
+    // ──────────── ベトナム中部（ダナン・ホイアン） ────────────
+    {
+        id: 'r-danang-hoian',
+        name: 'ダナン・ホイアン',
+        legs: [{ destinationId: 'danang-hoian', days: 4 }],
+        suitableThemes: ['sg', 'wh', 'bc', 'cp', 'gm'],
+        suitableOrigins: ['東京', '大阪'],
+        durations: [4, 5],
+        popularity: 4,
+        titleSuffixes: ['ランタンの古都とビーチ', 'ホイアン＋バナヒルズ', 'ダナンビーチリゾート', '世界遺産＋ビーチ'],
+    },
+    {
+        id: 'r-vietnam-vertical',
+        name: 'ベトナム縦断（ハノイ・ダナン・ホイアン）',
+        legs: [
+            { destinationId: 'hanoi', days: 3 },
+            { destinationId: 'danang-hoian', days: 3 },
+        ],
+        suitableThemes: ['sg', 'hs', 'wh', 'gm'],
+        suitableOrigins: ['東京', '大阪'],
+        durations: [6, 7],
+        popularity: 3,
+        titleSuffixes: ['ベトナム縦断', '北部と中部', 'ハロン湾とランタンの古都'],
+    },
+
+    // ──────────── チェンマイ ────────────
+    {
+        id: 'r-bangkok-chiangmai',
+        name: 'バンコク・チェンマイ',
+        legs: [
+            { destinationId: 'bangkok', days: 3 },
+            { destinationId: 'chiangmai', days: 3 },
+        ],
+        suitableThemes: ['sg', 'gm', 'hs', 'ex'],
+        suitableOrigins: ['東京', '大阪'],
+        durations: [6, 7],
+        popularity: 3,
+        titleSuffixes: ['タイ南北周遊', 'バンコクと北部古都', '象使い体験も'],
+    },
 ]
