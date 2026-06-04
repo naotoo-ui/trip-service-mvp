@@ -21,6 +21,9 @@ export type PrimitiveBlock =
         italic?: boolean            // font-style: italic
         underline?: boolean         // text-decoration-line: underline
         strikethrough?: boolean     // text-decoration-line: line-through
+        // 行間（ブロック全体に適用。文字間隔は span ベースで選択範囲のみだが、
+        // line-height は inline span だと外側の値が残って下げられないため block 単位）
+        lineHeight?: number         // 既定 1.7
     }
     | { id: string; kind: 'packing'; title: string; content: string; columns: 1 | 2 | 3; minHeight?: number }
     | { id: string; kind: 'divider'; style?: 'solid' | 'dashed' | 'dotted' }

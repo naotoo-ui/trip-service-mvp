@@ -65,6 +65,7 @@ type Props = {
     italic?: boolean
     underline?: boolean
     strikethrough?: boolean
+    lineHeight?: number
     onTitleChange?: (title: string) => void
     onContentChange?: (content: string) => void
     onAlignChange?: (align: TextAlign) => void
@@ -77,6 +78,7 @@ type Props = {
     onItalicChange?: (italic: boolean) => void
     onUnderlineChange?: (underline: boolean) => void
     onStrikethroughChange?: (strike: boolean) => void
+    onLineHeightChange?: (lh: number) => void
 }
 
 const FONT_SIZE_MIN = 8
@@ -94,10 +96,11 @@ const FONT_WEIGHT_OPTIONS = [
 export default function TextBlock({
     title, content, theme, editable, minHeight,
     align, fontSize, fontWeight, color, imageUrl, showBorder,
-    bold, italic, underline, strikethrough,
+    bold, italic, underline, strikethrough, lineHeight,
     onTitleChange, onContentChange,
     onAlignChange, onFontSizeChange, onFontWeightChange, onColorChange, onImageChange, onShowBorderChange,
     onBoldChange, onItalicChange, onUnderlineChange, onStrikethroughChange,
+    onLineHeightChange,
 }: Props) {
     const [titleDraft, setTitleDraft] = useState(title)
     const lastTitleRef = useRef(title)
@@ -246,12 +249,10 @@ export default function TextBlock({
         commitContent()
         updateSelState()
     }
+    // line-height は inline span だと外側の値が打ち消せないため、block-level 設定として
+    // テキストブロック全体の lineHeight を更新する（onLineHeightChange 経由）。
     function applyLineHeight(unit: number) {
-        if (!editorRef.current) return
-        editorRef.current.focus()
-        wrapSelectionWith({ 'line-height': String(unit) })
-        commitContent()
-        updateSelState()
+        onLineHeightChange?.(unit)
     }
 
     // Enter キーで空の <li> から抜けてしまうのを抑止して、必ず新しい <li> を作る
@@ -343,6 +344,7 @@ export default function TextBlock({
     const effectiveItalic = italic ?? false
     const effectiveUnderline = underline ?? false
     const effectiveStrikethrough = strikethrough ?? false
+    const effectiveLineHeight = lineHeight ?? 1.7
 
     // bold が ON のときは fontWeight を最低 700 に引き上げる
     const computedFontWeight = effectiveBold
@@ -365,7 +367,7 @@ export default function TextBlock({
         fontStyle: effectiveItalic ? 'italic' : 'normal',
         textDecorationLine,
         textAlign: effectiveAlign,
-        fontFamily: 'inherit', lineHeight: 1.7,
+        fontFamily: 'inherit', lineHeight: effectiveLineHeight,
         boxSizing: 'border-box',
     }
 
@@ -454,10 +456,10 @@ export default function TextBlock({
                     {/* リスト循環（なし → 箇条書き → 番号付き → なし） */}
                     <ListCycleButton listKind={selState.listKind} onClick={cycleList} />
 
-                    {/* 間隔（文字間隔・行間隔のスライダー） */}
+                    {/* 間隔（文字間隔は選択範囲・行間隔はブロック全体） */}
                     <SpacingControl
                         letterSpacingEm={selState.letterSpacingEm ?? 0}
-                        lineHeight={selState.lineHeight ?? 1.7}
+                        lineHeight={effectiveLineHeight}
                         onLetterSpacingChange={em => applyLetterSpacing(em)}
                         onLineHeightChange={unit => applyLineHeight(unit)}
                     />

@@ -654,6 +654,7 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
                         italic={block.italic}
                         underline={block.underline}
                         strikethrough={block.strikethrough}
+                        lineHeight={block.lineHeight}
                         onTitleChange={editable ? (title => updatePrimitive(block.id, b => b.kind === 'text' ? { ...b, title } : b)) : undefined}
                         onContentChange={editable ? (content => updatePrimitive(block.id, b => b.kind === 'text' ? { ...b, content } : b)) : undefined}
                         onAlignChange={editable ? (align => updatePrimitive(block.id, b => b.kind === 'text' ? { ...b, align } : b)) : undefined}
@@ -666,6 +667,7 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
                         onItalicChange={editable ? (italic => updatePrimitive(block.id, b => b.kind === 'text' ? { ...b, italic } : b)) : undefined}
                         onUnderlineChange={editable ? (underline => updatePrimitive(block.id, b => b.kind === 'text' ? { ...b, underline } : b)) : undefined}
                         onStrikethroughChange={editable ? (strikethrough => updatePrimitive(block.id, b => b.kind === 'text' ? { ...b, strikethrough } : b)) : undefined}
+                        onLineHeightChange={editable ? (lh => updatePrimitive(block.id, b => b.kind === 'text' ? { ...b, lineHeight: lh } : b)) : undefined}
                     />
                 )
             case 'packing':
