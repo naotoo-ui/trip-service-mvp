@@ -8,6 +8,7 @@ import { OVERSEAS_EXTRA_ASIA } from './overseas-extra-asia'
 import { OVERSEAS_EXTRA_AMERICAS_AFRICA } from './overseas-extra-americas-africa'
 import { OVERSEAS_EXTRA_2 } from './overseas-extra-2'
 import { OVERSEAS_EXTRA_3 } from './overseas-extra-3'
+import { OVERSEAS_EXTRA_4 } from './overseas-extra-4'
 
 export const OVERSEAS_DESTINATIONS: DestinationEntry[] = [
     ...OVERSEAS_PART1,
@@ -19,4 +20,5 @@ export const OVERSEAS_DESTINATIONS: DestinationEntry[] = [
     ...OVERSEAS_EXTRA_AMERICAS_AFRICA,
     ...OVERSEAS_EXTRA_2,
     ...OVERSEAS_EXTRA_3,
+    ...OVERSEAS_EXTRA_4,
 ]
