@@ -455,7 +455,7 @@ export default function TextBlock({
                         onKeyUp={updateSelState}
                         onMouseUp={updateSelState}
                         data-placeholder="自由に入力できます..."
-                        className="booklet-text-editor"
+                        className="booklet-text-editor booklet-text-content"
                         style={{
                             ...contentBoxStyle,
                             outline: 'none',
@@ -465,6 +465,7 @@ export default function TextBlock({
                 ) : (
                     <div
                         ref={editorRef}
+                        className="booklet-text-content"
                         style={{
                             ...contentBoxStyle,
                             whiteSpace: 'pre-wrap', wordBreak: 'break-word',

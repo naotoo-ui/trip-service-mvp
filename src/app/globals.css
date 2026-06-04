@@ -200,3 +200,28 @@ details:not([open]) .faq-toggle::before { content: "＋"; }
     color: #9ca3af;
     pointer-events: none;
 }
+
+/* テキストブロック内のリスト：左揃え固定・マーカー表示・字下げ */
+.booklet-text-content ul,
+.booklet-text-content ol {
+    text-align: left;          /* ブロックの align が center/right/justify でも左揃え */
+    padding-left: 1.6em;       /* マーカーが見える分の字下げ */
+    margin: 0.4em 0;
+    list-style-position: outside;
+}
+.booklet-text-content ul {
+    list-style-type: '・ ';     /* 箇条書きは ・（中黒）マーカー */
+}
+.booklet-text-content ol {
+    list-style-type: decimal;  /* 番号付きは 1. 2. 3. ... */
+}
+.booklet-text-content li {
+    text-align: left;
+    padding-left: 0.25em;
+    margin: 0.15em 0;
+}
+/* ::marker の文字色・サイズを本文に揃える */
+.booklet-text-content li::marker {
+    color: inherit;
+    font-weight: inherit;
+}
