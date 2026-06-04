@@ -4,7 +4,7 @@
 
 // ──────────── プリミティブブロック（ページ内のサブブロック） ────────────
 
-export type TextAlign = 'left' | 'center' | 'right'
+export type TextAlign = 'left' | 'center' | 'right' | 'justify'
 
 export type PrimitiveBlock =
     | {

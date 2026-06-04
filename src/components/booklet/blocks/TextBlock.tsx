@@ -519,12 +519,14 @@ function StyleToggleButton({ active, onClick, title, style, children }: {
 const NEXT_ALIGN: Record<TextAlign, TextAlign> = {
     left: 'center',
     center: 'right',
-    right: 'left',
+    right: 'justify',
+    justify: 'left',
 }
 const ALIGN_NEXT_LABEL: Record<TextAlign, string> = {
     left: '左寄せ（クリックでセンターに）',
     center: 'センター寄せ（クリックで右に）',
-    right: '右寄せ（クリックで左に）',
+    right: '右寄せ（クリックで両端揃えに）',
+    justify: '両端揃え（クリックで左寄せに）',
 }
 
 function AlignCycleButton({ align, onChange }: {
@@ -1103,10 +1105,11 @@ function AlignIcon({ align }: { align: TextAlign }) {
     // 4本の横線で寄せを表現するアイコン。SVG 16x16
     // 各行の長さと x 起点を寄せに合わせて調整
     const lineY = [3, 6.5, 10, 13.5]
-    const lengths = [12, 8, 11, 6]
+    // 両端揃えは全て同じ最大幅で描画（左右端が揃って見える）
+    const lengths = align === 'justify' ? [12, 12, 12, 12] : [12, 8, 11, 6]
 
     function xFor(len: number): number {
-        if (align === 'left') return 2
+        if (align === 'left' || align === 'justify') return 2
         if (align === 'right') return 14 - len
         return (16 - len) / 2  // center
     }
