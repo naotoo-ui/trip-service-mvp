@@ -16,6 +16,11 @@ export type PrimitiveBlock =
         color?: string              // 既定 テーマの text 色
         imageUrl?: string           // base64 or URL（差し込み画像）
         showBorder?: boolean        // 既定 true（青の点線枠）
+        // テキスト装飾トグル（既定 false）
+        bold?: boolean              // true で fontWeight を最低 700 として扱う
+        italic?: boolean            // font-style: italic
+        underline?: boolean         // text-decoration-line: underline
+        strikethrough?: boolean     // text-decoration-line: line-through
     }
     | { id: string; kind: 'packing'; title: string; content: string; columns: 1 | 2 | 3; minHeight?: number }
     | { id: string; kind: 'divider'; style?: 'solid' | 'dashed' | 'dotted' }

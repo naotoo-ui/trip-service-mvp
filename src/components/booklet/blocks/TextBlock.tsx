@@ -17,6 +17,10 @@ type Props = {
     color?: string
     imageUrl?: string
     showBorder?: boolean
+    bold?: boolean
+    italic?: boolean
+    underline?: boolean
+    strikethrough?: boolean
     onTitleChange?: (title: string) => void
     onContentChange?: (content: string) => void
     onAlignChange?: (align: TextAlign) => void
@@ -25,6 +29,10 @@ type Props = {
     onColorChange?: (color: string) => void
     onImageChange?: (imageUrl: string | undefined) => void
     onShowBorderChange?: (show: boolean) => void
+    onBoldChange?: (bold: boolean) => void
+    onItalicChange?: (italic: boolean) => void
+    onUnderlineChange?: (underline: boolean) => void
+    onStrikethroughChange?: (strike: boolean) => void
 }
 
 const FONT_SIZE_MIN = 8
@@ -42,8 +50,10 @@ const FONT_WEIGHT_OPTIONS = [
 export default function TextBlock({
     title, content, theme, editable, minHeight,
     align, fontSize, fontWeight, color, imageUrl, showBorder,
+    bold, italic, underline, strikethrough,
     onTitleChange, onContentChange,
     onAlignChange, onFontSizeChange, onFontWeightChange, onColorChange, onImageChange, onShowBorderChange,
+    onBoldChange, onItalicChange, onUnderlineChange, onStrikethroughChange,
 }: Props) {
     const [titleDraft, setTitleDraft] = useState(title)
     const [contentDraft, setContentDraft] = useState(content)
@@ -102,6 +112,21 @@ export default function TextBlock({
     const effectiveFontWeight = fontWeight ?? 400
     const effectiveColor = color ?? theme.text
     const effectiveShowBorder = showBorder ?? true
+    const effectiveBold = bold ?? false
+    const effectiveItalic = italic ?? false
+    const effectiveUnderline = underline ?? false
+    const effectiveStrikethrough = strikethrough ?? false
+
+    // bold が ON のときは fontWeight を最低 700 に引き上げる
+    const computedFontWeight = effectiveBold
+        ? Math.max(700, effectiveFontWeight)
+        : effectiveFontWeight
+
+    // 下線・取り消し線の合成
+    const decorations: string[] = []
+    if (effectiveUnderline) decorations.push('underline')
+    if (effectiveStrikethrough) decorations.push('line-through')
+    const textDecorationLine = decorations.length > 0 ? decorations.join(' ') : 'none'
 
     const contentBoxStyle: React.CSSProperties = {
         width: '100%', minHeight: minHeight ?? 120, padding: 12,
@@ -109,7 +134,9 @@ export default function TextBlock({
         borderRadius: 10,
         background: theme.pageBg,
         fontSize: effectiveFontSize, color: effectiveColor,
-        fontWeight: effectiveFontWeight,
+        fontWeight: computedFontWeight,
+        fontStyle: effectiveItalic ? 'italic' : 'normal',
+        textDecorationLine,
         textAlign: effectiveAlign,
         fontFamily: 'inherit', lineHeight: 1.7,
         boxSizing: 'border-box',
@@ -170,6 +197,32 @@ export default function TextBlock({
                         value={effectiveColor}
                         onChange={c => onColorChange?.(c)}
                     />
+
+                    {/* 太字 / 斜体 / 下線 / 取り消し線 */}
+                    <StyleToggleButton
+                        active={effectiveBold}
+                        onClick={() => onBoldChange?.(!effectiveBold)}
+                        title="太字"
+                        style={{ fontWeight: 800 }}
+                    >B</StyleToggleButton>
+                    <StyleToggleButton
+                        active={effectiveItalic}
+                        onClick={() => onItalicChange?.(!effectiveItalic)}
+                        title="斜体"
+                        style={{ fontStyle: 'italic', fontFamily: 'serif', fontWeight: 700 }}
+                    >I</StyleToggleButton>
+                    <StyleToggleButton
+                        active={effectiveUnderline}
+                        onClick={() => onUnderlineChange?.(!effectiveUnderline)}
+                        title="下線"
+                        style={{ textDecorationLine: 'underline', fontWeight: 700 }}
+                    >U</StyleToggleButton>
+                    <StyleToggleButton
+                        active={effectiveStrikethrough}
+                        onClick={() => onStrikethroughChange?.(!effectiveStrikethrough)}
+                        title="取り消し線"
+                        style={{ textDecorationLine: 'line-through', fontWeight: 700 }}
+                    >S</StyleToggleButton>
 
                     {/* フォント太さ */}
                     <select
@@ -292,6 +345,33 @@ function ToolButton({ active, onClick, title, children }: {
                 background: active ? '#2563eb' : 'transparent',
                 color: active ? 'white' : '#374151',
                 cursor: 'pointer', whiteSpace: 'nowrap',
+            }}
+        >{children}</button>
+    )
+}
+
+// 太字 / 斜体 / 下線 / 取り消し線 のトグルボタン（B I U S スタイル）
+function StyleToggleButton({ active, onClick, title, style, children }: {
+    active: boolean
+    onClick: () => void
+    title: string
+    style?: React.CSSProperties
+    children: React.ReactNode
+}) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            title={title}
+            style={{
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                width: 28, height: 28, padding: 0,
+                border: '1px solid #d1d5db', borderRadius: 6,
+                background: active ? '#2563eb' : 'white',
+                color: active ? 'white' : '#374151',
+                cursor: 'pointer', fontSize: 14, lineHeight: 1,
+                fontFamily: 'inherit',
+                ...style,
             }}
         >{children}</button>
     )

@@ -761,7 +761,14 @@ docs/
 ```typescript
 // プリミティブブロック：ページの中身として配置されるサブブロック
 type PrimitiveBlock =
-    | { id: string; kind: 'text'; title: string; content: string; minHeight?: number }
+    | {
+        id: string; kind: 'text'; title: string; content: string; minHeight?: number
+        // 自由ページ拡張: 寄せ・サイズ・色・画像・枠線
+        align?: 'left'|'center'|'right'; fontSize?: number; fontWeight?: number
+        color?: string; imageUrl?: string; showBorder?: boolean
+        // テキスト装飾トグル（既定 false。bold は fontWeight を最低 700 に引き上げる）
+        bold?: boolean; italic?: boolean; underline?: boolean; strikethrough?: boolean
+    }
     | { id: string; kind: 'packing'; title: string; content: string; columns: 1|2|3; minHeight?: number }
     | { id: string; kind: 'divider'; style?: 'solid'|'dashed'|'dotted' }
     | { id: string; kind: 'spacer'; height: number }
