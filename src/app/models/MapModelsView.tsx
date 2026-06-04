@@ -8,19 +8,17 @@ import type { Trip } from '@/types'
 
 type TripBrief = Pick<Trip, 'share_id' | 'title' | 'destination' | 'duration_days' | 'wishes'>
 
-type Props = {
-    trips: TripBrief[]
-}
-
+type Props = { trips: TripBrief[] }
 type TabKind = 'domestic' | 'overseas'
+
+const EMPTY_SET: Set<string> = new Set()
 
 export default function MapModelsView({ trips }: Props) {
     const [tab, setTab] = useState<TabKind>('domestic')
-    const [selectedKey, setSelectedKey] = useState<string | null>(null)
+    const [selectedKeys, setSelectedKeys] = useState<Set<string>>(EMPTY_SET)
     const [keyword, setKeyword] = useState('')
     const [visibleCount, setVisibleCount] = useState(50)
 
-    // 旅程を destination 単位に集約 + 国内/海外分類
     const { domesticMarkers, overseasMarkers, tripsByKey } = useMemo(() => {
         const groups = new Map<string, { name: string; coord: [number, number]; isOverseas: boolean; trips: TripBrief[] }>()
         for (const t of trips) {
@@ -48,12 +46,13 @@ export default function MapModelsView({ trips }: Props) {
 
     const filteredTrips = useMemo(() => {
         let pool: TripBrief[]
-        if (selectedKey) {
-            pool = tripsByKey.get(selectedKey) ?? []
+        if (selectedKeys.size > 0) {
+            pool = []
+            for (const k of selectedKeys) {
+                pool.push(...(tripsByKey.get(k) ?? []))
+            }
         } else {
-            // タブの全プラン
-            const keys = currentMarkers.map(m => m.key)
-            const keySet = new Set(keys)
+            const keySet = new Set(currentMarkers.map(m => m.key))
             pool = trips.filter(t => keySet.has(t.destination))
         }
         if (keyword.trim()) {
@@ -65,28 +64,41 @@ export default function MapModelsView({ trips }: Props) {
             )
         }
         return pool
-    }, [selectedKey, tripsByKey, currentMarkers, trips, keyword])
+    }, [selectedKeys, tripsByKey, currentMarkers, trips, keyword])
 
     const visibleTrips = filteredTrips.slice(0, visibleCount)
 
-    // タブ切替時はリセット
     function changeTab(t: TabKind) {
         setTab(t)
-        setSelectedKey(null)
+        setSelectedKeys(EMPTY_SET)
         setVisibleCount(50)
     }
 
+    function handleSelectKeys(keys: Set<string>) {
+        setSelectedKeys(keys)
+        setVisibleCount(50)
+        // 選択時に一覧へスムーススクロール（少しだけ）
+        if (keys.size > 0) {
+            requestAnimationFrame(() => {
+                const el = document.getElementById('plans-section')
+                if (el) {
+                    const rect = el.getBoundingClientRect()
+                    if (rect.top < 0 || rect.top > window.innerHeight - 100) {
+                        el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                    }
+                }
+            })
+        }
+    }
+
+    const selectedArr = Array.from(selectedKeys)
+
     return (
         <div style={{ maxWidth: 1100, margin: '0 auto', padding: '24px 16px 80px' }}>
-            {/* ── ヘッダー ── */}
             <div style={{
                 background: 'linear-gradient(135deg, #7c3aed 0%, #ec4899 100%)',
-                borderRadius: 20,
-                padding: '32px 28px',
-                color: 'white',
-                marginBottom: 20,
-                position: 'relative',
-                overflow: 'hidden',
+                borderRadius: 20, padding: '32px 28px', color: 'white',
+                marginBottom: 20, position: 'relative', overflow: 'hidden',
             }}>
                 <div style={{
                     position: 'absolute', top: -60, right: -40,
@@ -108,7 +120,6 @@ export default function MapModelsView({ trips }: Props) {
                 </div>
             </div>
 
-            {/* ── タブ ── */}
             <div style={{
                 display: 'flex', gap: 4, marginBottom: 14,
                 background: 'rgba(15,23,42,0.04)', borderRadius: 12, padding: 4,
@@ -122,43 +133,58 @@ export default function MapModelsView({ trips }: Props) {
                 </TabButton>
             </div>
 
-            {/* ── マップ ── */}
             <MapView
                 kind={tab}
                 markers={currentMarkers}
-                selectedKey={selectedKey}
-                onSelect={key => { setSelectedKey(key); setVisibleCount(50) }}
+                selectedKeys={selectedKeys}
+                onSelectKeys={handleSelectKeys}
             />
 
-            {/* ── 検索バー + フィルタ表示 ── */}
-            <div style={{
+            <div id="plans-section" style={{
                 marginTop: 16, marginBottom: 14,
                 display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap',
             }}>
-                {selectedKey ? (
+                {selectedKeys.size > 0 ? (
                     <div style={{
                         display: 'inline-flex', alignItems: 'center', gap: 8,
-                        background: 'linear-gradient(135deg, #ede9fe, #fce7f3)',
-                        color: '#6b21a8',
-                        border: '1px solid #ddd6fe',
+                        background: 'linear-gradient(135deg, #fff7ed, #ffe4e6)',
+                        color: '#9a3412',
+                        border: '1px solid #fed7aa',
                         padding: '8px 14px',
                         borderRadius: 999,
                         fontSize: 14, fontWeight: 700,
+                        maxWidth: '100%',
                     }}>
-                        <span>{getDestinationEmoji(selectedKey)}</span>
-                        <span>{selectedKey}</span>
+                        {selectedKeys.size === 1 ? (
+                            <>
+                                <span>{getDestinationEmoji(selectedArr[0])}</span>
+                                <span>{selectedArr[0]}</span>
+                            </>
+                        ) : selectedKeys.size <= 3 ? (
+                            <>
+                                <span>📍</span>
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 360 }}>
+                                    {selectedArr.join(' / ')}
+                                </span>
+                            </>
+                        ) : (
+                            <>
+                                <span>📍</span>
+                                <span>{selectedKeys.size} エリアを選択中</span>
+                            </>
+                        )}
                         <span style={{
                             fontSize: 11, fontWeight: 700,
-                            background: 'rgba(124,58,237,0.18)',
+                            background: 'rgba(234,88,12,0.16)',
                             padding: '2px 7px', borderRadius: 99,
                         }}>{filteredTrips.length}件</span>
                         <button
                             type="button"
-                            onClick={() => setSelectedKey(null)}
+                            onClick={() => setSelectedKeys(EMPTY_SET)}
                             style={{
                                 marginLeft: 4,
                                 background: 'transparent', border: 'none',
-                                color: '#6b21a8', fontSize: 16, fontWeight: 700,
+                                color: '#9a3412', fontSize: 16, fontWeight: 700,
                                 cursor: 'pointer', padding: 0, lineHeight: 1,
                             }}
                             aria-label="選択を解除"
@@ -185,7 +211,6 @@ export default function MapModelsView({ trips }: Props) {
                 />
             </div>
 
-            {/* ── プラン一覧 ── */}
             {filteredTrips.length === 0 ? (
                 <div style={{
                     textAlign: 'center', padding: '50px 20px',
@@ -240,7 +265,6 @@ export default function MapModelsView({ trips }: Props) {
                 </div>
             )}
 
-            {/* もっと見る */}
             {visibleCount < filteredTrips.length && (
                 <div style={{ textAlign: 'center', marginTop: 20 }}>
                     <button
@@ -261,7 +285,7 @@ export default function MapModelsView({ trips }: Props) {
 
             <style jsx>{`
                 .model-row:hover {
-                    background: #faf5ff;
+                    background: #fff7ed;
                 }
             `}</style>
         </div>

@@ -5,21 +5,21 @@ import { feature } from 'topojson-client'
 import type { Feature, FeatureCollection, Geometry } from 'geojson'
 import type { Topology } from 'topojson-specification'
 
-// 簡易マップ：d3-geo + topojson-client で SVG を描画。
-// 近接ピンは自動でクラスタリングし、ズームすると個別ピンに分かれる。
+// d3-geo + topojson-client で SVG 地図を描画。
+// 近接ピンは自動でクラスタリング。ピンをクリックすると下のプラン一覧をフィルタ。
 
 type Marker = {
     key: string
     name: string
-    coord: [number, number]   // [lng, lat]
+    coord: [number, number]
     count: number
 }
 
 type Props = {
     kind: 'domestic' | 'overseas'
     markers: Marker[]
-    selectedKey: string | null
-    onSelect: (key: string | null) => void
+    selectedKeys: Set<string>
+    onSelectKeys: (keys: Set<string>) => void
 }
 
 const TOPOJSON_URL: Record<'domestic' | 'overseas', string> = {
@@ -28,14 +28,14 @@ const TOPOJSON_URL: Record<'domestic' | 'overseas', string> = {
 }
 
 const PROJECTION_CONFIG: Record<'domestic' | 'overseas', { center: [number, number] }> = {
-    domestic: { center: [137.5, 36.5] },
+    domestic: { center: [137.5, 37.5] },
     overseas: { center: [10, 25] },
 }
 
-// クラスタリングの基準（screen px ベース、zoom が高いほど閾値が小さくなる）
-const CLUSTER_BASE_THRESHOLD = 70  // unzoomed px at zoom=1
+// クラスタリング基準（unzoomed px ベース）
+const CLUSTER_BASE_THRESHOLD = 70
 
-export default function MapView({ kind, markers, selectedKey, onSelect }: Props) {
+export default function MapView({ kind, markers, selectedKeys, onSelectKeys }: Props) {
     const containerRef = useRef<HTMLDivElement | null>(null)
     const [containerW, setContainerW] = useState(800)
     const containerH = kind === 'domestic' ? 520 : 440
@@ -43,12 +43,10 @@ export default function MapView({ kind, markers, selectedKey, onSelect }: Props)
     const [geos, setGeos] = useState<Feature<Geometry>[] | null>(null)
     const [hoverKey, setHoverKey] = useState<string | null>(null)
 
-    // zoom & pan 状態
     const [zoom, setZoom] = useState(1)
     const [pan, setPan] = useState<[number, number]>([0, 0])
     const dragRef = useRef<{ x: number; y: number; px: number; py: number; moved: boolean } | null>(null)
 
-    // 配色（kind 別）
     const palette = kind === 'domestic' ? DOMESTIC_PALETTE : OVERSEAS_PALETTE
 
     useEffect(() => {
@@ -89,8 +87,9 @@ export default function MapView({ kind, markers, selectedKey, onSelect }: Props)
 
     const projection = useMemo<GeoProjection>(() => {
         const cfg = PROJECTION_CONFIG[kind]
+        // 国内: ゆとりを持たせて全島が収まる scale
         const baseScale = kind === 'domestic'
-            ? Math.min(containerW * 1.5, 1400)
+            ? Math.min(containerW * 1.05, 980)
             : Math.min(containerW * 0.30, 180)
         return geoMercator()
             .center(cfg.center)
@@ -100,7 +99,6 @@ export default function MapView({ kind, markers, selectedKey, onSelect }: Props)
 
     const pathGen = useMemo(() => geoPath(projection), [projection])
 
-    // ピン位置（unzoomed px）
     const placedMarkers = useMemo(() => {
         return markers.map(m => {
             const p = projection(m.coord)
@@ -108,12 +106,9 @@ export default function MapView({ kind, markers, selectedKey, onSelect }: Props)
         }).filter((x): x is Marker & { pixel: [number, number] } => x !== null)
     }, [markers, projection])
 
-    // クラスタリング：zoom に応じて閾値が変動
-    // zoom=1: 70px、zoom=4: 35px、zoom=8: 25px 相当（screen）
+    // クラスタリング
     const clusters = useMemo(() => {
-        // threshold(unzoomed) = base_screen / zoom ÷ √zoom  => screen距離は √zoom に反比例
         const thresholdUnzoomed = CLUSTER_BASE_THRESHOLD / Math.pow(Math.max(0.6, zoom), 1.5)
-
         const visited = new Set<string>()
         const result: {
             key: string
@@ -146,7 +141,7 @@ export default function MapView({ kind, markers, selectedKey, onSelect }: Props)
             const displayName = !isMulti
                 ? group[0].name
                 : group.length <= 3
-                    ? group.map(g => g.name).join(' ・ ')
+                    ? group.map(g => g.name).join('・')
                     : `${group.length}エリア（${count}プラン）`
 
             result.push({
@@ -161,14 +156,12 @@ export default function MapView({ kind, markers, selectedKey, onSelect }: Props)
         return result
     }, [placedMarkers, zoom])
 
-    // ホイールズーム
     const onWheel = useCallback((e: React.WheelEvent) => {
         e.preventDefault()
         const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15
         setZoom(z => Math.max(0.6, Math.min(8, z * factor)))
     }, [])
 
-    // ドラッグでパン
     const onPointerDown = useCallback((e: React.PointerEvent) => {
         const target = e.currentTarget
         target.setPointerCapture(e.pointerId)
@@ -190,38 +183,32 @@ export default function MapView({ kind, markers, selectedKey, onSelect }: Props)
 
     const resetView = () => { setZoom(1); setPan([0, 0]) }
 
+    // ピン半径：強弱を抑えた範囲（7-10）
     function pinRadius(count: number): number {
-        if (count >= 30) return 14
-        if (count >= 15) return 12
-        if (count >= 8) return 10
-        if (count >= 3) return 8
-        return 6
+        if (count >= 50) return 10
+        if (count >= 20) return 9
+        if (count >= 5) return 8
+        return 7
+    }
+
+    function clusterContainsSelected(c: (typeof clusters)[number]): boolean {
+        if (selectedKeys.size === 0) return false
+        return c.members.some(m => selectedKeys.has(m.key))
     }
 
     function handleClusterClick(c: (typeof clusters)[number]) {
-        // ドラッグ中だったクリックは無視
         if (dragRef.current?.moved) return
-        if (!c.isMulti) {
-            const single = c.members[0]
-            onSelect(single.key === selectedKey ? null : single.key)
+        const memberKeys = c.members.map(m => m.key)
+        const allSelected = memberKeys.length === selectedKeys.size
+            && memberKeys.every(k => selectedKeys.has(k))
+        if (allSelected) {
+            onSelectKeys(new Set())  // 同じクラスタを再クリックで解除
         } else {
-            // ズームインして cluster 中心にパン
-            const newZoom = Math.min(8, zoom * 1.8)
-            setZoom(newZoom)
-            setPan([
-                -(c.pixel[0] - containerW / 2) * newZoom,
-                -(c.pixel[1] - containerH / 2) * newZoom,
-            ])
+            onSelectKeys(new Set(memberKeys))  // クラスタ内全部を選択（青も紫も同じ）
         }
     }
 
     const transformStyle = `translate(${pan[0]}px, ${pan[1]}px) scale(${zoom})`
-
-    // 各 cluster が selectedKey を含むか
-    function clusterContainsSelected(c: (typeof clusters)[number]): boolean {
-        if (!selectedKey) return false
-        return c.members.some(m => m.key === selectedKey)
-    }
 
     return (
         <div
@@ -251,27 +238,11 @@ export default function MapView({ kind, markers, selectedKey, onSelect }: Props)
                 borderRadius: 10, padding: 4,
                 boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
             }}>
-                <button
-                    type="button"
-                    onClick={() => setZoom(z => Math.min(8, z * 1.4))}
-                    title="拡大"
-                    style={ctrlButtonStyle}
-                >＋</button>
-                <button
-                    type="button"
-                    onClick={() => setZoom(z => Math.max(0.6, z / 1.4))}
-                    title="縮小"
-                    style={ctrlButtonStyle}
-                >−</button>
-                <button
-                    type="button"
-                    onClick={resetView}
-                    title="表示をリセット"
-                    style={{ ...ctrlButtonStyle, fontSize: 11 }}
-                >⌂</button>
+                <button type="button" onClick={() => setZoom(z => Math.min(8, z * 1.4))} title="拡大" style={ctrlButtonStyle}>＋</button>
+                <button type="button" onClick={() => setZoom(z => Math.max(0.6, z / 1.4))} title="縮小" style={ctrlButtonStyle}>−</button>
+                <button type="button" onClick={resetView} title="表示をリセット" style={{ ...ctrlButtonStyle, fontSize: 11 }}>⌂</button>
             </div>
 
-            {/* ヘッダー情報 */}
             <div style={{
                 position: 'absolute', top: 12, left: 12, zIndex: 5,
                 background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(8px)',
@@ -290,17 +261,14 @@ export default function MapView({ kind, markers, selectedKey, onSelect }: Props)
                 style={{ display: 'block', userSelect: 'none' }}
             >
                 <defs>
-                    {/* 海/背景のグラデーション */}
                     <linearGradient id={`ocean-${kind}`} x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stopColor={palette.oceanTop} />
                         <stop offset="100%" stopColor={palette.oceanBottom} />
                     </linearGradient>
-                    {/* 陸地のグラデーション */}
                     <linearGradient id={`land-${kind}`} x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stopColor={palette.landTop} />
                         <stop offset="100%" stopColor={palette.landBottom} />
                     </linearGradient>
-                    {/* ピンのグラデーション */}
                     <radialGradient id={`pin-single`} cx="0.35" cy="0.35" r="0.7">
                         <stop offset="0%" stopColor="#3b82f6" />
                         <stop offset="100%" stopColor="#1d4ed8" />
@@ -315,7 +283,6 @@ export default function MapView({ kind, markers, selectedKey, onSelect }: Props)
                     </radialGradient>
                 </defs>
 
-                {/* 海/背景 */}
                 <rect width="100%" height="100%" fill={`url(#ocean-${kind})`} />
 
                 <g
@@ -346,9 +313,10 @@ export default function MapView({ kind, markers, selectedKey, onSelect }: Props)
                         const isSelected = clusterContainsSelected(c)
                         const isHover = c.key === hoverKey
                         const baseR = pinRadius(c.count)
-                        const zoomScale = Math.max(1, Math.pow(zoom, 0.4))
-                        const r = baseR / zoomScale
-                        const expand = isSelected ? 1.55 : isHover ? 1.25 : 1
+                        // ズーム時にピンが大きくなりすぎないよう抑える（screen size はほぼ一定）
+                        const sizeScale = Math.pow(Math.max(0.6, zoom), 0.85)
+                        const r = baseR / sizeScale
+                        const expand = isSelected ? 1.35 : isHover ? 1.18 : 1
                         const gradId = isSelected ? 'pin-selected' : c.isMulti ? 'pin-multi' : 'pin-single'
                         const ringColor = isSelected ? '#ea580c' : c.isMulti ? '#7c3aed' : '#2563eb'
 
@@ -366,28 +334,23 @@ export default function MapView({ kind, markers, selectedKey, onSelect }: Props)
                                 style={{ cursor: 'pointer' }}
                             >
                                 {(isSelected || isHover) && (
-                                    <circle
-                                        r={r * 2.2}
-                                        fill={ringColor}
-                                        opacity={0.16}
-                                    />
+                                    <circle r={r * 2.0} fill={ringColor} opacity={0.14} />
                                 )}
-                                {/* 外側リング（multi クラスタは二重） */}
                                 {c.isMulti && (
                                     <circle
-                                        r={r * expand + 2 / zoomScale}
+                                        r={r * expand + 1.6 / sizeScale}
                                         fill="none"
                                         stroke={ringColor}
-                                        strokeWidth={1.5 / zoomScale}
-                                        opacity={0.55}
+                                        strokeWidth={1.4 / sizeScale}
+                                        opacity={0.5}
                                     />
                                 )}
                                 <circle
                                     r={r * expand}
                                     fill={`url(#${gradId})`}
                                     stroke="#ffffff"
-                                    strokeWidth={1.8 / zoomScale}
-                                    style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.28))', transition: 'r 0.18s' }}
+                                    strokeWidth={1.6 / sizeScale}
+                                    style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.28))' }}
                                 />
                                 <text
                                     x={0}
@@ -403,21 +366,31 @@ export default function MapView({ kind, markers, selectedKey, onSelect }: Props)
                         )
                     })}
 
-                    {/* ホバー/選択時ラベル */}
-                    {clusters.filter(c => c.key === hoverKey || clusterContainsSelected(c)).map(c => (
-                        <g key={`label-${c.key}`} transform={`translate(${c.pixel[0]}, ${c.pixel[1] - pinRadius(c.count) - 6})`}>
-                            <text
-                                textAnchor="middle"
-                                fontSize={Math.max(10, 12 / Math.pow(zoom, 0.35))}
-                                fontWeight={700}
-                                fill="#0f172a"
-                                stroke="#ffffff"
-                                strokeWidth={4 / Math.max(1, Math.pow(zoom, 0.5))}
-                                paintOrder="stroke"
-                                style={{ pointerEvents: 'none' }}
-                            >{c.displayName}</text>
-                        </g>
-                    ))}
+                    {/* ラベル（インバーススケールで常に同サイズ表示） */}
+                    {clusters.filter(c => c.key === hoverKey || clusterContainsSelected(c)).map(c => {
+                        const baseR = pinRadius(c.count)
+                        const sizeScale = Math.pow(Math.max(0.6, zoom), 0.85)
+                        const rVisible = (baseR / sizeScale) * Math.max(1, zoom) // screen px
+                        // ラベルを screen px で配置するため、インバーススケール
+                        const labelOffset = -(rVisible + 8)
+                        return (
+                            <g key={`label-${c.key}`} transform={`translate(${c.pixel[0]}, ${c.pixel[1]})`}>
+                                <g transform={`scale(${1 / zoom})`}>
+                                    <text
+                                        y={labelOffset}
+                                        textAnchor="middle"
+                                        fontSize={12}
+                                        fontWeight={700}
+                                        fill="#0f172a"
+                                        stroke="#ffffff"
+                                        strokeWidth={3.5}
+                                        paintOrder="stroke"
+                                        style={{ pointerEvents: 'none' }}
+                                    >{c.displayName}</text>
+                                </g>
+                            </g>
+                        )
+                    })}
                 </g>
             </svg>
 
@@ -434,7 +407,7 @@ export default function MapView({ kind, markers, selectedKey, onSelect }: Props)
                 fontSize: 10, color: 'rgba(15,23,42,0.5)',
                 background: 'rgba(255,255,255,0.7)',
                 padding: '4px 8px', borderRadius: 6,
-            }}>ドラッグ・ホイールで操作 / クラスタクリックでズーム</div>
+            }}>ドラッグでパン・ホイールで拡大縮小</div>
         </div>
     )
 }
@@ -447,7 +420,6 @@ const ctrlButtonStyle: React.CSSProperties = {
     cursor: 'pointer', borderRadius: 6,
 }
 
-// ──────────── 配色パレット ────────────
 type Palette = {
     containerBg: string
     containerBorder: string
