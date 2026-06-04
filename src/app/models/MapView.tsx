@@ -371,33 +371,136 @@ export default function MapView({ kind, markers, selectedKeys, onSelectKeys }: P
                         )
                     })}
 
-                    {/* ラベル（インバーススケールで常に同サイズ表示） */}
-                    {clusters.filter(c => c.key === hoverKey || clusterContainsSelected(c)).map(c => {
-                        const baseR = pinRadius(c.count)
-                        const sizeScale = Math.pow(Math.max(0.6, zoom), 0.85)
-                        const rVisible = (baseR / sizeScale) * Math.max(1, zoom) // screen px
-                        // ラベルを screen px で配置するため、インバーススケール
-                        const labelOffset = -(rVisible + 8)
-                        return (
-                            <g key={`label-${c.key}`} transform={`translate(${c.pixel[0]}, ${c.pixel[1]})`}>
-                                <g transform={`scale(${1 / zoom})`}>
-                                    <text
-                                        y={labelOffset}
-                                        textAnchor="middle"
-                                        fontSize={12}
-                                        fontWeight={700}
-                                        fill="#0f172a"
-                                        stroke="#ffffff"
-                                        strokeWidth={3.5}
-                                        paintOrder="stroke"
-                                        style={{ pointerEvents: 'none' }}
-                                    >{c.displayName}</text>
+                    {/* SVGラベル（エリア名が直接見える時のみ：≤3エリア） */}
+                    {clusters
+                        .filter(c => c.key === hoverKey || clusterContainsSelected(c))
+                        .filter(c => !(c.isMulti && c.members.length > 3))  // 多数エリアは下の吹き出しで表示
+                        .map(c => {
+                            const baseR = pinRadius(c.count)
+                            const sizeScale = Math.pow(Math.max(0.6, zoom), 0.85)
+                            const rVisible = (baseR / sizeScale) * Math.max(1, zoom)
+                            const labelOffset = -(rVisible + 8)
+                            return (
+                                <g key={`label-${c.key}`} transform={`translate(${c.pixel[0]}, ${c.pixel[1]})`}>
+                                    <g transform={`scale(${1 / zoom})`}>
+                                        <text
+                                            y={labelOffset}
+                                            textAnchor="middle"
+                                            fontSize={12}
+                                            fontWeight={700}
+                                            fill="#0f172a"
+                                            stroke="#ffffff"
+                                            strokeWidth={3.5}
+                                            paintOrder="stroke"
+                                            style={{ pointerEvents: 'none' }}
+                                        >{c.displayName}</text>
+                                    </g>
                                 </g>
-                            </g>
-                        )
-                    })}
+                            )
+                        })}
                 </g>
             </svg>
+
+            {/* 多数エリアクラスタ用の吹き出し（HTMLレイヤー・ホバー時のみ） */}
+            {(() => {
+                const c = clusters.find(c => c.key === hoverKey)
+                if (!c || !c.isMulti || c.members.length <= 3) return null
+                // screen px に変換（外側 <g> の transform を逆算）
+                const screenX = (c.pixel[0] - containerW / 2) * zoom + containerW / 2 + pan[0]
+                const screenY = (c.pixel[1] - containerH / 2) * zoom + containerH / 2 + pan[1]
+                const pinScreenR = (pinRadius(c.count) / Math.pow(Math.max(0.6, zoom), 0.85)) * Math.max(1, zoom)
+                // 上に出すと見切れる場合は下に
+                const topMargin = 14
+                const showBelow = screenY - pinScreenR - 100 < topMargin
+                const offsetY = showBelow
+                    ? screenY + pinScreenR + 12
+                    : screenY - pinScreenR - 12
+                const translateY = showBelow ? '0%' : '-100%'
+                // 横方向のはみ出し補正
+                const tooltipWidth = 240
+                let leftClamped = screenX
+                const halfW = tooltipWidth / 2
+                if (screenX - halfW < 8) leftClamped = halfW + 8
+                if (screenX + halfW > containerW - 8) leftClamped = containerW - halfW - 8
+                const arrowOffsetFromCenter = screenX - leftClamped
+
+                // 表示上限：先頭から最大 12 件、残りは「+X件」
+                const MAX_LIST = 12
+                const visibleMembers = c.members.slice(0, MAX_LIST)
+                const hiddenCount = c.members.length - visibleMembers.length
+
+                return (
+                    <div style={{
+                        position: 'absolute',
+                        left: leftClamped,
+                        top: offsetY,
+                        transform: `translate(-50%, ${translateY})`,
+                        zIndex: 20,
+                        pointerEvents: 'none',
+                    }}>
+                        <div style={{
+                            width: tooltipWidth,
+                            background: 'white',
+                            border: '1px solid rgba(15,23,42,0.08)',
+                            borderRadius: 10,
+                            padding: '10px 12px',
+                            boxShadow: '0 8px 20px rgba(15,23,42,0.12)',
+                            fontSize: 12,
+                            color: '#0f172a',
+                        }}>
+                            <div style={{
+                                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                marginBottom: 6, paddingBottom: 6,
+                                borderBottom: '1px dashed #e5e7eb',
+                            }}>
+                                <span style={{ fontSize: 11, color: '#6b7280', fontWeight: 700, letterSpacing: '0.04em' }}>
+                                    {c.members.length} エリア
+                                </span>
+                                <span style={{
+                                    fontSize: 11, fontWeight: 700,
+                                    background: '#ede9fe', color: '#6b21a8',
+                                    padding: '1px 7px', borderRadius: 99,
+                                }}>{c.count} プラン</span>
+                            </div>
+                            <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
+                                {visibleMembers.map(m => (
+                                    <li key={m.key} style={{
+                                        display: 'flex', justifyContent: 'space-between',
+                                        padding: '3px 0', gap: 12,
+                                    }}>
+                                        <span style={{
+                                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                        }}>{m.name}</span>
+                                        <span style={{ color: '#94a3b8', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{m.count}</span>
+                                    </li>
+                                ))}
+                                {hiddenCount > 0 && (
+                                    <li style={{
+                                        padding: '4px 0 0', fontSize: 11, color: '#94a3b8',
+                                        borderTop: '1px dashed #f1f5f9', marginTop: 4,
+                                    }}>＋他 {hiddenCount} エリア</li>
+                                )}
+                            </ul>
+                            <div style={{
+                                marginTop: 6, paddingTop: 6,
+                                borderTop: '1px dashed #e5e7eb',
+                                fontSize: 10, color: '#9ca3af', textAlign: 'center',
+                            }}>クリックで全プラン表示</div>
+                        </div>
+                        {/* 三角の吹き出し矢印 */}
+                        <div style={{
+                            position: 'absolute',
+                            left: `calc(50% + ${arrowOffsetFromCenter}px)`,
+                            ...(showBelow
+                                ? { top: -7, transform: 'translateX(-50%) rotate(45deg)', borderTop: '1px solid rgba(15,23,42,0.08)', borderLeft: '1px solid rgba(15,23,42,0.08)' }
+                                : { bottom: -7, transform: 'translateX(-50%) rotate(45deg)', borderBottom: '1px solid rgba(15,23,42,0.08)', borderRight: '1px solid rgba(15,23,42,0.08)' }
+                            ),
+                            width: 12, height: 12,
+                            background: 'white',
+                        }} />
+                    </div>
+                )
+            })()}
 
             {!geos && (
                 <div style={{
