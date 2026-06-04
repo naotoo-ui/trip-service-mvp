@@ -256,7 +256,20 @@ export default function TextBlock({
         onLineHeightChange?.(unit)
     }
     // 文字間隔・行間隔をデフォルトに戻す
+    // ブロック値だけでなく、過去の選択範囲ベース実装で残った inline スタイル
+    // （<span style="letter-spacing: ..."> / line-height）も剥がす。
     function resetSpacing() {
+        if (editorRef.current) {
+            const inlineEls = editorRef.current.querySelectorAll<HTMLElement>(
+                '[style*="letter-spacing"], [style*="line-height"]',
+            )
+            inlineEls.forEach(el => {
+                el.style.removeProperty('letter-spacing')
+                el.style.removeProperty('line-height')
+                if (!el.getAttribute('style')) el.removeAttribute('style')
+            })
+            commitContent()
+        }
         onLetterSpacingChange?.(0)
         onLineHeightChange?.(1.0)
     }
