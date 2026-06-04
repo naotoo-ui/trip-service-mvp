@@ -65,7 +65,8 @@ type Props = {
     italic?: boolean
     underline?: boolean
     strikethrough?: boolean
-    lineHeight?: number
+    lineHeight?: number          // 倍率（1.0 = デフォルト）
+    letterSpacingEm?: number     // em（0 = デフォルト）
     onTitleChange?: (title: string) => void
     onContentChange?: (content: string) => void
     onAlignChange?: (align: TextAlign) => void
@@ -79,7 +80,10 @@ type Props = {
     onUnderlineChange?: (underline: boolean) => void
     onStrikethroughChange?: (strike: boolean) => void
     onLineHeightChange?: (lh: number) => void
+    onLetterSpacingChange?: (em: number) => void
 }
+
+const LINE_HEIGHT_BASE = 1.7  // 「倍率 1.0」のときの実 CSS line-height
 
 const FONT_SIZE_MIN = 8
 const FONT_SIZE_MAX = 64
@@ -96,11 +100,11 @@ const FONT_WEIGHT_OPTIONS = [
 export default function TextBlock({
     title, content, theme, editable, minHeight,
     align, fontSize, fontWeight, color, imageUrl, showBorder,
-    bold, italic, underline, strikethrough, lineHeight,
+    bold, italic, underline, strikethrough, lineHeight, letterSpacingEm,
     onTitleChange, onContentChange,
     onAlignChange, onFontSizeChange, onFontWeightChange, onColorChange, onImageChange, onShowBorderChange,
     onBoldChange, onItalicChange, onUnderlineChange, onStrikethroughChange,
-    onLineHeightChange,
+    onLineHeightChange, onLetterSpacingChange,
 }: Props) {
     const [titleDraft, setTitleDraft] = useState(title)
     const lastTitleRef = useRef(title)
@@ -242,17 +246,19 @@ export default function TextBlock({
         commitContent()
         updateSelState()
     }
+    // letter-spacing も block-level で「テキストブロック全体（＝そのブロックの全行）」に
+    // 適用する。これで「選択した行すべての文字間隔を変更」になる。
     function applyLetterSpacing(em: number) {
-        if (!editorRef.current) return
-        editorRef.current.focus()
-        wrapSelectionWith({ 'letter-spacing': `${em}em` })
-        commitContent()
-        updateSelState()
+        onLetterSpacingChange?.(em)
     }
-    // line-height は inline span だと外側の値が打ち消せないため、block-level 設定として
-    // テキストブロック全体の lineHeight を更新する（onLineHeightChange 経由）。
+    // line-height も block-level。slider 値は「倍率」なのでそのまま onChange に渡す。
     function applyLineHeight(unit: number) {
         onLineHeightChange?.(unit)
+    }
+    // 文字間隔・行間隔をデフォルトに戻す
+    function resetSpacing() {
+        onLetterSpacingChange?.(0)
+        onLineHeightChange?.(1.0)
     }
 
     // Enter キーで空の <li> から抜けてしまうのを抑止して、必ず新しい <li> を作る
@@ -344,7 +350,11 @@ export default function TextBlock({
     const effectiveItalic = italic ?? false
     const effectiveUnderline = underline ?? false
     const effectiveStrikethrough = strikethrough ?? false
-    const effectiveLineHeight = lineHeight ?? 1.7
+    // lineHeight は「倍率」。1.0 = デフォルト（CSS 1.7）
+    const lineHeightMultiplier = lineHeight ?? 1.0
+    const effectiveLineHeight = lineHeightMultiplier * LINE_HEIGHT_BASE
+    // letterSpacing もブロック全体に適用（em 単位）。0 = デフォルト
+    const effectiveLetterSpacingEm = letterSpacingEm ?? 0
 
     // bold が ON のときは fontWeight を最低 700 に引き上げる
     const computedFontWeight = effectiveBold
@@ -368,6 +378,7 @@ export default function TextBlock({
         textDecorationLine,
         textAlign: effectiveAlign,
         fontFamily: 'inherit', lineHeight: effectiveLineHeight,
+        letterSpacing: effectiveLetterSpacingEm ? `${effectiveLetterSpacingEm}em` : 'normal',
         boxSizing: 'border-box',
     }
 
@@ -456,12 +467,13 @@ export default function TextBlock({
                     {/* リスト循環（なし → 箇条書き → 番号付き → なし） */}
                     <ListCycleButton listKind={selState.listKind} onClick={cycleList} />
 
-                    {/* 間隔（文字間隔は選択範囲・行間隔はブロック全体） */}
+                    {/* 間隔（どちらもブロック全体に適用） */}
                     <SpacingControl
-                        letterSpacingEm={selState.letterSpacingEm ?? 0}
-                        lineHeight={effectiveLineHeight}
+                        letterSpacingEm={effectiveLetterSpacingEm}
+                        lineHeightMultiplier={lineHeightMultiplier}
                         onLetterSpacingChange={em => applyLetterSpacing(em)}
                         onLineHeightChange={unit => applyLineHeight(unit)}
+                        onReset={resetSpacing}
                     />
 
                     {/* 画像挿入 */}
@@ -1211,16 +1223,17 @@ function hexToHsv(hex: string): [number, number, number] {
 
 // ──────────── 間隔（文字間隔・行間隔）コントロール ────────────
 
-const LETTER_SPACING_MIN = -0.1     // em
+const LETTER_SPACING_MIN = 0        // em（負方向は文字が重なるため UI から除外）
 const LETTER_SPACING_MAX = 0.5      // em
-const LINE_HEIGHT_MIN = 1.0
-const LINE_HEIGHT_MAX = 3.0
+const LINE_HEIGHT_MIN = 1.0         // 倍率（= デフォルト）
+const LINE_HEIGHT_MAX = 2.5         // 倍率
 
-function SpacingControl({ letterSpacingEm, lineHeight, onLetterSpacingChange, onLineHeightChange }: {
+function SpacingControl({ letterSpacingEm, lineHeightMultiplier, onLetterSpacingChange, onLineHeightChange, onReset }: {
     letterSpacingEm: number
-    lineHeight: number
+    lineHeightMultiplier: number       // 倍率（1.0 = デフォルト）
     onLetterSpacingChange: (em: number) => void
     onLineHeightChange: (unit: number) => void
+    onReset: () => void
 }) {
     const [open, setOpen] = useState(false)
     const buttonRef = useRef<HTMLButtonElement | null>(null)
@@ -1333,7 +1346,7 @@ function SpacingControl({ letterSpacingEm, lineHeight, onLetterSpacingChange, on
                         />
                     </div>
 
-                    {/* 行間隔 */}
+                    {/* 行間隔（倍率。1.00 = デフォルト） */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                         <div style={{
                             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -1342,7 +1355,7 @@ function SpacingControl({ letterSpacingEm, lineHeight, onLetterSpacingChange, on
                         }}>
                             <span>行間隔</span>
                             <span style={{ fontFamily: 'inherit', color: '#111827' }}>
-                                {lineHeight.toFixed(2)}
+                                {lineHeightMultiplier.toFixed(2)}
                             </span>
                         </div>
                         <input
@@ -1350,11 +1363,27 @@ function SpacingControl({ letterSpacingEm, lineHeight, onLetterSpacingChange, on
                             min={LINE_HEIGHT_MIN}
                             max={LINE_HEIGHT_MAX}
                             step={0.05}
-                            value={lineHeight}
+                            value={lineHeightMultiplier}
                             onChange={e => onLineHeightChange(clampLh(Number(e.target.value)))}
                             style={{ width: '100%' }}
                         />
                     </div>
+
+                    {/* デフォルトに戻す */}
+                    <button
+                        type="button"
+                        onClick={onReset}
+                        style={{
+                            marginTop: 2,
+                            padding: '6px 10px',
+                            border: '1px solid #d1d5db', borderRadius: 6,
+                            background: 'white', color: '#374151',
+                            fontSize: 12, fontWeight: 600,
+                            cursor: 'pointer', fontFamily: 'inherit',
+                        }}
+                    >
+                        ⟲ デフォルトに戻す
+                    </button>
                 </div>,
                 document.body,
             )}
