@@ -459,7 +459,10 @@ export default function TextBlock({
                         style={{
                             ...contentBoxStyle,
                             outline: 'none',
-                            whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                            // 編集中は white-space を default に：Enter で <br>/<div>/<li> 等の
+                            // 適切な HTML 要素が挿入される（pre-wrap だと \n が文字列として
+                            // 入ってしまい、リスト内で新しい <li> が作られないことがある）
+                            wordBreak: 'break-word',
                         }}
                     />
                 ) : (
@@ -468,6 +471,7 @@ export default function TextBlock({
                         className="booklet-text-content"
                         style={{
                             ...contentBoxStyle,
+                            // 閲覧モードは旧プレーンテキスト互換のため pre-wrap を残す
                             whiteSpace: 'pre-wrap', wordBreak: 'break-word',
                             margin: 0,
                         }}
