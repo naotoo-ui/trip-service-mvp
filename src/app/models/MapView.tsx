@@ -158,7 +158,12 @@ export default function MapView({ kind, markers, selectedKeys, onSelectKeys }: P
 
     const onWheel = useCallback((e: React.WheelEvent) => {
         e.preventDefault()
-        const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15
+        if (Math.abs(e.deltaY) < 0.5) return
+        // delta を正規化（trackpad の小刻みイベント・mouse wheel の大きいイベント
+        // どちらでも体感が揃うように上限 1 にクランプ）
+        const normalized = Math.sign(e.deltaY) * Math.min(1, Math.abs(e.deltaY) / 100)
+        // 緩やかなズーム：1ノッチで約 22% 程度、小さい delta はそれに比例
+        const factor = Math.exp(-normalized * 0.22)
         setZoom(z => Math.max(0.6, Math.min(8, z * factor)))
     }, [])
 
@@ -238,8 +243,8 @@ export default function MapView({ kind, markers, selectedKeys, onSelectKeys }: P
                 borderRadius: 10, padding: 4,
                 boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
             }}>
-                <button type="button" onClick={() => setZoom(z => Math.min(8, z * 1.4))} title="拡大" style={ctrlButtonStyle}>＋</button>
-                <button type="button" onClick={() => setZoom(z => Math.max(0.6, z / 1.4))} title="縮小" style={ctrlButtonStyle}>−</button>
+                <button type="button" onClick={() => setZoom(z => Math.min(8, z * 1.3))} title="拡大" style={ctrlButtonStyle}>＋</button>
+                <button type="button" onClick={() => setZoom(z => Math.max(0.6, z / 1.3))} title="縮小" style={ctrlButtonStyle}>−</button>
                 <button type="button" onClick={resetView} title="表示をリセット" style={{ ...ctrlButtonStyle, fontSize: 11 }}>⌂</button>
             </div>
 
