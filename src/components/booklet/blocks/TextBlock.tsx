@@ -105,15 +105,18 @@ export default function TextBlock({
     const editorRef = useRef<HTMLDivElement | null>(null)
     const fileInputRef = useRef<HTMLInputElement | null>(null)
 
-    // 選択範囲の状態（B/I/U/S・リスト種別・ハイライト色・サイズ・太さ）
+    // 選択範囲の状態（B/I/U/S・リスト種別・ハイライト色・サイズ・間隔）
     const [selState, setSelState] = useState<{
         bold: boolean; italic: boolean; underline: boolean; strikethrough: boolean;
         listKind: 'none' | 'bullet' | 'numbered';
-        color: string | null; fontSize: number | null; fontWeight: number | null;
+        color: string | null; fontSize: number | null;
+        letterSpacingEm: number | null;
+        lineHeight: number | null;
     }>({
         bold: false, italic: false, underline: false, strikethrough: false,
         listKind: 'none',
-        color: null, fontSize: null, fontWeight: null,
+        color: null, fontSize: null,
+        letterSpacingEm: null, lineHeight: null,
     })
 
     useEffect(() => {
@@ -172,6 +175,21 @@ export default function TextBlock({
             const inOL = document.queryCommandState('insertOrderedList')
             const listKind: 'none' | 'bullet' | 'numbered' =
                 inOL ? 'numbered' : inUL ? 'bullet' : 'none'
+            // letter-spacing は px。fontSize で割って em に変換して扱う
+            const fsPx = cs ? parseFloat(cs.fontSize) || 14 : 14
+            const lsPx = cs ? parseFloat(cs.letterSpacing) || 0 : 0
+            // line-height は computed では px。fontSize で割って unitless に
+            // 'normal' の場合は ≒ 1.2 と扱う（ブラウザ既定）
+            let lhUnit: number | null = null
+            if (cs) {
+                const lhRaw = cs.lineHeight
+                if (lhRaw === 'normal') {
+                    lhUnit = 1.2
+                } else {
+                    const px = parseFloat(lhRaw)
+                    lhUnit = isFinite(px) && fsPx > 0 ? +(px / fsPx).toFixed(2) : null
+                }
+            }
             setSelState({
                 bold: document.queryCommandState('bold'),
                 italic: document.queryCommandState('italic'),
@@ -179,8 +197,9 @@ export default function TextBlock({
                 strikethrough: document.queryCommandState('strikeThrough'),
                 listKind,
                 color: cs ? rgbStringToHex(cs.color) : null,
-                fontSize: cs ? Math.round(parseFloat(cs.fontSize)) : null,
-                fontWeight: cs ? Number(cs.fontWeight) || 400 : null,
+                fontSize: cs ? Math.round(fsPx) : null,
+                letterSpacingEm: cs ? +(lsPx / fsPx).toFixed(3) : null,
+                lineHeight: lhUnit,
             })
         } catch { /* execCommand 未対応の環境は無視 */ }
     }, [])
@@ -217,6 +236,20 @@ export default function TextBlock({
         if (!editorRef.current) return
         editorRef.current.focus()
         wrapSelectionWith({ 'font-weight': String(weight) })
+        commitContent()
+        updateSelState()
+    }
+    function applyLetterSpacing(em: number) {
+        if (!editorRef.current) return
+        editorRef.current.focus()
+        wrapSelectionWith({ 'letter-spacing': `${em}em` })
+        commitContent()
+        updateSelState()
+    }
+    function applyLineHeight(unit: number) {
+        if (!editorRef.current) return
+        editorRef.current.focus()
+        wrapSelectionWith({ 'line-height': String(unit) })
         commitContent()
         updateSelState()
     }
@@ -421,17 +454,13 @@ export default function TextBlock({
                     {/* リスト循環（なし → 箇条書き → 番号付き → なし） */}
                     <ListCycleButton listKind={selState.listKind} onClick={cycleList} />
 
-                    {/* フォント太さ（選択範囲に適用） */}
-                    <select
-                        value={selState.fontWeight ?? effectiveFontWeight}
-                        onChange={e => applyFontWeight(Number(e.target.value))}
-                        style={selectStyle}
-                        title="太さ"
-                    >
-                        {FONT_WEIGHT_OPTIONS.map(w => (
-                            <option key={w.value} value={w.value}>{w.label}</option>
-                        ))}
-                    </select>
+                    {/* 間隔（文字間隔・行間隔のスライダー） */}
+                    <SpacingControl
+                        letterSpacingEm={selState.letterSpacingEm ?? 0}
+                        lineHeight={selState.lineHeight ?? 1.7}
+                        onLetterSpacingChange={em => applyLetterSpacing(em)}
+                        onLineHeightChange={unit => applyLineHeight(unit)}
+                    />
 
                     {/* 画像挿入 */}
                     <button
@@ -1176,6 +1205,172 @@ function hexToHsv(hex: string): [number, number, number] {
         if (h < 0) h += 360
     }
     return [h, s, v]
+}
+
+// ──────────── 間隔（文字間隔・行間隔）コントロール ────────────
+
+const LETTER_SPACING_MIN = -0.1     // em
+const LETTER_SPACING_MAX = 0.5      // em
+const LINE_HEIGHT_MIN = 1.0
+const LINE_HEIGHT_MAX = 3.0
+
+function SpacingControl({ letterSpacingEm, lineHeight, onLetterSpacingChange, onLineHeightChange }: {
+    letterSpacingEm: number
+    lineHeight: number
+    onLetterSpacingChange: (em: number) => void
+    onLineHeightChange: (unit: number) => void
+}) {
+    const [open, setOpen] = useState(false)
+    const buttonRef = useRef<HTMLButtonElement | null>(null)
+    const popoverRef = useRef<HTMLDivElement | null>(null)
+    const [pos, setPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 })
+
+    useEffect(() => {
+        if (!open || !buttonRef.current) return
+        function recalc() {
+            if (!buttonRef.current) return
+            const rect = buttonRef.current.getBoundingClientRect()
+            const popoverWidth = 260
+            const popoverHeightApprox = 200
+            const margin = 8
+
+            let left = rect.left
+            if (left + popoverWidth > window.innerWidth - margin) {
+                left = window.innerWidth - popoverWidth - margin
+            }
+            if (left < margin) left = margin
+
+            let top = rect.bottom + 6
+            if (top + popoverHeightApprox > window.innerHeight - margin) {
+                top = Math.max(margin, rect.top - popoverHeightApprox - 6)
+            }
+            setPos({ top, left })
+        }
+        recalc()
+        window.addEventListener('resize', recalc)
+        window.addEventListener('scroll', recalc, true)
+        return () => {
+            window.removeEventListener('resize', recalc)
+            window.removeEventListener('scroll', recalc, true)
+        }
+    }, [open])
+
+    useEffect(() => {
+        if (!open) return
+        function onDocClick(e: MouseEvent) {
+            const t = e.target as Node
+            if (buttonRef.current?.contains(t)) return
+            if (popoverRef.current?.contains(t)) return
+            setOpen(false)
+        }
+        document.addEventListener('mousedown', onDocClick)
+        return () => document.removeEventListener('mousedown', onDocClick)
+    }, [open])
+
+    function clampLs(v: number): number {
+        return Math.max(LETTER_SPACING_MIN, Math.min(LETTER_SPACING_MAX, +v.toFixed(3)))
+    }
+    function clampLh(v: number): number {
+        return Math.max(LINE_HEIGHT_MIN, Math.min(LINE_HEIGHT_MAX, +v.toFixed(2)))
+    }
+
+    return (
+        <>
+            <button
+                ref={buttonRef}
+                type="button"
+                onClick={() => setOpen(o => !o)}
+                title="間隔"
+                style={{
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    gap: 4, height: 28, padding: '0 10px',
+                    border: '1px solid #d1d5db', borderRadius: 6,
+                    background: open ? '#eff6ff' : 'white',
+                    color: '#374151',
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                    fontSize: 12, fontWeight: 600,
+                }}
+            >
+                <SpacingIcon />
+                <span>間隔</span>
+            </button>
+
+            {open && typeof document !== 'undefined' && createPortal(
+                <div
+                    ref={popoverRef}
+                    style={{
+                        position: 'fixed', top: pos.top, left: pos.left,
+                        background: 'white', border: '1px solid #d1d5db', borderRadius: 10,
+                        boxShadow: '0 8px 20px rgba(0,0,0,0.12)',
+                        padding: 14, zIndex: 9999,
+                        width: 260,
+                        display: 'flex', flexDirection: 'column', gap: 14,
+                    }}
+                >
+                    {/* 文字間隔 */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <div style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                            fontSize: 11, fontWeight: 700, color: '#6b7280',
+                            letterSpacing: '0.04em', textTransform: 'uppercase',
+                        }}>
+                            <span>文字間隔</span>
+                            <span style={{ fontFamily: 'inherit', color: '#111827' }}>
+                                {letterSpacingEm.toFixed(2)} em
+                            </span>
+                        </div>
+                        <input
+                            type="range"
+                            min={LETTER_SPACING_MIN}
+                            max={LETTER_SPACING_MAX}
+                            step={0.01}
+                            value={letterSpacingEm}
+                            onChange={e => onLetterSpacingChange(clampLs(Number(e.target.value)))}
+                            style={{ width: '100%' }}
+                        />
+                    </div>
+
+                    {/* 行間隔 */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <div style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                            fontSize: 11, fontWeight: 700, color: '#6b7280',
+                            letterSpacing: '0.04em', textTransform: 'uppercase',
+                        }}>
+                            <span>行間隔</span>
+                            <span style={{ fontFamily: 'inherit', color: '#111827' }}>
+                                {lineHeight.toFixed(2)}
+                            </span>
+                        </div>
+                        <input
+                            type="range"
+                            min={LINE_HEIGHT_MIN}
+                            max={LINE_HEIGHT_MAX}
+                            step={0.05}
+                            value={lineHeight}
+                            onChange={e => onLineHeightChange(clampLh(Number(e.target.value)))}
+                            style={{ width: '100%' }}
+                        />
+                    </div>
+                </div>,
+                document.body,
+            )}
+        </>
+    )
+}
+
+function SpacingIcon() {
+    // 左右に縦線（文字を表す）＋中央に水平矢印（間隔を表す）
+    return (
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
+            <rect x="1.5" y="4" width="1.6" height="8" rx="0.4" />
+            <rect x="12.9" y="4" width="1.6" height="8" rx="0.4" />
+            <path d="M4.5 8 L11.5 8" stroke="currentColor" strokeWidth="1" />
+            <path d="M5.5 6.5 L4 8 L5.5 9.5" stroke="currentColor" strokeWidth="1" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M10.5 6.5 L12 8 L10.5 9.5" stroke="currentColor" strokeWidth="1" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+    )
 }
 
 // ──────────── リスト循環ボタン ────────────
