@@ -105,12 +105,14 @@ export default function TextBlock({
     const editorRef = useRef<HTMLDivElement | null>(null)
     const fileInputRef = useRef<HTMLInputElement | null>(null)
 
-    // 選択範囲の状態（B/I/U/S とハイライト色・サイズ・太さ）
+    // 選択範囲の状態（B/I/U/S・リスト種別・ハイライト色・サイズ・太さ）
     const [selState, setSelState] = useState<{
         bold: boolean; italic: boolean; underline: boolean; strikethrough: boolean;
+        listKind: 'none' | 'bullet' | 'numbered';
         color: string | null; fontSize: number | null; fontWeight: number | null;
     }>({
         bold: false, italic: false, underline: false, strikethrough: false,
+        listKind: 'none',
         color: null, fontSize: null, fontWeight: null,
     })
 
@@ -166,11 +168,16 @@ export default function TextBlock({
             cs = window.getComputedStyle(node)
         }
         try {
+            const inUL = document.queryCommandState('insertUnorderedList')
+            const inOL = document.queryCommandState('insertOrderedList')
+            const listKind: 'none' | 'bullet' | 'numbered' =
+                inOL ? 'numbered' : inUL ? 'bullet' : 'none'
             setSelState({
                 bold: document.queryCommandState('bold'),
                 italic: document.queryCommandState('italic'),
                 underline: document.queryCommandState('underline'),
                 strikethrough: document.queryCommandState('strikeThrough'),
+                listKind,
                 color: cs ? rgbStringToHex(cs.color) : null,
                 fontSize: cs ? Math.round(parseFloat(cs.fontSize)) : null,
                 fontWeight: cs ? Number(cs.fontWeight) || 400 : null,
@@ -210,6 +217,28 @@ export default function TextBlock({
         if (!editorRef.current) return
         editorRef.current.focus()
         wrapSelectionWith({ 'font-weight': String(weight) })
+        commitContent()
+        updateSelState()
+    }
+
+    // リスト種別を循環： none → bullet → numbered → none
+    function cycleList() {
+        if (!editorRef.current) return
+        editorRef.current.focus()
+        try {
+            const inUL = document.queryCommandState('insertUnorderedList')
+            const inOL = document.queryCommandState('insertOrderedList')
+            if (inUL) {
+                // bullet → numbered（execCommand は UL を OL に置き換える）
+                document.execCommand('insertOrderedList')
+            } else if (inOL) {
+                // numbered → none（同じコマンドを再度呼ぶと外れる）
+                document.execCommand('insertOrderedList')
+            } else {
+                // none → bullet
+                document.execCommand('insertUnorderedList')
+            }
+        } catch { /* noop */ }
         commitContent()
         updateSelState()
     }
@@ -349,6 +378,9 @@ export default function TextBlock({
                         title="取り消し線"
                         style={{ textDecorationLine: 'line-through', fontWeight: 700 }}
                     >S</StyleToggleButton>
+
+                    {/* リスト循環（なし → 箇条書き → 番号付き → なし） */}
+                    <ListCycleButton listKind={selState.listKind} onClick={cycleList} />
 
                     {/* フォント太さ（選択範囲に適用） */}
                     <select
@@ -1099,6 +1131,65 @@ function hexToHsv(hex: string): [number, number, number] {
         if (h < 0) h += 360
     }
     return [h, s, v]
+}
+
+// ──────────── リスト循環ボタン ────────────
+
+function ListCycleButton({ listKind, onClick }: {
+    listKind: 'none' | 'bullet' | 'numbered'
+    onClick: () => void
+}) {
+    const isNumbered = listKind === 'numbered'
+    const active = listKind !== 'none'
+    const nextLabel =
+        listKind === 'none'     ? '箇条書きリスト（クリックで番号付きに）'
+        : listKind === 'bullet' ? '箇条書きリスト適用中（クリックで番号付きに）'
+        :                         '番号付きリスト適用中（クリックで解除）'
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            title={nextLabel}
+            style={{
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                width: 32, height: 28, padding: 0,
+                border: '1px solid #d1d5db', borderRadius: 6,
+                background: active ? '#2563eb' : 'white',
+                color: active ? 'white' : '#374151',
+                cursor: 'pointer',
+            }}
+        >
+            <ListIcon numbered={isNumbered} />
+        </button>
+    )
+}
+
+function ListIcon({ numbered }: { numbered: boolean }) {
+    // SVG 16x16: 左にマーカー（• または 数字）、右に3本の線
+    const rowsY = [3, 8, 13]
+    return (
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
+            {rowsY.map((y, i) => (
+                <g key={i}>
+                    {numbered ? (
+                        <text
+                            x={1.5}
+                            y={y + 1.5}
+                            fontSize={4}
+                            fontWeight={700}
+                            fontFamily="ui-sans-serif, system-ui, sans-serif"
+                            dominantBaseline="middle"
+                        >
+                            {i + 1}.
+                        </text>
+                    ) : (
+                        <circle cx={2.6} cy={y + 0.7} r={1} />
+                    )}
+                    <rect x={6} y={y} width={9} height={1.4} rx={0.5} />
+                </g>
+            ))}
+        </svg>
+    )
 }
 
 function AlignIcon({ align }: { align: TextAlign }) {
