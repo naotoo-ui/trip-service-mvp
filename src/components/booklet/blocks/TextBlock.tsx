@@ -221,6 +221,45 @@ export default function TextBlock({
         updateSelState()
     }
 
+    // Enter キーで空の <li> から抜けてしまうのを抑止して、必ず新しい <li> を作る
+    function handleEditorKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+        if (e.key !== 'Enter' || e.shiftKey) return
+        if (!editorRef.current) return
+
+        const sel = window.getSelection()
+        if (!sel || sel.rangeCount === 0) return
+        const anchor = sel.anchorNode
+        if (!anchor || !editorRef.current.contains(anchor)) return
+
+        // <li> 祖先を探す
+        let node: Node | null = anchor
+        let li: HTMLElement | null = null
+        while (node && node !== editorRef.current) {
+            if (node instanceof HTMLElement && node.tagName === 'LI') { li = node; break }
+            node = node.parentNode
+        }
+        if (!li) return  // リスト内でなければ default
+
+        // li が空（テキストなし or <br> のみ）か判定
+        const text = (li.textContent ?? '').replace(/​/g, '').trim()
+        if (text !== '') return  // 非空：default 挙動（ブラウザが新しい li を作る）に任せる
+
+        // 空 li：ブラウザの "リスト終了" を抑止して、新しい空 li を兄弟として追加
+        e.preventDefault()
+        const newLi = document.createElement('li')
+        newLi.appendChild(document.createElement('br'))
+        li.parentNode?.insertBefore(newLi, li.nextSibling)
+
+        const range = document.createRange()
+        range.setStart(newLi, 0)
+        range.collapse(true)
+        sel.removeAllRanges()
+        sel.addRange(range)
+
+        commitContent()
+        updateSelState()
+    }
+
     // リスト種別を循環： none → bullet → numbered → none
     function cycleList() {
         if (!editorRef.current) return
@@ -452,6 +491,7 @@ export default function TextBlock({
                         contentEditable
                         suppressContentEditableWarning
                         onBlur={commitContent}
+                        onKeyDown={handleEditorKeyDown}
                         onKeyUp={updateSelState}
                         onMouseUp={updateSelState}
                         data-placeholder="自由に入力できます..."
