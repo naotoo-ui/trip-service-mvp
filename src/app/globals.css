@@ -193,3 +193,10 @@ details:not([open]) .faq-toggle::before { content: "＋"; }
 .booklet-cover input[type="date"] {
     color-scheme: light;
 }
+
+/* contentEditable 空時のプレースホルダ表示 */
+.booklet-text-editor:empty::before {
+    content: attr(data-placeholder);
+    color: #9ca3af;
+    pointer-events: none;
+}

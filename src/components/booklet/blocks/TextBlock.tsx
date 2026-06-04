@@ -1,8 +1,52 @@
 'use client'
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import type { Theme } from '../bookletThemes'
 import type { TextAlign } from '../bookletConfig'
+
+// ──────────── 旧プレーンテキスト ↔ HTML の互換 ────────────
+// 既存ブロックの content は \n 区切りのプレーンテキスト。
+// 新規編集後は HTML（<span style=...> / <br> / <div> 等）として保存される。
+function plainTextToHtml(text: string): string {
+    if (!text) return ''
+    // 既に HTML タグを含むなら HTML 扱い
+    if (/<[a-zA-Z]/.test(text)) return text
+    return text
+        .split('\n')
+        .map(line => line
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;'))
+        .join('<br>')
+}
+
+// rgb(r, g, b) → #RRGGBB（その他の入力はそのまま返す）
+function rgbStringToHex(rgb: string): string {
+    const m = /^rgba?\(([0-9.]+),\s*([0-9.]+),\s*([0-9.]+)/.exec(rgb)
+    if (!m) return rgb
+    const [, r, g, b] = m
+    const toHex = (n: string) => Math.round(Number(n)).toString(16).padStart(2, '0').toUpperCase()
+    return `#${toHex(r)}${toHex(g)}${toHex(b)}`
+}
+
+// 選択範囲を指定スタイルの <span> で包む（fontSize/fontWeight 等カスタムスタイル用）
+function wrapSelectionWith(styleProps: Record<string, string>): boolean {
+    const sel = window.getSelection()
+    if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return false
+    const range = sel.getRangeAt(0)
+    const span = document.createElement('span')
+    for (const [k, v] of Object.entries(styleProps)) {
+        span.style.setProperty(k, v)
+    }
+    span.appendChild(range.extractContents())
+    range.insertNode(span)
+    // 再選択
+    sel.removeAllRanges()
+    const r = document.createRange()
+    r.selectNodeContents(span)
+    sel.addRange(r)
+    return true
+}
 
 type Props = {
     title: string
@@ -56,24 +100,42 @@ export default function TextBlock({
     onBoldChange, onItalicChange, onUnderlineChange, onStrikethroughChange,
 }: Props) {
     const [titleDraft, setTitleDraft] = useState(title)
-    const [contentDraft, setContentDraft] = useState(content)
     const lastTitleRef = useRef(title)
     const lastContentRef = useRef(content)
-    const taRef = useRef<HTMLTextAreaElement | null>(null)
+    const editorRef = useRef<HTMLDivElement | null>(null)
     const fileInputRef = useRef<HTMLInputElement | null>(null)
+
+    // 選択範囲の状態（B/I/U/S とハイライト色・サイズ・太さ）
+    const [selState, setSelState] = useState<{
+        bold: boolean; italic: boolean; underline: boolean; strikethrough: boolean;
+        color: string | null; fontSize: number | null; fontWeight: number | null;
+    }>({
+        bold: false, italic: false, underline: false, strikethrough: false,
+        color: null, fontSize: null, fontWeight: null,
+    })
 
     useEffect(() => {
         if (title !== lastTitleRef.current) { setTitleDraft(title); lastTitleRef.current = title }
     }, [title])
-    useEffect(() => {
-        if (content !== lastContentRef.current) { setContentDraft(content); lastContentRef.current = content }
-    }, [content])
 
+    // 外部の content 更新で editor の innerHTML を同期（初回マウント時 + props 更新時）
     useEffect(() => {
-        if (!taRef.current) return
-        taRef.current.style.height = 'auto'
-        taRef.current.style.height = `${Math.max(minHeight ?? 120, taRef.current.scrollHeight)}px`
-    }, [contentDraft, minHeight, fontSize])
+        if (!editorRef.current) return
+        if (content !== lastContentRef.current) {
+            editorRef.current.innerHTML = plainTextToHtml(content)
+            lastContentRef.current = content
+        }
+    }, [content])
+    // マウント直後に初期化（content が空文字でも実行されるよう別 useEffect）
+    useEffect(() => {
+        if (!editorRef.current) return
+        if (editorRef.current.innerHTML === '') {
+            editorRef.current.innerHTML = plainTextToHtml(content)
+            lastContentRef.current = content
+        }
+        // 初期化は1回だけ
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
 
     function commitTitle() {
         if (titleDraft !== lastTitleRef.current) {
@@ -82,10 +144,74 @@ export default function TextBlock({
         }
     }
     function commitContent() {
-        if (contentDraft !== lastContentRef.current) {
-            lastContentRef.current = contentDraft
-            onContentChange?.(contentDraft)
+        const html = editorRef.current?.innerHTML ?? ''
+        if (html !== lastContentRef.current) {
+            lastContentRef.current = html
+            onContentChange?.(html)
         }
+    }
+
+    // 選択範囲のスタイル状態を更新（toolbar の active 表示用）
+    const updateSelState = useCallback(() => {
+        if (!editorRef.current) return
+        // editor の中に選択がないなら何もしない
+        const sel = window.getSelection()
+        if (!sel || sel.rangeCount === 0) return
+        const anchor = sel.anchorNode
+        if (!anchor || !editorRef.current.contains(anchor)) return
+
+        const node = anchor.nodeType === Node.TEXT_NODE ? anchor.parentElement : (anchor as Element)
+        let cs: CSSStyleDeclaration | null = null
+        if (node && node instanceof Element) {
+            cs = window.getComputedStyle(node)
+        }
+        try {
+            setSelState({
+                bold: document.queryCommandState('bold'),
+                italic: document.queryCommandState('italic'),
+                underline: document.queryCommandState('underline'),
+                strikethrough: document.queryCommandState('strikeThrough'),
+                color: cs ? rgbStringToHex(cs.color) : null,
+                fontSize: cs ? Math.round(parseFloat(cs.fontSize)) : null,
+                fontWeight: cs ? Number(cs.fontWeight) || 400 : null,
+            })
+        } catch { /* execCommand 未対応の環境は無視 */ }
+    }, [])
+
+    useEffect(() => {
+        document.addEventListener('selectionchange', updateSelState)
+        return () => document.removeEventListener('selectionchange', updateSelState)
+    }, [updateSelState])
+
+    // execCommand 系のラッパー（styleWithCSS でインラインスタイルに）
+    function exec(cmd: string, value?: string) {
+        if (!editorRef.current) return
+        editorRef.current.focus()
+        try {
+            document.execCommand('styleWithCSS', false, 'true')
+            document.execCommand(cmd, false, value)
+        } catch { /* noop */ }
+        commitContent()
+        updateSelState()
+    }
+    function applyBold()          { exec('bold') }
+    function applyItalic()        { exec('italic') }
+    function applyUnderline()     { exec('underline') }
+    function applyStrikethrough() { exec('strikeThrough') }
+    function applyColor(c: string) { exec('foreColor', c) }
+    function applyFontSize(px: number) {
+        if (!editorRef.current) return
+        editorRef.current.focus()
+        wrapSelectionWith({ 'font-size': `${px}px` })
+        commitContent()
+        updateSelState()
+    }
+    function applyFontWeight(weight: number) {
+        if (!editorRef.current) return
+        editorRef.current.focus()
+        wrapSelectionWith({ 'font-weight': String(weight) })
+        commitContent()
+        updateSelState()
     }
 
     function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -186,48 +312,48 @@ export default function TextBlock({
                     {/* 寄せ（Canva 風：押下で left → center → right → left を循環） */}
                     <AlignCycleButton align={effectiveAlign} onChange={a => onAlignChange?.(a)} />
 
-                    {/* フォントサイズ（Canva 風: A/A アイコン押下でスライダー＋±ポップオーバー） */}
+                    {/* フォントサイズ（選択範囲に適用） */}
                     <FontSizeControl
-                        value={effectiveFontSize}
-                        onChange={v => onFontSizeChange?.(v)}
+                        value={selState.fontSize ?? effectiveFontSize}
+                        onChange={v => applyFontSize(v)}
                     />
 
-                    {/* 文字色（Canva 風: A の下に現在色のライン + ポップオーバーで色相スライダー＋SVピッカー＋プリセット） */}
+                    {/* 文字色（選択範囲に適用） */}
                     <ColorPickerControl
-                        value={effectiveColor}
-                        onChange={c => onColorChange?.(c)}
+                        value={selState.color ?? effectiveColor}
+                        onChange={c => applyColor(c)}
                     />
 
-                    {/* 太字 / 斜体 / 下線 / 取り消し線 */}
+                    {/* 太字 / 斜体 / 下線 / 取り消し線（選択範囲に適用） */}
                     <StyleToggleButton
-                        active={effectiveBold}
-                        onClick={() => onBoldChange?.(!effectiveBold)}
+                        active={selState.bold}
+                        onClick={applyBold}
                         title="太字"
                         style={{ fontWeight: 800 }}
                     >B</StyleToggleButton>
                     <StyleToggleButton
-                        active={effectiveItalic}
-                        onClick={() => onItalicChange?.(!effectiveItalic)}
+                        active={selState.italic}
+                        onClick={applyItalic}
                         title="斜体"
                         style={{ fontStyle: 'italic', fontFamily: 'serif', fontWeight: 700 }}
                     >I</StyleToggleButton>
                     <StyleToggleButton
-                        active={effectiveUnderline}
-                        onClick={() => onUnderlineChange?.(!effectiveUnderline)}
+                        active={selState.underline}
+                        onClick={applyUnderline}
                         title="下線"
                         style={{ textDecorationLine: 'underline', fontWeight: 700 }}
                     >U</StyleToggleButton>
                     <StyleToggleButton
-                        active={effectiveStrikethrough}
-                        onClick={() => onStrikethroughChange?.(!effectiveStrikethrough)}
+                        active={selState.strikethrough}
+                        onClick={applyStrikethrough}
                         title="取り消し線"
                         style={{ textDecorationLine: 'line-through', fontWeight: 700 }}
                     >S</StyleToggleButton>
 
-                    {/* フォント太さ */}
+                    {/* フォント太さ（選択範囲に適用） */}
                     <select
-                        value={effectiveFontWeight}
-                        onChange={e => onFontWeightChange?.(Number(e.target.value))}
+                        value={selState.fontWeight ?? effectiveFontWeight}
+                        onChange={e => applyFontWeight(Number(e.target.value))}
                         style={selectStyle}
                         title="太さ"
                     >
@@ -289,22 +415,33 @@ export default function TextBlock({
 
             <div>
                 {editable ? (
-                    <textarea
-                        ref={taRef}
-                        value={contentDraft}
-                        onChange={e => setContentDraft(e.target.value)}
+                    <div
+                        ref={editorRef}
+                        contentEditable
+                        suppressContentEditableWarning
                         onBlur={commitContent}
-                        placeholder="自由に入力できます..."
-                        style={{ ...contentBoxStyle, resize: 'none', outline: 'none' }}
+                        onKeyUp={updateSelState}
+                        onMouseUp={updateSelState}
+                        data-placeholder="自由に入力できます..."
+                        className="booklet-text-editor"
+                        style={{
+                            ...contentBoxStyle,
+                            outline: 'none',
+                            whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                        }}
                     />
                 ) : (
-                    <pre style={{
-                        ...contentBoxStyle,
-                        whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-                        margin: 0,
-                    }}>
-                        {content || <span style={{ color: theme.subText, opacity: 0.6 }}>（内容なし）</span>}
-                    </pre>
+                    <div
+                        ref={editorRef}
+                        style={{
+                            ...contentBoxStyle,
+                            whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                            margin: 0,
+                        }}
+                        // 閲覧モード：HTML を表示（owner のみが編集する想定。XSS リスクは公開機能実装時に
+                        // sanitize で対応する＝公開/非公開分離タスクと同時着手予定）
+                        dangerouslySetInnerHTML={{ __html: plainTextToHtml(content) || `<span style="color:${theme.subText};opacity:.6">（内容なし）</span>` }}
+                    />
                 )}
             </div>
         </div>

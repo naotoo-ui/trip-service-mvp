@@ -80,6 +80,10 @@ npx ts-node --compiler-options '{"module":"commonjs"}' scripts/check-supabase-us
 - スポット URL を印刷時に QR コード化するオプション（`config.showUrlQrCode`・qrcode.react）
 - 背表紙は装飾円のみ＋右下に「旅程ジェネレーター」表記
 - しおり設定モーダルを3セクション化（全体 / スマホPC表示用 / 印刷用）
+- **TextBlock を contentEditable + execCommand ベースに変更**（2026-06-04）。フォントサイズ・
+  文字色・太字・斜体・下線・取り消し線・フォント太さは**選択範囲のみに適用**される。
+  `content` 文字列は HTML（インライン `<span style>`・`<br>`）として保存。旧プレーンテキストは
+  `plainTextToHtml` で透過的に互換表示。寄せ（左/中/右）はブロック単位のまま
 
 **インフラ・基盤**
 - ハイブリッド AI ルーターを `src/lib/ai/client.ts` に内蔵化（旧 `@local-llm/client` の
@@ -105,6 +109,13 @@ npx ts-node --compiler-options '{"module":"commonjs"}' scripts/check-supabase-us
 ### ⏳ 未着手（中期：マネタイズ前の改善）
 
 - 旅程の公開/非公開設定（`trips.is_public`）
+- **しおりの公開/非公開・ブロック単位の公開可否**: 不特定多数へ公開可能にしつつ、
+  メモ等は公開時に非表示にしたい。実装案：
+    - しおり単位で「公開する」トグル
+    - 各ブロック（特に text / packing）に `private: boolean` フラグ
+    - 公開閲覧時は `private: true` のブロックを除外して描画
+    - 同時に **HTML サニタイズ**を導入（contentEditable で text.content が HTML 化したため、
+      公開時に他ユーザーが入力した HTML を表示する経路では DOMPurify 等で sanitize が必須）
 - 観光地画像の自動補完（Wikimedia Commons）
 - タグ機能 / SEOページ自動生成 / 人気ランキング（Phase 3）
 - PWA化・チェックリスト自動生成・しおり拡張（Phase 4）
