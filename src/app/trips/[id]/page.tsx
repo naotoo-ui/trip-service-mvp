@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { getTripByShareId } from '@/lib/db/trips'
 import ItineraryEditor from '@/components/trips/ItineraryEditor'
+import TripHeroBanner from '@/components/trips/TripHeroBanner'
 import TripViewTracker from '@/components/trips/TripViewTracker'
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
@@ -43,6 +44,10 @@ export default async function TripPage({
         ? edit === trip.edit_token
         : true
 
+    // 旅程内のスポット総数（ヘッダー表示用）
+    const spotCount = (trip.itinerary?.days ?? [])
+        .reduce((sum, d) => sum + (d.spots?.length ?? 0), 0)
+
     return (
         <div className="max-w-5xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
             <TripViewTracker
@@ -51,6 +56,12 @@ export default async function TripPage({
                 destination={trip.destination}
                 durationDays={trip.duration_days}
                 editToken={editable ? trip.edit_token : undefined}
+            />
+            <TripHeroBanner
+                title={trip.title}
+                destination={trip.destination}
+                durationDays={trip.duration_days}
+                spotCount={spotCount}
             />
             <ItineraryEditor
                 trip={trip}

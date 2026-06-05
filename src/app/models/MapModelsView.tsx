@@ -1,9 +1,12 @@
 'use client'
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { getDestinationEmoji } from '@/lib/destinationEmoji'
 import { getCoordsForDestination } from '@/lib/destinationCoords'
+import { getDestinationImage } from '@/lib/destinationImages'
 import MapView from './MapView'
+import PlanFilters, { EMPTY_FILTER, tripMatchesFilter, type FilterState } from './PlanFilters'
 import type { Trip } from '@/types'
 
 type TripBrief = Pick<Trip, 'share_id' | 'title' | 'destination' | 'duration_days' | 'wishes'>
@@ -18,6 +21,7 @@ export default function MapModelsView({ trips }: Props) {
     const [selectedKeys, setSelectedKeys] = useState<Set<string>>(EMPTY_SET)
     const [keyword, setKeyword] = useState('')
     const [visibleCount, setVisibleCount] = useState(50)
+    const [filter, setFilter] = useState<FilterState>(EMPTY_FILTER)
 
     const { domesticMarkers, overseasMarkers, tripsByKey } = useMemo(() => {
         const groups = new Map<string, { name: string; coord: [number, number]; isOverseas: boolean; trips: TripBrief[] }>()
@@ -55,6 +59,14 @@ export default function MapModelsView({ trips }: Props) {
             const keySet = new Set(currentMarkers.map(m => m.key))
             pool = trips.filter(t => keySet.has(t.destination))
         }
+        // チップフィルタ適用
+        const hasFilter = filter.themes.size + filter.durations.size + filter.origins.size > 0
+        if (hasFilter) {
+            pool = pool.filter(t => tripMatchesFilter({
+                title: t.title, wishes: t.wishes,
+                duration_days: t.duration_days, filter,
+            }))
+        }
         if (keyword.trim()) {
             const k = keyword.trim().toLowerCase()
             pool = pool.filter(t =>
@@ -64,7 +76,7 @@ export default function MapModelsView({ trips }: Props) {
             )
         }
         return pool
-    }, [selectedKeys, tripsByKey, currentMarkers, trips, keyword])
+    }, [selectedKeys, tripsByKey, currentMarkers, trips, keyword, filter])
 
     const visibleTrips = filteredTrips.slice(0, visibleCount)
 
@@ -72,6 +84,7 @@ export default function MapModelsView({ trips }: Props) {
         setTab(t)
         setSelectedKeys(EMPTY_SET)
         setVisibleCount(50)
+        setFilter(EMPTY_FILTER)
     }
 
     function handleSelectKeys(keys: Set<string>) {
@@ -139,6 +152,11 @@ export default function MapModelsView({ trips }: Props) {
                 selectedKeys={selectedKeys}
                 onSelectKeys={handleSelectKeys}
             />
+
+            {/* チップフィルタ */}
+            <div style={{ marginTop: 16 }}>
+                <PlanFilters filter={filter} onChange={f => { setFilter(f); setVisibleCount(50) }} />
+            </div>
 
             <div id="plans-section" style={{
                 marginTop: 16, marginBottom: 14,
@@ -229,39 +247,58 @@ export default function MapModelsView({ trips }: Props) {
                     border: '1px solid #f0f0f0',
                     overflow: 'hidden',
                 }}>
-                    {visibleTrips.map((trip, idx) => (
-                        <Link
-                            key={trip.share_id}
-                            href={`/trips/${trip.share_id}`}
-                            style={{
-                                display: 'flex', alignItems: 'center', gap: 14,
-                                padding: '14px 18px',
-                                borderBottom: idx < visibleTrips.length - 1 ? '1px solid #f3f4f6' : 'none',
-                                textDecoration: 'none', color: 'inherit',
-                                transition: 'background 0.15s',
-                            }}
-                            className="model-row"
-                        >
-                            <span style={{ fontSize: 26, lineHeight: 1, flexShrink: 0 }}>
-                                {getDestinationEmoji(trip.destination)}
-                            </span>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                                <p style={{
-                                    fontSize: 14, fontWeight: 700, color: '#111827',
-                                    margin: '0 0 3px',
-                                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                                }}>{trip.title}</p>
-                                <p style={{
-                                    fontSize: 12, color: '#6b7280', margin: 0,
-                                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    {visibleTrips.map((trip, idx) => {
+                        const img = getDestinationImage(trip.destination)
+                        return (
+                            <Link
+                                key={trip.share_id}
+                                href={`/trips/${trip.share_id}`}
+                                style={{
+                                    display: 'flex', alignItems: 'center', gap: 12,
+                                    padding: '10px 14px',
+                                    borderBottom: idx < visibleTrips.length - 1 ? '1px solid #f3f4f6' : 'none',
+                                    textDecoration: 'none', color: 'inherit',
+                                    transition: 'background 0.15s',
+                                }}
+                                className="model-row"
+                            >
+                                <div style={{
+                                    width: 58, height: 58, borderRadius: 10,
+                                    overflow: 'hidden', flexShrink: 0,
+                                    background: img ? '#e5e7eb' : '#eef2ff',
+                                    position: 'relative',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
                                 }}>
-                                    📍 {trip.destination} ・ {trip.duration_days}日間
-                                    {trip.wishes ? ` ・ ${trip.wishes}` : ''}
-                                </p>
-                            </div>
-                            <span style={{ fontSize: 18, color: '#cbd5e1', flexShrink: 0 }}>›</span>
-                        </Link>
-                    ))}
+                                    {img ? (
+                                        <Image
+                                            src={img}
+                                            alt={trip.destination}
+                                            fill
+                                            sizes="58px"
+                                            style={{ objectFit: 'cover' }}
+                                        />
+                                    ) : (
+                                        <span style={{ fontSize: 28 }}>{getDestinationEmoji(trip.destination)}</span>
+                                    )}
+                                </div>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <p style={{
+                                        fontSize: 14, fontWeight: 700, color: '#111827',
+                                        margin: '0 0 3px',
+                                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                    }}>{trip.title}</p>
+                                    <p style={{
+                                        fontSize: 12, color: '#6b7280', margin: 0,
+                                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                    }}>
+                                        📍 {trip.destination} ・ {trip.duration_days}日間
+                                        {trip.wishes ? ` ・ ${trip.wishes}` : ''}
+                                    </p>
+                                </div>
+                                <span style={{ fontSize: 18, color: '#cbd5e1', flexShrink: 0 }}>›</span>
+                            </Link>
+                        )
+                    })}
                 </div>
             )}
 
