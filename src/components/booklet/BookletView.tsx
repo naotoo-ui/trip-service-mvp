@@ -318,22 +318,29 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
     }
 
     // ─── プリミティブブロック更新 ───
+    // 同じイベント内で連続呼び出し（例：resetSpacing が content/letterSpacing/lineHeight を
+    // 3回連続で更新するケース）でも race しないよう、必ず最新 state 起点で更新する
+    // functional setState 形式にする。
     function updatePrimitive(id: string, updater: (b: PrimitiveBlock) => PrimitiveBlock) {
-        if (!config) return
-        const items = config.items.map(item => {
-            if (item.kind === 'composite') {
-                return { ...item, blocks: item.blocks.map(b => b.id === id ? updater(b) : b) }
-            }
-            if (item.kind === 'day') {
-                return {
-                    ...item,
-                    blocksAbove: item.blocksAbove.map(b => b.id === id ? updater(b) : b),
-                    blocksBelow: item.blocksBelow.map(b => b.id === id ? updater(b) : b),
+        setConfig(prev => {
+            if (!prev) return prev
+            const items = prev.items.map(item => {
+                if (item.kind === 'composite') {
+                    return { ...item, blocks: item.blocks.map(b => b.id === id ? updater(b) : b) }
                 }
-            }
-            return item
+                if (item.kind === 'day') {
+                    return {
+                        ...item,
+                        blocksAbove: item.blocksAbove.map(b => b.id === id ? updater(b) : b),
+                        blocksBelow: item.blocksBelow.map(b => b.id === id ? updater(b) : b),
+                    }
+                }
+                return item
+            })
+            const next = { ...prev, items }
+            saveBookletConfig(trip.share_id, next)
+            return next
         })
-        updateConfig({ ...config, items })
     }
 
     // ─── プリミティブブロック削除（composite が空になったらページごと削除） ───
