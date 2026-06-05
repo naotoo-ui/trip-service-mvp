@@ -1311,17 +1311,15 @@ function SpacingControl({ letterSpacingEm, lineHeightMultiplier, onLetterSpacing
                 title="間隔"
                 style={{
                     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                    gap: 4, height: 28, padding: '0 10px',
+                    width: 32, height: 28, padding: 0,
                     border: '1px solid #d1d5db', borderRadius: 6,
                     background: open ? '#eff6ff' : 'white',
                     color: '#374151',
                     cursor: 'pointer',
                     fontFamily: 'inherit',
-                    fontSize: 12, fontWeight: 600,
                 }}
             >
                 <SpacingIcon />
-                <span>間隔</span>
             </button>
 
             {open && typeof document !== 'undefined' && createPortal(
