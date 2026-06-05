@@ -489,14 +489,20 @@ export default function TextBlock({
                         onReset={resetSpacing}
                     />
 
-                    {/* 画像挿入 */}
+                    {/* 画像アップロード（アイコンのみ） */}
                     <button
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
-                        style={toolButtonBaseStyle}
-                        title="画像を挿入"
+                        title="画像をアップロード"
+                        style={{
+                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                            width: 32, height: 28, padding: 0,
+                            border: '1px solid #d1d5db', borderRadius: 6,
+                            background: 'white', color: '#374151',
+                            cursor: 'pointer',
+                        }}
                     >
-                        🖼 画像
+                        <ImageUploadIcon />
                     </button>
                     <input
                         ref={fileInputRef}
@@ -509,9 +515,17 @@ export default function TextBlock({
                         <button
                             type="button"
                             onClick={handleRemoveImage}
-                            style={{ ...toolButtonBaseStyle, color: '#dc2626', borderColor: '#fca5a5' }}
                             title="画像を削除"
-                        >× 画像削除</button>
+                            style={{
+                                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                width: 32, height: 28, padding: 0,
+                                border: '1px solid #fca5a5', borderRadius: 6,
+                                background: '#fef2f2', color: '#dc2626',
+                                cursor: 'pointer',
+                            }}
+                        >
+                            <ImageRemoveIcon />
+                        </button>
                     )}
 
                     {/* 枠線表示切替 */}
@@ -1399,6 +1413,33 @@ function SpacingControl({ letterSpacingEm, lineHeightMultiplier, onLetterSpacing
                 document.body,
             )}
         </>
+    )
+}
+
+// 画像アップロード：山＋太陽の写真フレーム＋右下の↑（アップロード）
+function ImageUploadIcon() {
+    return (
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
+            {/* 額（写真フレーム） */}
+            <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" />
+            {/* 太陽 */}
+            <circle cx="5" cy="6" r="1.2" fill="currentColor" stroke="none" />
+            {/* 山（2つ） */}
+            <path d="M2 12 L6 7.5 L9 11 L11 9 L14 12" strokeLinejoin="round" strokeLinecap="round" />
+        </svg>
+    )
+}
+
+// 画像削除：写真フレーム＋斜線（×は隣の色で）
+function ImageRemoveIcon() {
+    return (
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
+            <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" />
+            <circle cx="5" cy="6" r="1.2" fill="currentColor" stroke="none" />
+            <path d="M2 12 L6 7.5 L9 11 L11 9 L14 12" strokeLinejoin="round" strokeLinecap="round" />
+            {/* 斜線で削除を示す */}
+            <path d="M2.5 3 L13.5 13" strokeWidth="1.6" strokeLinecap="round" />
+        </svg>
     )
 }
 
