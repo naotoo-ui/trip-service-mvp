@@ -156,15 +156,24 @@ export default function MapView({ kind, markers, selectedKeys, onSelectKeys }: P
         return result
     }, [placedMarkers, zoom])
 
-    const onWheel = useCallback((e: React.WheelEvent) => {
-        e.preventDefault()
-        if (Math.abs(e.deltaY) < 0.5) return
-        // delta を正規化（trackpad の小刻みイベント・mouse wheel の大きいイベント
-        // どちらでも体感が揃うように上限 1 にクランプ）
-        const normalized = Math.sign(e.deltaY) * Math.min(1, Math.abs(e.deltaY) / 100)
-        // 緩やかなズーム：1ノッチで約 22% 程度、小さい delta はそれに比例
-        const factor = Math.exp(-normalized * 0.22)
-        setZoom(z => Math.max(0.6, Math.min(8, z * factor)))
+    // wheel イベントは passive にできるよう useEffect で手動 addEventListener する。
+    // - Cmd/Ctrl 押下時、または trackpad pinch（ブラウザが ctrlKey を立てる）時のみズーム
+    // - 通常のスクロールはページに任せる（preventDefault しない）
+    useEffect(() => {
+        const el = containerRef.current
+        if (!el) return
+        function onWheelNative(e: WheelEvent) {
+            const wantZoom = e.metaKey || e.ctrlKey
+            if (!wantZoom) return  // 通常スクロールは妨げない
+            e.preventDefault()
+            if (Math.abs(e.deltaY) < 0.5) return
+            const normalized = Math.sign(e.deltaY) * Math.min(1, Math.abs(e.deltaY) / 100)
+            const factor = Math.exp(-normalized * 0.25)
+            setZoom(z => Math.max(0.6, Math.min(8, z * factor)))
+        }
+        // passive: false を明示しないと preventDefault できない
+        el.addEventListener('wheel', onWheelNative, { passive: false })
+        return () => el.removeEventListener('wheel', onWheelNative)
     }, [])
 
     const onPointerDown = useCallback((e: React.PointerEvent) => {
@@ -229,7 +238,6 @@ export default function MapView({ kind, markers, selectedKeys, onSelectKeys }: P
                 cursor: dragRef.current ? 'grabbing' : 'grab',
                 boxShadow: '0 1px 4px rgba(15,23,42,0.04)',
             }}
-            onWheel={onWheel}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
@@ -515,7 +523,7 @@ export default function MapView({ kind, markers, selectedKeys, onSelectKeys }: P
                 fontSize: 10, color: 'rgba(15,23,42,0.5)',
                 background: 'rgba(255,255,255,0.7)',
                 padding: '4px 8px', borderRadius: 6,
-            }}>ドラッグでパン・ホイールで拡大縮小</div>
+            }}>ドラッグでパン ・ <kbd style={kbdStyle}>⌘</kbd>/<kbd style={kbdStyle}>Ctrl</kbd> + ホイールでズーム</div>
         </div>
     )
 }
@@ -526,6 +534,18 @@ const ctrlButtonStyle: React.CSSProperties = {
     color: '#0f172a',
     fontSize: 18, fontWeight: 700,
     cursor: 'pointer', borderRadius: 6,
+}
+
+const kbdStyle: React.CSSProperties = {
+    display: 'inline-block',
+    padding: '1px 5px',
+    borderRadius: 4,
+    background: 'rgba(15,23,42,0.06)',
+    border: '1px solid rgba(15,23,42,0.12)',
+    fontSize: 10, fontWeight: 700,
+    fontFamily: 'inherit',
+    color: '#0f172a',
+    lineHeight: 1.2,
 }
 
 type Palette = {
