@@ -183,6 +183,24 @@ export default function MapView({ kind, markers, selectedKeys, onSelectKeys, ext
         return result
     }, [placedMarkers, zoom])
 
+    // 「画面中央を固定したズーム」のヘルパー：
+    // 現状 pan/zoom の transform は `translate(pan) scale(zoom)` (origin=中央) なので、
+    // ある SVG 座標 (ux, uy) は screen 上で
+    //   sx = (ux - cx) * z + cx + px
+    // に来る。画面中央 (sx, sy) = (cx, cy) に対応する SVG 点を (ux₀, uy₀) とすると、
+    //   ux₀ - cx = -px / z
+    // ズームを z → z' に変えても画面中央が同じ SVG 点を指すには、
+    //   cx = (ux₀ - cx) * z' + cx + px'  →  px' = px * (z' / z)
+    // pan を ratio = z'/z で同方向に伸縮すればよい。
+    const zoomTowardCenter = useCallback((factor: number) => {
+        setZoom(z => {
+            const next = Math.max(0.6, Math.min(8, z * factor))
+            const ratio = next / z
+            if (ratio !== 1) setPan(p => [p[0] * ratio, p[1] * ratio])
+            return next
+        })
+    }, [])
+
     // wheel イベントは passive にできるよう useEffect で手動 addEventListener する。
     // - Cmd/Ctrl 押下時、または trackpad pinch（ブラウザが ctrlKey を立てる）時のみズーム
     // - 通常のスクロールはページに任せる（preventDefault しない）
@@ -196,12 +214,12 @@ export default function MapView({ kind, markers, selectedKeys, onSelectKeys, ext
             if (Math.abs(e.deltaY) < 0.5) return
             const normalized = Math.sign(e.deltaY) * Math.min(1, Math.abs(e.deltaY) / 100)
             const factor = Math.exp(-normalized * 0.25)
-            setZoom(z => Math.max(0.6, Math.min(8, z * factor)))
+            zoomTowardCenter(factor)
         }
         // passive: false を明示しないと preventDefault できない
         el.addEventListener('wheel', onWheelNative, { passive: false })
         return () => el.removeEventListener('wheel', onWheelNative)
-    }, [])
+    }, [zoomTowardCenter])
 
     const onPointerDown = useCallback((e: React.PointerEvent) => {
         const target = e.currentTarget
@@ -314,8 +332,8 @@ export default function MapView({ kind, markers, selectedKeys, onSelectKeys, ext
                 borderRadius: 10, padding: 4,
                 boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
             }}>
-                <button type="button" onClick={() => setZoom(z => Math.min(8, z * 1.3))} title="拡大" style={ctrlButtonStyle}>＋</button>
-                <button type="button" onClick={() => setZoom(z => Math.max(0.6, z / 1.3))} title="縮小" style={ctrlButtonStyle}>−</button>
+                <button type="button" onClick={() => zoomTowardCenter(1.3)} title="拡大" style={ctrlButtonStyle}>＋</button>
+                <button type="button" onClick={() => zoomTowardCenter(1 / 1.3)} title="縮小" style={ctrlButtonStyle}>−</button>
                 <button type="button" onClick={resetView} title="表示をリセット" style={{ ...ctrlButtonStyle, fontSize: 11 }}>⌂</button>
             </div>
 

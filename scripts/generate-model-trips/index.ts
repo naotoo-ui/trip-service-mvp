@@ -48,11 +48,20 @@ function expandVariantsFromRoute(route: Route): VariantSpec[] {
     // バリエーション総数の上限（人気度から）
     const maxVariants = route.popularity
 
+    // 海外 route（最初の leg が日本以外）は出発地を東京のみに絞る。
+    // 理由：海外行きは国際線フライトの時間が圧倒的に支配的で、東京/大阪/名古屋発
+    //       の差分は誤差レベル。出発地違いの variant は冗長で UX を悪化させる。
+    const firstDest = ALL_DESTINATIONS.get(route.legs[0]?.destinationId ?? '')
+    const isOverseas = firstDest && firstDest.country !== '日本'
+    const origins = isOverseas
+        ? route.suitableOrigins.filter(o => o === '東京')
+        : route.suitableOrigins
+
     // 候補の組み合わせを全列挙
     const candidates: VariantSpec[] = []
     for (const theme of route.suitableThemes) {
         for (const dur of route.durations) {
-            for (const origin of route.suitableOrigins) {
+            for (const origin of origins) {
                 candidates.push({ route, theme, origin, duration_days: dur })
             }
             // 出発地なしバージョン（汎用）も入れる

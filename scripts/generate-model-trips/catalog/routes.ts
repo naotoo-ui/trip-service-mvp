@@ -9,6 +9,7 @@ import { ROUTES_EXTRA } from './routes-extra'
 import { ROUTES_EXTRA_2 } from './routes-extra-2'
 import { ROUTES_EXTRA_3 } from './routes-extra-3'
 import { ROUTES_EXTRA_4 } from './routes-extra-4'
+import { ROUTES_EXTRA_5 } from './routes-extra-5'
 
 export const ALL_ROUTES: Route[] = [
     ...ROUTES_DOMESTIC_SINGLE,
@@ -21,4 +22,5 @@ export const ALL_ROUTES: Route[] = [
     ...ROUTES_EXTRA_2,
     ...ROUTES_EXTRA_3,
     ...ROUTES_EXTRA_4,
+    ...ROUTES_EXTRA_5,
 ]
