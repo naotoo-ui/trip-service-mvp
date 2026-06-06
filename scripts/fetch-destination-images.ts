@@ -492,7 +492,10 @@ async function fetchWikiImage(article: string): Promise<string | null> {
 }
 
 // Wikimedia の thumbnail URL を望むサイズに調整
-// 例: .../320px-XXX.jpg → .../800px-XXX.jpg
+// 例: .../320px-XXX.jpg → .../500px-XXX.jpg
+// 注意: Wikimedia は標準サムネサイズ (20/40/60/120/250/330/500/960/1280/1920/3840)
+// 以外のホットリンクを 400 で拒否する。
+// https://www.mediawiki.org/wiki/Common_thumbnail_sizes
 function resizeUrl(url: string, sizePx: number): string {
     return url.replace(/\/\d+px-/, `/${sizePx}px-`)
 }
@@ -507,8 +510,8 @@ async function main() {
         process.stdout.write(`  ${dest} → ${article} ... `)
         const url = await fetchWikiImage(article)
         if (url) {
-            // 800px に統一（カード用に十分・モバイル軽量）
-            result[dest] = resizeUrl(url, 800)
+            // 500px に統一（Wikimedia 標準サイズ・カード用に十分）
+            result[dest] = resizeUrl(url, 500)
             console.log('✓')
             success++
         } else {
