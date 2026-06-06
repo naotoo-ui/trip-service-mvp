@@ -267,7 +267,7 @@ export default function MapModelsView({ trips }: Props) {
     return (
         <div style={{ maxWidth: 1280, margin: '0 auto', padding: '24px 16px 80px' }}>
             {/* ヒーロー */}
-            <div style={{
+            <div className="hero-banner" style={{
                 background: 'linear-gradient(135deg, #7c3aed 0%, #ec4899 100%)',
                 borderRadius: 20, padding: '28px 26px 24px', color: 'white',
                 marginBottom: 14, position: 'relative', overflow: 'hidden',
@@ -672,6 +672,9 @@ export default function MapModelsView({ trips }: Props) {
                 @keyframes toast-pop {
                     from { opacity: 0; transform: translate(-50%, 10px); }
                     to { opacity: 1; transform: translate(-50%, 0); }
+                }
+                @media (max-width: 640px) {
+                    .hero-banner { padding: 20px 18px 16px; border-radius: 16px; }
                 }
                 .scroll-top-btn {
                     position: fixed;

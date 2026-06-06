@@ -92,6 +92,10 @@ export default function PopularDestinations({ title, items, selectedKey, onPick,
                     background: linear-gradient(135deg,#fef3c7,#fde68a);
                     display: flex; align-items: center; justify-content: center;
                 }
+                @media (max-width: 640px) {
+                    .popular-item { width: 96px; }
+                    .popular-thumb { height: 70px; }
+                }
                 .popular-count {
                     position: absolute;
                     bottom: 5px; right: 5px;
