@@ -191,12 +191,12 @@ function Chip({ active, onClick, children }: {
             onClick={onClick}
             style={{
                 display: 'inline-flex', alignItems: 'center',
-                padding: '5px 12px',
+                padding: '4px 10px',
                 borderRadius: 99,
                 border: active ? '1.5px solid #7c3aed' : '1.5px solid #e5e7eb',
                 background: active ? '#ede9fe' : 'white',
                 color: active ? '#6b21a8' : '#475569',
-                fontSize: 12, fontWeight: 600,
+                fontSize: 11, fontWeight: 600,
                 cursor: 'pointer',
                 whiteSpace: 'nowrap',
                 transition: 'all 0.15s',

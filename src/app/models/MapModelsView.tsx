@@ -73,6 +73,33 @@ export default function MapModelsView({ trips }: Props) {
         return () => window.removeEventListener('scroll', onScroll)
     }, [])
 
+    // キーボードショートカット: / で検索フォーカス、g/l でビュー切替、Esc で解除
+    useEffect(() => {
+        function isTyping(): boolean {
+            const a = document.activeElement
+            if (!a) return false
+            const tag = a.tagName
+            return tag === 'INPUT' || tag === 'TEXTAREA' || (a as HTMLElement).isContentEditable
+        }
+        function onKey(e: KeyboardEvent) {
+            if (e.key === '/' && !isTyping()) {
+                e.preventDefault()
+                const el = document.querySelector<HTMLInputElement>('input[type="search"]')
+                el?.focus()
+                return
+            }
+            if (isTyping()) return
+            if (e.key === 'g') setView('grid')
+            else if (e.key === 'l') setView('list')
+            else if (e.key === 'Escape') {
+                setSelectedKeys(EMPTY_SET)
+                setMobileFilterOpen(false)
+            }
+        }
+        window.addEventListener('keydown', onKey)
+        return () => window.removeEventListener('keydown', onKey)
+    }, [])
+
     // localStorage から view 設定を復元（URL 優先・URL なしの場合のみ localStorage）
     useEffect(() => {
         if (searchParams.get('view')) return
@@ -312,10 +339,12 @@ export default function MapModelsView({ trips }: Props) {
                 width: 'fit-content',
             }}>
                 <TabButton active={tab === 'domestic'} onClick={() => changeTab('domestic')}>
-                    🇯🇵 国内 <span style={{ opacity: 0.6, marginLeft: 4 }}>{domesticMarkers.length}</span>
+                    🇯🇵 国内
+                    <TabCountBadge active={tab === 'domestic'}>{domesticMarkers.length}</TabCountBadge>
                 </TabButton>
                 <TabButton active={tab === 'overseas'} onClick={() => changeTab('overseas')}>
-                    🌏 海外 <span style={{ opacity: 0.6, marginLeft: 4 }}>{overseasMarkers.length}</span>
+                    🌏 海外
+                    <TabCountBadge active={tab === 'overseas'}>{overseasMarkers.length}</TabCountBadge>
                 </TabButton>
             </div>
 
@@ -452,7 +481,7 @@ export default function MapModelsView({ trips }: Props) {
                         type="search"
                         value={keyword}
                         onChange={e => { setKeyword(e.target.value); setVisibleCount(60) }}
-                        placeholder="🔎 キーワード検索（例：グルメ・絶景・家族）"
+                        placeholder="🔎 キーワード検索  (/ でフォーカス)"
                         style={{
                             width: '100%',
                             padding: '9px 36px 9px 14px', borderRadius: 10,
@@ -684,6 +713,7 @@ function TabButton({ active, onClick, children }: {
             type="button"
             onClick={onClick}
             style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
                 padding: '9px 18px',
                 fontSize: 14, fontWeight: 700,
                 color: active ? '#7c3aed' : '#64748b',
@@ -695,6 +725,19 @@ function TabButton({ active, onClick, children }: {
                 transition: 'all 0.15s',
             }}
         >{children}</button>
+    )
+}
+
+function TabCountBadge({ active, children }: { active: boolean; children: React.ReactNode }) {
+    return (
+        <span style={{
+            padding: '1px 7px',
+            borderRadius: 99,
+            background: active ? '#ede9fe' : 'rgba(15,23,42,0.06)',
+            color: active ? '#6b21a8' : '#64748b',
+            fontSize: 11, fontWeight: 800,
+            fontVariantNumeric: 'tabular-nums',
+        }}>{children}</span>
     )
 }
 
