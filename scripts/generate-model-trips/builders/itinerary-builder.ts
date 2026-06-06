@@ -557,8 +557,14 @@ export function buildRouteItinerary(
     }
 
     // 中身チェック
-    const isOverseasWithOrigin = firstDest.country !== '日本' && !!origin
-    const allowedEmpty = isOverseasWithOrigin ? 2 : 1
+    // 海外ルート（特に1〜2都市の長日数旅程）は、現地でゆっくり過ごす空き日があっても
+    // 自然なので緩めに。国内は密度高めを維持。
+    const isOverseas = firstDest.country !== '日本'
+    // 海外は移動日と現地ゆっくり日を考慮し、コンテンツがある日数が
+    // 「総日数の半分以上」あれば成立とする。
+    const allowedEmpty = isOverseas
+        ? Math.max(3, Math.ceil(totalDays / 2))
+        : 1
     const daysWithContent = days.filter(d => d.spots.length > 0).length
     if (daysWithContent < totalDays - allowedEmpty) return null
 
