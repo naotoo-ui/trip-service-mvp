@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import { getModelTrips } from '@/lib/db/trips'
 import MapModelsView from './MapModelsView'
@@ -24,5 +25,9 @@ export default async function ModelsPage() {
         wishes: t.wishes,
     }))
 
-    return <MapModelsView trips={trips} />
+    return (
+        <Suspense fallback={null}>
+            <MapModelsView trips={trips} />
+        </Suspense>
+    )
 }

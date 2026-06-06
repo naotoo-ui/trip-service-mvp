@@ -1,5 +1,6 @@
 'use client'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { getDestinationEmoji } from '@/lib/destinationEmoji'
 import { getCoordsForDestination } from '@/lib/destinationCoords'
 import MapView from './MapView'
@@ -16,19 +17,55 @@ type TabKind = 'domestic' | 'overseas'
 const EMPTY_SET: Set<string> = new Set()
 
 export default function MapModelsView({ trips }: Props) {
-    const [tab, setTab] = useState<TabKind>('domestic')
-    const [selectedKeys, setSelectedKeys] = useState<Set<string>>(EMPTY_SET)
-    const [keyword, setKeyword] = useState('')
+    const router = useRouter()
+    const pathname = usePathname()
+    const searchParams = useSearchParams()
+
+    // 初期状態を URL から復元
+    const initialTab: TabKind = searchParams.get('tab') === 'overseas' ? 'overseas' : 'domestic'
+    const initialTheme = searchParams.get('theme')
+    const initialView: ViewMode = searchParams.get('view') === 'list' ? 'list' : 'grid'
+    const initialSort: SortKey = (() => {
+        const s = searchParams.get('sort')
+        if (s === 'duration_asc' || s === 'duration_desc' || s === 'title' || s === 'recommended') return s
+        return 'recommended'
+    })()
+    const initialQ = searchParams.get('q') ?? ''
+    const initialDest = searchParams.get('dest')
+
+    const [tab, setTab] = useState<TabKind>(initialTab)
+    const [selectedKeys, setSelectedKeys] = useState<Set<string>>(
+        initialDest ? new Set([initialDest]) : EMPTY_SET
+    )
+    const [keyword, setKeyword] = useState(initialQ)
     const [visibleCount, setVisibleCount] = useState(60)
-    const [filter, setFilter] = useState<FilterState>(EMPTY_FILTER)
-    const [sort, setSort] = useState<SortKey>('recommended')
-    const [view, setView] = useState<ViewMode>('grid')
+    const [filter, setFilter] = useState<FilterState>(() => {
+        if (initialTheme && /^(sg|gm|np|on|hs|cp|fm|wh|bc|cherry|autumn)$/.test(initialTheme)) {
+            return { ...EMPTY_FILTER, themes: new Set([initialTheme as ThemeFilter]) }
+        }
+        return EMPTY_FILTER
+    })
+    const [sort, setSort] = useState<SortKey>(initialSort)
+    const [view, setView] = useState<ViewMode>(initialView)
     const [hoverKey, setHoverKey] = useState<string | null>(null)
     const [showFavoritesOnly, setShowFavoritesOnly] = useState(false)
     const [mobileFilterOpen, setMobileFilterOpen] = useState(false)
     const [showScrollTop, setShowScrollTop] = useState(false)
+    const [shareToast, setShareToast] = useState<string | null>(null)
 
     const { has: isFavorited, toggle: toggleFavorite, favorites } = useFavorites()
+
+    async function handleShare() {
+        if (typeof window === 'undefined') return
+        const url = window.location.href
+        try {
+            await navigator.clipboard.writeText(url)
+            setShareToast('現在の条件のリンクをコピーしました')
+        } catch {
+            setShareToast('リンクのコピーに失敗しました')
+        }
+        setTimeout(() => setShareToast(null), 2400)
+    }
 
     useEffect(() => {
         const onScroll = () => setShowScrollTop(window.scrollY > 600)
@@ -36,14 +73,33 @@ export default function MapModelsView({ trips }: Props) {
         return () => window.removeEventListener('scroll', onScroll)
     }, [])
 
-    // localStorage から view 設定を復元
+    // localStorage から view 設定を復元（URL 優先・URL なしの場合のみ localStorage）
     useEffect(() => {
+        if (searchParams.get('view')) return
         const v = typeof window !== 'undefined' ? window.localStorage.getItem('tripservice.models.view') : null
         if (v === 'grid' || v === 'list') setView(v)
-    }, [])
+    }, [searchParams])
     useEffect(() => {
         if (typeof window !== 'undefined') window.localStorage.setItem('tripservice.models.view', view)
     }, [view])
+
+    // URL クエリへ書き戻し（共有可能リンク）
+    const isFirstRender = useRef(true)
+    useEffect(() => {
+        if (isFirstRender.current) {
+            isFirstRender.current = false
+            return
+        }
+        const params = new URLSearchParams()
+        if (tab !== 'domestic') params.set('tab', tab)
+        if (filter.themes.size === 1) params.set('theme', Array.from(filter.themes)[0])
+        if (view !== 'grid') params.set('view', view)
+        if (sort !== 'recommended') params.set('sort', sort)
+        if (keyword.trim()) params.set('q', keyword.trim())
+        if (selectedKeys.size === 1) params.set('dest', Array.from(selectedKeys)[0])
+        const qs = params.toString()
+        router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
+    }, [tab, filter.themes, view, sort, keyword, selectedKeys, router, pathname])
 
     const { tripsByKey, destMetaByKey, popularityByDest } = useMemo(() => {
         const groups = new Map<string, { name: string; coord: [number, number]; isOverseas: boolean; trips: TripBrief[] }>()
@@ -194,18 +250,49 @@ export default function MapModelsView({ trips }: Props) {
                     width: 200, height: 200, borderRadius: '50%',
                     background: 'rgba(255,255,255,0.08)',
                 }} />
-                <div style={{ position: 'relative', zIndex: 1 }}>
-                    <p style={{
-                        fontSize: 11, fontWeight: 700, letterSpacing: '0.15em',
-                        textTransform: 'uppercase', color: '#fce7f3', margin: '0 0 8px',
-                    }}>Curated Model Plans</p>
-                    <h1 style={{
-                        fontSize: 'clamp(22px, 4vw, 30px)', fontWeight: 800,
-                        lineHeight: 1.2, margin: '0 0 6px',
-                    }}>あなたの次の旅、ここから始めよう</h1>
-                    <p style={{ fontSize: 13, color: '#fce7f3', margin: 0, maxWidth: 600 }}>
-                        {trips.length} の厳選プランから、地図・テーマ・日数で理想の旅を見つける。
-                    </p>
+                <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'flex-start', gap: 16 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{
+                            fontSize: 11, fontWeight: 700, letterSpacing: '0.15em',
+                            textTransform: 'uppercase', color: '#fce7f3', margin: '0 0 8px',
+                        }}>Curated Model Plans</p>
+                        <h1 style={{
+                            fontSize: 'clamp(22px, 4vw, 30px)', fontWeight: 800,
+                            lineHeight: 1.2, margin: '0 0 6px',
+                        }}>あなたの次の旅、ここから始めよう</h1>
+                        <p style={{ fontSize: 13, color: '#fce7f3', margin: 0, maxWidth: 600 }}>
+                            {trips.length} の厳選プランから、地図・テーマ・日数で理想の旅を見つける。
+                        </p>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={handleShare}
+                        aria-label="現在の条件のリンクを共有"
+                        style={{
+                            flexShrink: 0,
+                            display: 'inline-flex', alignItems: 'center', gap: 6,
+                            background: 'rgba(255,255,255,0.18)',
+                            color: 'white',
+                            border: '1px solid rgba(255,255,255,0.3)',
+                            padding: '7px 13px',
+                            borderRadius: 99,
+                            fontSize: 12, fontWeight: 700,
+                            cursor: 'pointer',
+                            backdropFilter: 'blur(8px)',
+                            transition: 'background 0.15s',
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.28)' }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.18)' }}
+                    >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                            <circle cx="18" cy="5" r="3" />
+                            <circle cx="6" cy="12" r="3" />
+                            <circle cx="18" cy="19" r="3" />
+                            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+                            <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+                        </svg>
+                        シェア
+                    </button>
                 </div>
             </div>
 
@@ -435,6 +522,16 @@ export default function MapModelsView({ trips }: Props) {
                 </div>
             )}
 
+            {/* シェア完了トースト */}
+            {shareToast && (
+                <div className="share-toast" role="status">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                    {shareToast}
+                </div>
+            )}
+
             {/* スクロールトップ */}
             {showScrollTop && (
                 <button
@@ -528,6 +625,24 @@ export default function MapModelsView({ trips }: Props) {
                     animation: slide-up 0.22s ease-out;
                     max-height: 84vh; overflow: hidden;
                     display: flex; flex-direction: column;
+                }
+                .share-toast {
+                    position: fixed;
+                    left: 50%; bottom: 24px;
+                    transform: translateX(-50%);
+                    background: #0f172a;
+                    color: white;
+                    padding: 10px 18px;
+                    border-radius: 99px;
+                    font-size: 13px; font-weight: 700;
+                    box-shadow: 0 10px 24px rgba(15,23,42,0.32);
+                    display: inline-flex; align-items: center; gap: 8px;
+                    z-index: 60;
+                    animation: toast-pop 0.22s ease-out;
+                }
+                @keyframes toast-pop {
+                    from { opacity: 0; transform: translate(-50%, 10px); }
+                    to { opacity: 1; transform: translate(-50%, 0); }
                 }
                 .scroll-top-btn {
                     position: fixed;
