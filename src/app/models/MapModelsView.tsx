@@ -238,6 +238,7 @@ export default function MapModelsView({ trips }: Props) {
                 items={popularItems}
                 selectedKey={selectedKeys.size === 1 ? Array.from(selectedKeys)[0] : null}
                 onPick={key => handleSelectKeys(new Set([key]))}
+                onHover={setHoverKey}
             />
 
             {/* 地図（左）＋フィルタ（右）の2カラム。狭幅では縦積み */}
@@ -285,6 +286,27 @@ export default function MapModelsView({ trips }: Props) {
                 border: '1px solid rgba(15,23,42,0.06)',
                 boxShadow: '0 2px 10px rgba(15,23,42,0.04)',
             }}>
+                {(hasChipFilter || keyword || showFavoritesOnly || selectedKeys.size > 0) && (
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setFilter(EMPTY_FILTER)
+                            setKeyword('')
+                            setSelectedKeys(EMPTY_SET)
+                            setShowFavoritesOnly(false)
+                        }}
+                        style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 4,
+                            background: 'transparent',
+                            color: '#6b7280',
+                            border: '1px dashed #cbd5e1',
+                            padding: '5px 11px',
+                            borderRadius: 99,
+                            fontSize: 11, fontWeight: 700,
+                            cursor: 'pointer',
+                        }}
+                    >× 全条件解除</button>
+                )}
                 {selectedKeys.size > 0 ? (
                     <div style={{
                         display: 'inline-flex', alignItems: 'center', gap: 8,

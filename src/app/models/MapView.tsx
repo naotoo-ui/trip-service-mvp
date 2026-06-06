@@ -395,6 +395,12 @@ export default function MapView({ kind, markers, selectedKeys, onSelectKeys, ext
                                 {(isSelected || isHover) && (
                                     <circle r={r * 2.0} fill={ringColor} opacity={0.14} />
                                 )}
+                                {isExternalHover && (
+                                    <circle r={r * 1.6} fill="none" stroke={ringColor} strokeWidth={1.6 / sizeScale} opacity={0.55}>
+                                        <animate attributeName="r" values={`${r * 1.6};${r * 3.2};${r * 1.6}`} dur="1.4s" repeatCount="indefinite" />
+                                        <animate attributeName="opacity" values="0.6;0;0.6" dur="1.4s" repeatCount="indefinite" />
+                                    </circle>
+                                )}
                                 {c.isMulti && (
                                     <circle
                                         r={r * expand + 1.6 / sizeScale}

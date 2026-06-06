@@ -10,10 +10,11 @@ type Props = {
     items: Item[]
     selectedKey: string | null
     onPick: (key: string) => void
+    onHover?: (key: string | null) => void
 }
 
 // 横スクロール可能な「人気目的地」サムネリスト
-export default function PopularDestinations({ title, items, selectedKey, onPick }: Props) {
+export default function PopularDestinations({ title, items, selectedKey, onPick, onHover }: Props) {
     if (items.length === 0) return null
     return (
         <div style={{ marginBottom: 14 }}>
@@ -36,6 +37,8 @@ export default function PopularDestinations({ title, items, selectedKey, onPick 
                             key={it.key}
                             type="button"
                             onClick={() => onPick(it.key)}
+                            onMouseEnter={() => onHover?.(it.key)}
+                            onMouseLeave={() => onHover?.(null)}
                             className="popular-item"
                             aria-pressed={selected}
                             style={{
