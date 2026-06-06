@@ -1,15 +1,13 @@
 'use client'
-import { useMemo, useState } from 'react'
-import Link from 'next/link'
-import Image from 'next/image'
+import { useEffect, useMemo, useState } from 'react'
 import { getDestinationEmoji } from '@/lib/destinationEmoji'
 import { getCoordsForDestination } from '@/lib/destinationCoords'
-import { getDestinationImage } from '@/lib/destinationImages'
 import MapView from './MapView'
-import PlanFilters, { EMPTY_FILTER, tripMatchesFilter, type FilterState } from './PlanFilters'
-import type { Trip } from '@/types'
-
-type TripBrief = Pick<Trip, 'share_id' | 'title' | 'destination' | 'duration_days' | 'wishes'>
+import PlanFilters, { EMPTY_FILTER, tripMatchesFilter, type FilterState, type ThemeFilter } from './PlanFilters'
+import PlanList, { sortTrips, type SortKey, type ViewMode } from './PlanList'
+import QuickThemes from './QuickThemes'
+import { useFavorites } from './useFavorites'
+import type { TripBrief } from './PlanCard'
 
 type Props = { trips: TripBrief[] }
 type TabKind = 'domestic' | 'overseas'
@@ -20,10 +18,26 @@ export default function MapModelsView({ trips }: Props) {
     const [tab, setTab] = useState<TabKind>('domestic')
     const [selectedKeys, setSelectedKeys] = useState<Set<string>>(EMPTY_SET)
     const [keyword, setKeyword] = useState('')
-    const [visibleCount, setVisibleCount] = useState(50)
+    const [visibleCount, setVisibleCount] = useState(60)
     const [filter, setFilter] = useState<FilterState>(EMPTY_FILTER)
+    const [sort, setSort] = useState<SortKey>('recommended')
+    const [view, setView] = useState<ViewMode>('grid')
+    const [hoverKey, setHoverKey] = useState<string | null>(null)
+    const [showFavoritesOnly, setShowFavoritesOnly] = useState(false)
+    const [mobileFilterOpen, setMobileFilterOpen] = useState(false)
 
-    const { tripsByKey, destMetaByKey } = useMemo(() => {
+    const { has: isFavorited, toggle: toggleFavorite, favorites } = useFavorites()
+
+    // localStorage から view 設定を復元
+    useEffect(() => {
+        const v = typeof window !== 'undefined' ? window.localStorage.getItem('tripservice.models.view') : null
+        if (v === 'grid' || v === 'list') setView(v)
+    }, [])
+    useEffect(() => {
+        if (typeof window !== 'undefined') window.localStorage.setItem('tripservice.models.view', view)
+    }, [view])
+
+    const { tripsByKey, destMetaByKey, popularityByDest } = useMemo(() => {
         const groups = new Map<string, { name: string; coord: [number, number]; isOverseas: boolean; trips: TripBrief[] }>()
         for (const t of trips) {
             if (!t.destination) continue
@@ -36,11 +50,13 @@ export default function MapModelsView({ trips }: Props) {
         }
         const tripsByKey = new Map<string, TripBrief[]>()
         const destMetaByKey = new Map<string, { name: string; coord: [number, number]; isOverseas: boolean }>()
+        const popularityByDest = new Map<string, number>()
         for (const [key, g] of groups.entries()) {
             tripsByKey.set(key, g.trips)
             destMetaByKey.set(key, { name: g.name, coord: g.coord, isOverseas: g.isOverseas })
+            popularityByDest.set(key, g.trips.length)
         }
-        return { tripsByKey, destMetaByKey }
+        return { tripsByKey, destMetaByKey, popularityByDest }
     }, [trips])
 
     // チップフィルタ（テーマ・日数・出発地）はマップにも一覧にも反映する。
@@ -52,18 +68,19 @@ export default function MapModelsView({ trips }: Props) {
         for (const [key, list] of tripsByKey.entries()) {
             const meta = destMetaByKey.get(key)
             if (!meta) continue
-            const matched = hasChipFilter
+            let matched = hasChipFilter
                 ? list.filter(t => tripMatchesFilter({
                     title: t.title, wishes: t.wishes,
                     duration_days: t.duration_days, filter,
                 }))
                 : list
+            if (showFavoritesOnly) matched = matched.filter(t => isFavorited(t.share_id))
             if (matched.length === 0) continue
             const m = { key, name: meta.name, coord: meta.coord, count: matched.length }
             if (meta.isOverseas) overseasMarkers.push(m); else domesticMarkers.push(m)
         }
         return { domesticMarkers, overseasMarkers }
-    }, [tripsByKey, destMetaByKey, filter, hasChipFilter])
+    }, [tripsByKey, destMetaByKey, filter, hasChipFilter, showFavoritesOnly, isFavorited])
 
     const currentMarkers = tab === 'domestic' ? domesticMarkers : overseasMarkers
 
@@ -78,12 +95,14 @@ export default function MapModelsView({ trips }: Props) {
             const keySet = new Set(currentMarkers.map(m => m.key))
             pool = trips.filter(t => keySet.has(t.destination))
         }
-        // チップフィルタ適用
         if (hasChipFilter) {
             pool = pool.filter(t => tripMatchesFilter({
                 title: t.title, wishes: t.wishes,
                 duration_days: t.duration_days, filter,
             }))
+        }
+        if (showFavoritesOnly) {
+            pool = pool.filter(t => isFavorited(t.share_id))
         }
         if (keyword.trim()) {
             const k = keyword.trim().toLowerCase()
@@ -93,22 +112,25 @@ export default function MapModelsView({ trips }: Props) {
                 t.destination?.toLowerCase().includes(k)
             )
         }
-        return pool
-    }, [selectedKeys, tripsByKey, currentMarkers, trips, keyword, filter, hasChipFilter])
+        return sortTrips(pool, sort, dest => popularityByDest.get(dest) ?? 0)
+    }, [
+        selectedKeys, tripsByKey, currentMarkers, trips, keyword, filter, hasChipFilter,
+        sort, popularityByDest, showFavoritesOnly, isFavorited,
+    ])
 
     const visibleTrips = filteredTrips.slice(0, visibleCount)
 
     function changeTab(t: TabKind) {
         setTab(t)
         setSelectedKeys(EMPTY_SET)
-        setVisibleCount(50)
+        setVisibleCount(60)
         setFilter(EMPTY_FILTER)
+        setHoverKey(null)
     }
 
     function handleSelectKeys(keys: Set<string>) {
         setSelectedKeys(keys)
-        setVisibleCount(50)
-        // 選択時に一覧へスムーススクロール（少しだけ）
+        setVisibleCount(60)
         if (keys.size > 0) {
             requestAnimationFrame(() => {
                 const el = document.getElementById('plans-section')
@@ -122,14 +144,28 @@ export default function MapModelsView({ trips }: Props) {
         }
     }
 
+    // クイックテーマ：シングル選択（既存の filter.themes は同期）
+    const quickActiveTheme: ThemeFilter | null = filter.themes.size === 1
+        ? (Array.from(filter.themes)[0] as ThemeFilter)
+        : null
+    function pickQuickTheme(t: ThemeFilter | null) {
+        if (t === null) {
+            setFilter({ ...filter, themes: new Set() })
+        } else {
+            setFilter({ ...filter, themes: new Set([t]) })
+        }
+        setVisibleCount(60)
+    }
+
     const selectedArr = Array.from(selectedKeys)
 
     return (
         <div style={{ maxWidth: 1280, margin: '0 auto', padding: '24px 16px 80px' }}>
+            {/* ヒーロー */}
             <div style={{
                 background: 'linear-gradient(135deg, #7c3aed 0%, #ec4899 100%)',
-                borderRadius: 20, padding: '32px 28px', color: 'white',
-                marginBottom: 20, position: 'relative', overflow: 'hidden',
+                borderRadius: 20, padding: '28px 26px 24px', color: 'white',
+                marginBottom: 14, position: 'relative', overflow: 'hidden',
             }}>
                 <div style={{
                     position: 'absolute', top: -60, right: -40,
@@ -139,20 +175,30 @@ export default function MapModelsView({ trips }: Props) {
                 <div style={{ position: 'relative', zIndex: 1 }}>
                     <p style={{
                         fontSize: 11, fontWeight: 700, letterSpacing: '0.15em',
-                        textTransform: 'uppercase', color: '#fce7f3', margin: '0 0 10px',
+                        textTransform: 'uppercase', color: '#fce7f3', margin: '0 0 8px',
                     }}>Curated Model Plans</p>
                     <h1 style={{
                         fontSize: 'clamp(22px, 4vw, 30px)', fontWeight: 800,
                         lineHeight: 1.2, margin: '0 0 6px',
-                    }}>モデルプラン一覧</h1>
+                    }}>あなたの次の旅、ここから始めよう</h1>
                     <p style={{ fontSize: 13, color: '#fce7f3', margin: 0, maxWidth: 600 }}>
-                        地図上のピンをクリックすると、その目的地のプランが下に表示されます。
+                        {trips.length} の厳選プランから、地図・テーマ・日数で理想の旅を見つける。
                     </p>
                 </div>
             </div>
 
+            {/* クイックテーマ */}
+            <QuickThemes
+                activeTheme={quickActiveTheme}
+                favCount={favorites.size}
+                showFavoritesOnly={showFavoritesOnly}
+                onPickTheme={pickQuickTheme}
+                onToggleFavorites={() => { setShowFavoritesOnly(v => !v); setVisibleCount(60) }}
+            />
+
+            {/* タブ */}
             <div style={{
-                display: 'flex', gap: 4, marginBottom: 14,
+                display: 'flex', gap: 4, marginTop: 8, marginBottom: 14,
                 background: 'rgba(15,23,42,0.04)', borderRadius: 12, padding: 4,
                 width: 'fit-content',
             }}>
@@ -172,15 +218,34 @@ export default function MapModelsView({ trips }: Props) {
                         markers={currentMarkers}
                         selectedKeys={selectedKeys}
                         onSelectKeys={handleSelectKeys}
+                        externalHoverKey={hoverKey}
+                        onMarkerHover={setHoverKey}
                     />
                 </div>
                 <aside className="filter-side">
-                    <PlanFilters filter={filter} onChange={f => { setFilter(f); setVisibleCount(50) }} />
+                    <PlanFilters filter={filter} onChange={f => { setFilter(f); setVisibleCount(60) }} />
                 </aside>
             </div>
 
+            {/* モバイル用フィルタトリガー（地図と一覧の間） */}
+            <button
+                type="button"
+                onClick={() => setMobileFilterOpen(true)}
+                className="mobile-filter-trigger"
+                aria-label="絞り込みを開く"
+            >
+                <FilterIcon /> 詳細フィルタ
+                {hasChipFilter && (
+                    <span style={{
+                        background: '#7c3aed', color: 'white',
+                        padding: '1px 7px', borderRadius: 99,
+                        fontSize: 10, fontWeight: 800, marginLeft: 6,
+                    }}>{filter.themes.size + filter.durations.size + filter.origins.size}</span>
+                )}
+            </button>
+
             <div id="plans-section" style={{
-                marginTop: 16, marginBottom: 14,
+                marginTop: 16, marginBottom: 12,
                 display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap',
             }}>
                 {selectedKeys.size > 0 ? (
@@ -189,9 +254,9 @@ export default function MapModelsView({ trips }: Props) {
                         background: 'linear-gradient(135deg, #fff7ed, #ffe4e6)',
                         color: '#9a3412',
                         border: '1px solid #fed7aa',
-                        padding: '8px 14px',
+                        padding: '7px 14px',
                         borderRadius: 999,
-                        fontSize: 14, fontWeight: 700,
+                        fontSize: 13, fontWeight: 700,
                         maxWidth: '100%',
                     }}>
                         {selectedKeys.size === 1 ? (
@@ -239,8 +304,8 @@ export default function MapModelsView({ trips }: Props) {
                 <input
                     type="search"
                     value={keyword}
-                    onChange={e => { setKeyword(e.target.value); setVisibleCount(50) }}
-                    placeholder="キーワード検索（例：グルメ・絶景・家族）"
+                    onChange={e => { setKeyword(e.target.value); setVisibleCount(60) }}
+                    placeholder="🔎 キーワード検索（例：グルメ・絶景・家族）"
                     style={{
                         minWidth: 220, flex: '1 0 220px', maxWidth: 320,
                         padding: '9px 14px', borderRadius: 10,
@@ -251,83 +316,33 @@ export default function MapModelsView({ trips }: Props) {
             </div>
 
             {filteredTrips.length === 0 ? (
-                <div style={{
-                    textAlign: 'center', padding: '50px 20px',
-                    background: 'white', borderRadius: 16,
-                    border: '1px dashed #e5e7eb', color: '#9ca3af',
-                }}>
-                    <p style={{ fontSize: 28, margin: '0 0 8px' }}>🗺️</p>
-                    <p style={{ fontSize: 14, color: '#6b7280', margin: 0 }}>
-                        条件に一致するプランがありません
-                    </p>
-                </div>
+                <EmptyState
+                    onReset={() => {
+                        setFilter(EMPTY_FILTER)
+                        setKeyword('')
+                        setSelectedKeys(EMPTY_SET)
+                        setShowFavoritesOnly(false)
+                    }}
+                    showFavoritesOnly={showFavoritesOnly}
+                />
             ) : (
-                <div style={{
-                    background: 'white',
-                    borderRadius: 16,
-                    border: '1px solid #f0f0f0',
-                    overflow: 'hidden',
-                }}>
-                    {visibleTrips.map((trip, idx) => {
-                        const img = getDestinationImage(trip.destination)
-                        return (
-                            <Link
-                                key={trip.share_id}
-                                href={`/trips/${trip.share_id}`}
-                                style={{
-                                    display: 'flex', alignItems: 'center', gap: 12,
-                                    padding: '10px 14px',
-                                    borderBottom: idx < visibleTrips.length - 1 ? '1px solid #f3f4f6' : 'none',
-                                    textDecoration: 'none', color: 'inherit',
-                                    transition: 'background 0.15s',
-                                }}
-                                className="model-row"
-                            >
-                                <div style={{
-                                    width: 58, height: 58, borderRadius: 10,
-                                    overflow: 'hidden', flexShrink: 0,
-                                    background: img ? '#e5e7eb' : '#eef2ff',
-                                    position: 'relative',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                }}>
-                                    {img ? (
-                                        <Image
-                                            src={img}
-                                            alt={trip.destination}
-                                            fill
-                                            sizes="58px"
-                                            style={{ objectFit: 'cover' }}
-                                        />
-                                    ) : (
-                                        <span style={{ fontSize: 28 }}>{getDestinationEmoji(trip.destination)}</span>
-                                    )}
-                                </div>
-                                <div style={{ flex: 1, minWidth: 0 }}>
-                                    <p style={{
-                                        fontSize: 14, fontWeight: 700, color: '#111827',
-                                        margin: '0 0 3px',
-                                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                                    }}>{trip.title}</p>
-                                    <p style={{
-                                        fontSize: 12, color: '#6b7280', margin: 0,
-                                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                                    }}>
-                                        📍 {trip.destination} ・ {trip.duration_days}日間
-                                        {trip.wishes ? ` ・ ${trip.wishes}` : ''}
-                                    </p>
-                                </div>
-                                <span style={{ fontSize: 18, color: '#cbd5e1', flexShrink: 0 }}>›</span>
-                            </Link>
-                        )
-                    })}
-                </div>
+                <PlanList
+                    trips={visibleTrips}
+                    sort={sort}
+                    onSortChange={s => { setSort(s); setVisibleCount(60) }}
+                    view={view}
+                    onViewChange={setView}
+                    favoritedIds={favorites}
+                    onToggleFavorite={toggleFavorite}
+                    onCardHover={setHoverKey}
+                />
             )}
 
             {visibleCount < filteredTrips.length && (
-                <div style={{ textAlign: 'center', marginTop: 20 }}>
+                <div style={{ textAlign: 'center', marginTop: 24 }}>
                     <button
                         type="button"
-                        onClick={() => setVisibleCount(c => c + 50)}
+                        onClick={() => setVisibleCount(c => c + 60)}
                         style={{
                             padding: '11px 22px',
                             background: 'white',
@@ -341,10 +356,46 @@ export default function MapModelsView({ trips }: Props) {
                 </div>
             )}
 
+            {/* モバイル: フィルタ Drawer */}
+            {mobileFilterOpen && (
+                <div className="mobile-drawer-backdrop" onClick={() => setMobileFilterOpen(false)}>
+                    <div className="mobile-drawer" onClick={e => e.stopPropagation()}>
+                        <div style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                            padding: '14px 16px 8px',
+                        }}>
+                            <strong style={{ fontSize: 15 }}>絞り込み</strong>
+                            <button
+                                type="button"
+                                onClick={() => setMobileFilterOpen(false)}
+                                aria-label="閉じる"
+                                style={{
+                                    width: 28, height: 28,
+                                    border: 'none', background: 'transparent',
+                                    cursor: 'pointer', fontSize: 20, color: '#475569',
+                                }}
+                            >×</button>
+                        </div>
+                        <div style={{ padding: '0 12px 16px', maxHeight: '70vh', overflowY: 'auto' }}>
+                            <PlanFilters filter={filter} onChange={f => { setFilter(f); setVisibleCount(60) }} />
+                            <button
+                                type="button"
+                                onClick={() => setMobileFilterOpen(false)}
+                                style={{
+                                    marginTop: 8, width: '100%',
+                                    padding: '12px',
+                                    background: 'linear-gradient(135deg,#7c3aed,#ec4899)',
+                                    color: 'white', border: 'none',
+                                    borderRadius: 10, fontSize: 14, fontWeight: 700,
+                                    cursor: 'pointer',
+                                }}
+                            >この条件で表示（{filteredTrips.length}件）</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <style jsx>{`
-                .model-row:hover {
-                    background: #fff7ed;
-                }
                 .map-row {
                     display: flex;
                     gap: 14px;
@@ -354,10 +405,39 @@ export default function MapModelsView({ trips }: Props) {
                     width: 260px;
                     flex-shrink: 0;
                 }
+                .mobile-filter-trigger {
+                    display: none;
+                    align-items: center; gap: 6px;
+                    padding: 9px 16px;
+                    background: white;
+                    border: 1.5px solid #e5e7eb;
+                    border-radius: 10px;
+                    font-size: 13px; font-weight: 700;
+                    color: #0f172a;
+                    cursor: pointer;
+                    margin-top: 12px;
+                }
                 @media (max-width: 900px) {
                     .map-row { flex-direction: column; }
-                    .filter-side { width: 100%; }
+                    .filter-side { display: none; }
+                    .mobile-filter-trigger { display: inline-flex; }
                 }
+                .mobile-drawer-backdrop {
+                    position: fixed; inset: 0; z-index: 200;
+                    background: rgba(15,23,42,0.45);
+                    display: flex; align-items: flex-end; justify-content: center;
+                    animation: fade-in 0.18s ease-out;
+                }
+                .mobile-drawer {
+                    width: 100%; max-width: 520px;
+                    background: white;
+                    border-radius: 18px 18px 0 0;
+                    animation: slide-up 0.22s ease-out;
+                    max-height: 84vh; overflow: hidden;
+                    display: flex; flex-direction: column;
+                }
+                @keyframes fade-in { from { opacity: 0 } to { opacity: 1 } }
+                @keyframes slide-up { from { transform: translateY(100%) } to { transform: translateY(0) } }
             `}</style>
         </div>
     )
@@ -384,5 +464,44 @@ function TabButton({ active, onClick, children }: {
                 transition: 'all 0.15s',
             }}
         >{children}</button>
+    )
+}
+
+function EmptyState({ onReset, showFavoritesOnly }: { onReset: () => void; showFavoritesOnly: boolean }) {
+    return (
+        <div style={{
+            textAlign: 'center', padding: '60px 20px',
+            background: 'white', borderRadius: 16,
+            border: '1px dashed #e5e7eb', color: '#9ca3af',
+        }}>
+            <p style={{ fontSize: 36, margin: '0 0 12px' }}>{showFavoritesOnly ? '♥' : '🗺️'}</p>
+            <p style={{ fontSize: 14, color: '#0f172a', margin: '0 0 6px', fontWeight: 700 }}>
+                {showFavoritesOnly ? 'お気に入りプランがまだありません' : '条件に一致するプランがありません'}
+            </p>
+            <p style={{ fontSize: 12, color: '#6b7280', margin: '0 0 16px' }}>
+                {showFavoritesOnly
+                    ? 'カードのハートマークを押すと、ここに保存されます。'
+                    : 'フィルタを少し緩めるか、別のテーマを試してみてください。'}
+            </p>
+            <button
+                type="button"
+                onClick={onReset}
+                style={{
+                    padding: '8px 18px',
+                    background: 'linear-gradient(135deg,#7c3aed,#ec4899)',
+                    color: 'white', border: 'none',
+                    borderRadius: 10, fontSize: 13, fontWeight: 700,
+                    cursor: 'pointer',
+                }}
+            >条件をリセット</button>
+        </div>
+    )
+}
+
+function FilterIcon() {
+    return (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+        </svg>
     )
 }

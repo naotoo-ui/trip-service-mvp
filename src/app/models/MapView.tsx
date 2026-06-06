@@ -20,6 +20,9 @@ type Props = {
     markers: Marker[]
     selectedKeys: Set<string>
     onSelectKeys: (keys: Set<string>) => void
+    // 外部からホバーされた destination キー（カード ↔ 地図 連動）
+    externalHoverKey?: string | null
+    onMarkerHover?: (key: string | null) => void
 }
 
 const TOPOJSON_URL: Record<'domestic' | 'overseas', string> = {
@@ -35,7 +38,7 @@ const PROJECTION_CONFIG: Record<'domestic' | 'overseas', { center: [number, numb
 // クラスタリング基準（unzoomed px ベース）。値が小さいほど細かい区分。
 const CLUSTER_BASE_THRESHOLD = 45
 
-export default function MapView({ kind, markers, selectedKeys, onSelectKeys }: Props) {
+export default function MapView({ kind, markers, selectedKeys, onSelectKeys, externalHoverKey, onMarkerHover }: Props) {
     const containerRef = useRef<HTMLDivElement | null>(null)
     const [containerW, setContainerW] = useState(800)
     const containerH = kind === 'domestic' ? 580 : 480
@@ -210,6 +213,11 @@ export default function MapView({ kind, markers, selectedKeys, onSelectKeys }: P
         return c.members.some(m => selectedKeys.has(m.key))
     }
 
+    function clusterContainsExternalHover(c: (typeof clusters)[number]): boolean {
+        if (!externalHoverKey) return false
+        return c.members.some(m => m.key === externalHoverKey)
+    }
+
     function handleClusterClick(c: (typeof clusters)[number]) {
         if (dragRef.current?.moved) return
         const memberKeys = c.members.map(m => m.key)
@@ -324,7 +332,8 @@ export default function MapView({ kind, markers, selectedKeys, onSelectKeys }: P
                     {/* ピン（クラスタ） */}
                     {clusters.map(c => {
                         const isSelected = clusterContainsSelected(c)
-                        const isHover = c.key === hoverKey
+                        const isExternalHover = clusterContainsExternalHover(c)
+                        const isHover = c.key === hoverKey || isExternalHover
                         const baseR = pinRadius(c.count)
                         // ズーム時にピンが大きくなりすぎないよう抑える（screen size はほぼ一定）
                         const sizeScale = Math.pow(Math.max(0.6, zoom), 0.85)
@@ -342,8 +351,14 @@ export default function MapView({ kind, markers, selectedKeys, onSelectKeys }: P
                                     e.stopPropagation()
                                     handleClusterClick(c)
                                 }}
-                                onMouseEnter={() => setHoverKey(c.key)}
-                                onMouseLeave={() => setHoverKey(null)}
+                                onMouseEnter={() => {
+                                    setHoverKey(c.key)
+                                    onMarkerHover?.(c.members[0]?.key ?? null)
+                                }}
+                                onMouseLeave={() => {
+                                    setHoverKey(null)
+                                    onMarkerHover?.(null)
+                                }}
                                 style={{ cursor: 'pointer' }}
                             >
                                 {(isSelected || isHover) && (
