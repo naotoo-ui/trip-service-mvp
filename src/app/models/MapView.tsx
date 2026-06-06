@@ -45,6 +45,8 @@ export default function MapView({ kind, markers, selectedKeys, onSelectKeys, ext
 
     const [geos, setGeos] = useState<Feature<Geometry>[] | null>(null)
     const [hoverKey, setHoverKey] = useState<string | null>(null)
+    // 海外マップで複製コピーをホバーした時、どのワールドオフセット上にいるか
+    const [hoverWorldOffset, setHoverWorldOffset] = useState(0)
 
     const [zoom, setZoom] = useState(1)
     const [pan, setPan] = useState<[number, number]>([0, 0])
@@ -86,7 +88,7 @@ export default function MapView({ kind, markers, selectedKeys, onSelectKeys, ext
         return () => { cancelled = true }
     }, [kind])
 
-    useEffect(() => { setZoom(1); setPan([0, 0]); setHoverKey(null) }, [kind])
+    useEffect(() => { setZoom(1); setPan([0, 0]); setHoverKey(null); setHoverWorldOffset(0) }, [kind])
 
     const projection = useMemo<GeoProjection>(() => {
         const cfg = PROJECTION_CONFIG[kind]
@@ -101,6 +103,28 @@ export default function MapView({ kind, markers, selectedKeys, onSelectKeys, ext
     }, [kind, containerW, containerH])
 
     const pathGen = useMemo(() => geoPath(projection), [projection])
+
+    // Mercator では「経度 360 度 = 2π × scale」ピクセル幅。
+    // 海外マップを地球一周ループ表示するために、画面に見える範囲のワールドコピー
+    // (...-1, 0, +1, +2, ...) を計算して陸地・ピンを並べる。
+    const worldWidthPx = useMemo(() => 2 * Math.PI * projection.scale(), [projection])
+
+    const visibleWorldOffsets = useMemo(() => {
+        if (kind !== 'overseas') return [0]
+        // 外側 <g> は transform-origin=中央 で scale(zoom) translate(pan) されている。
+        // unzoomed 座標系で「画面に映る左端 / 右端」を逆算:
+        //   screen_x = (unzoomed_x - W/2) * z + W/2 + pan_x
+        //   → unzoomed_x = (screen_x - W/2 - pan_x) / z + W/2
+        const leftU = (0 - containerW / 2 - pan[0]) / zoom + containerW / 2
+        const rightU = (containerW - containerW / 2 - pan[0]) / zoom + containerW / 2
+        // projection の元の地図は X=0..containerW あたりに描画される。
+        // worldWidth ピクセル分シフトしたコピーで、画面に重なるものを列挙する。
+        const minN = Math.floor(leftU / worldWidthPx) - 1
+        const maxN = Math.ceil(rightU / worldWidthPx) + 1
+        const offsets: number[] = []
+        for (let n = minN; n <= maxN; n++) offsets.push(n)
+        return offsets
+    }, [kind, containerW, pan, zoom, worldWidthPx])
 
     const placedMarkers = useMemo(() => {
         return markers.map(m => {
@@ -343,25 +367,31 @@ export default function MapView({ kind, markers, selectedKeys, onSelectKeys, ext
                         transformOrigin: `${containerW / 2}px ${containerH / 2}px`,
                     }}
                 >
-                    {/* 陸地 */}
-                    {geos && geos.map((f, i) => {
-                        const d = pathGen(f) ?? ''
-                        if (!d) return null
-                        return (
-                            <path
-                                key={i}
-                                d={d}
-                                fill={`url(#land-${kind})`}
-                                stroke={palette.landStroke}
-                                strokeWidth={0.8 / Math.max(1, zoom)}
-                                strokeLinejoin="round"
-                                style={{ pointerEvents: 'none' }}
-                            />
-                        )
-                    })}
+                    {/* 陸地：海外マップは横方向に複製して地球一周ループ */}
+                    {geos && visibleWorldOffsets.map(offset => (
+                        <g key={`world-land-${offset}`} transform={`translate(${offset * worldWidthPx} 0)`}>
+                            {geos.map((f, i) => {
+                                const d = pathGen(f) ?? ''
+                                if (!d) return null
+                                return (
+                                    <path
+                                        key={i}
+                                        d={d}
+                                        fill={`url(#land-${kind})`}
+                                        stroke={palette.landStroke}
+                                        strokeWidth={0.8 / Math.max(1, zoom)}
+                                        strokeLinejoin="round"
+                                        style={{ pointerEvents: 'none' }}
+                                    />
+                                )
+                            })}
+                        </g>
+                    ))}
 
-                    {/* ピン（クラスタ） */}
-                    {clusters.map(c => {
+                    {/* ピン（クラスタ）：海外マップは各ワールドオフセットに複製描画 */}
+                    {visibleWorldOffsets.map(worldOffset => (
+                        <g key={`world-pins-${worldOffset}`} transform={`translate(${worldOffset * worldWidthPx} 0)`}>
+                            {clusters.map(c => {
                         const isSelected = clusterContainsSelected(c)
                         const isExternalHover = clusterContainsExternalHover(c)
                         const isHover = c.key === hoverKey || isExternalHover
@@ -375,7 +405,7 @@ export default function MapView({ kind, markers, selectedKeys, onSelectKeys, ext
 
                         return (
                             <g
-                                key={c.key}
+                                key={`${c.key}-${worldOffset}`}
                                 transform={`translate(${c.pixel[0]}, ${c.pixel[1]})`}
                                 onPointerDown={e => { e.stopPropagation() }}
                                 onClick={e => {
@@ -384,10 +414,12 @@ export default function MapView({ kind, markers, selectedKeys, onSelectKeys, ext
                                 }}
                                 onMouseEnter={() => {
                                     setHoverKey(c.key)
+                                    setHoverWorldOffset(worldOffset)
                                     onMarkerHover?.(c.members[0]?.key ?? null)
                                 }}
                                 onMouseLeave={() => {
                                     setHoverKey(null)
+                                    setHoverWorldOffset(0)
                                     onMarkerHover?.(null)
                                 }}
                                 style={{ cursor: 'pointer' }}
@@ -429,10 +461,14 @@ export default function MapView({ kind, markers, selectedKeys, onSelectKeys, ext
                                 >{c.count}</text>
                             </g>
                         )
-                    })}
+                            })}
+                        </g>
+                    ))}
 
                     {/* SVGラベル（エリア名が直接見える時のみ：≤3エリア） */}
-                    {clusters
+                    {visibleWorldOffsets.map(offset => (
+                        <g key={`world-labels-${offset}`} transform={`translate(${offset * worldWidthPx} 0)`}>
+                            {clusters
                         .filter(c => c.key === hoverKey || clusterContainsSelected(c))
                         .filter(c => !(c.isMulti && c.members.length > 3))  // 多数エリアは下の吹き出しで表示
                         .map(c => {
@@ -458,6 +494,8 @@ export default function MapView({ kind, markers, selectedKeys, onSelectKeys, ext
                                 </g>
                             )
                         })}
+                        </g>
+                    ))}
                 </g>
             </svg>
 
@@ -466,7 +504,9 @@ export default function MapView({ kind, markers, selectedKeys, onSelectKeys, ext
                 const c = clusters.find(c => c.key === hoverKey)
                 if (!c || !c.isMulti || c.members.length <= 3) return null
                 // screen px に変換（外側 <g> の transform を逆算）
-                const screenX = (c.pixel[0] - containerW / 2) * zoom + containerW / 2 + pan[0]
+                // 海外マップで複製コピー上のピンをホバーした場合は、その world offset を反映
+                const pixelX = c.pixel[0] + hoverWorldOffset * worldWidthPx
+                const screenX = (pixelX - containerW / 2) * zoom + containerW / 2 + pan[0]
                 const screenY = (c.pixel[1] - containerH / 2) * zoom + containerH / 2 + pan[1]
                 const pinScreenR = (pinRadius(c.count) / Math.pow(Math.max(0.6, zoom), 0.85)) * Math.max(1, zoom)
                 // 上に出すと見切れる場合は下に
