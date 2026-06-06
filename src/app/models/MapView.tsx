@@ -225,8 +225,39 @@ export default function MapView({ kind, markers, selectedKeys, onSelectKeys, ext
             && memberKeys.every(k => selectedKeys.has(k))
         if (allSelected) {
             onSelectKeys(new Set())  // 同じクラスタを再クリックで解除
-        } else {
-            onSelectKeys(new Set(memberKeys))  // クラスタ内全部を選択（青も紫も同じ）
+            return
+        }
+        onSelectKeys(new Set(memberKeys))  // クラスタ内全部を選択（青も紫も同じ）
+
+        // 多数エリアクラスタなら、そのエリアにスムーズズーム
+        // 単一ピンでは pan/zoom は変更しない（リスト側の反応で十分）
+        if (c.members.length >= 3) {
+            const targetZoom = c.members.length > 8 ? 2.4 : 2.0
+            // クラスタ中心を中央に持っていくための pan を計算
+            // 画面中央: (containerW/2, containerH/2)
+            // クラスタの unzoomed 座標: c.pixel
+            // 描画は外側 <g> で translate(pan) → scale(zoom)（origin=中央）
+            // 中央に来る条件: (cx - cW/2) * z + cW/2 + panX = cW/2  →  panX = -(cx-cW/2)*z
+            const px = -(c.pixel[0] - containerW / 2) * targetZoom
+            const py = -(c.pixel[1] - containerH / 2) * targetZoom
+            // 簡易アニメーション（rAF・8 frame）
+            const startZoom = zoom
+            const startPan = pan
+            const dz = targetZoom - startZoom
+            const dx = px - startPan[0]
+            const dy = py - startPan[1]
+            const TOTAL = 14
+            let frame = 0
+            const step = () => {
+                frame++
+                const t = Math.min(1, frame / TOTAL)
+                // easeOutCubic
+                const e = 1 - Math.pow(1 - t, 3)
+                setZoom(startZoom + dz * e)
+                setPan([startPan[0] + dx * e, startPan[1] + dy * e])
+                if (frame < TOTAL) requestAnimationFrame(step)
+            }
+            requestAnimationFrame(step)
         }
     }
 
@@ -528,9 +559,26 @@ export default function MapView({ kind, markers, selectedKeys, onSelectKeys, ext
             {!geos && (
                 <div style={{
                     position: 'absolute', inset: 0,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    display: 'flex', flexDirection: 'column',
+                    alignItems: 'center', justifyContent: 'center',
                     color: '#64748b', fontSize: 13, pointerEvents: 'none',
-                }}>地図を読み込み中…</div>
+                    gap: 12,
+                }}>
+                    <div className="map-spinner" />
+                    <span style={{ fontSize: 12, letterSpacing: '0.04em', fontWeight: 600 }}>
+                        地図を読み込み中…
+                    </span>
+                    <style jsx>{`
+                        .map-spinner {
+                            width: 32px; height: 32px;
+                            border: 3px solid rgba(124,58,237,0.18);
+                            border-top-color: #7c3aed;
+                            border-radius: 50%;
+                            animation: spin 0.9s linear infinite;
+                        }
+                        @keyframes spin { to { transform: rotate(360deg) } }
+                    `}</style>
+                </div>
             )}
 
             <div style={{

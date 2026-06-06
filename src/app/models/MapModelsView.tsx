@@ -6,6 +6,7 @@ import MapView from './MapView'
 import PlanFilters, { EMPTY_FILTER, tripMatchesFilter, type FilterState, type ThemeFilter } from './PlanFilters'
 import PlanList, { sortTrips, type SortKey, type ViewMode } from './PlanList'
 import QuickThemes from './QuickThemes'
+import PopularDestinations from './PopularDestinations'
 import { useFavorites } from './useFavorites'
 import type { TripBrief } from './PlanCard'
 
@@ -25,8 +26,15 @@ export default function MapModelsView({ trips }: Props) {
     const [hoverKey, setHoverKey] = useState<string | null>(null)
     const [showFavoritesOnly, setShowFavoritesOnly] = useState(false)
     const [mobileFilterOpen, setMobileFilterOpen] = useState(false)
+    const [showScrollTop, setShowScrollTop] = useState(false)
 
     const { has: isFavorited, toggle: toggleFavorite, favorites } = useFavorites()
+
+    useEffect(() => {
+        const onScroll = () => setShowScrollTop(window.scrollY > 600)
+        window.addEventListener('scroll', onScroll, { passive: true })
+        return () => window.removeEventListener('scroll', onScroll)
+    }, [])
 
     // localStorage から view 設定を復元
     useEffect(() => {
@@ -83,6 +91,20 @@ export default function MapModelsView({ trips }: Props) {
     }, [tripsByKey, destMetaByKey, filter, hasChipFilter, showFavoritesOnly, isFavorited])
 
     const currentMarkers = tab === 'domestic' ? domesticMarkers : overseasMarkers
+
+    // 人気目的地（現在のタブ・フィルター適用後のマーカーからトップ8）
+    const popularItems = useMemo(() => {
+        return [...currentMarkers]
+            .sort((a, b) => b.count - a.count)
+            .slice(0, 8)
+            .map(m => ({ key: m.key, name: m.name, count: m.count }))
+    }, [currentMarkers])
+
+    // 人気バッジ対象（全 trips のうち、出現件数トップ6 の destination）
+    const popularDests = useMemo(() => {
+        const sorted = Array.from(popularityByDest.entries()).sort((a, b) => b[1] - a[1])
+        return new Set(sorted.slice(0, 6).map(x => x[0]))
+    }, [popularityByDest])
 
     const filteredTrips = useMemo(() => {
         let pool: TripBrief[]
@@ -210,6 +232,14 @@ export default function MapModelsView({ trips }: Props) {
                 </TabButton>
             </div>
 
+            {/* 人気目的地ショートカット */}
+            <PopularDestinations
+                title={tab === 'domestic' ? '人気の国内エリア' : '人気の海外エリア'}
+                items={popularItems}
+                selectedKey={selectedKeys.size === 1 ? Array.from(selectedKeys)[0] : null}
+                onPick={key => handleSelectKeys(new Set([key]))}
+            />
+
             {/* 地図（左）＋フィルタ（右）の2カラム。狭幅では縦積み */}
             <div className="map-row">
                 <div style={{ minWidth: 0, flex: 1 }}>
@@ -244,9 +274,16 @@ export default function MapModelsView({ trips }: Props) {
                 )}
             </button>
 
-            <div id="plans-section" style={{
+            <div id="plans-section" className="plans-status" style={{
                 marginTop: 16, marginBottom: 12,
                 display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap',
+                position: 'sticky', top: 8, zIndex: 30,
+                background: 'rgba(255,255,255,0.92)',
+                backdropFilter: 'blur(10px)',
+                padding: '10px 12px',
+                borderRadius: 14,
+                border: '1px solid rgba(15,23,42,0.06)',
+                boxShadow: '0 2px 10px rgba(15,23,42,0.04)',
             }}>
                 {selectedKeys.size > 0 ? (
                     <div style={{
@@ -301,18 +338,37 @@ export default function MapModelsView({ trips }: Props) {
                     </div>
                 )}
                 <div style={{ flex: 1 }} />
-                <input
-                    type="search"
-                    value={keyword}
-                    onChange={e => { setKeyword(e.target.value); setVisibleCount(60) }}
-                    placeholder="🔎 キーワード検索（例：グルメ・絶景・家族）"
-                    style={{
-                        minWidth: 220, flex: '1 0 220px', maxWidth: 320,
-                        padding: '9px 14px', borderRadius: 10,
-                        border: '1.5px solid #e5e7eb', fontSize: 13,
-                        outline: 'none', background: 'white',
-                    }}
-                />
+                <div style={{ position: 'relative', minWidth: 220, flex: '1 0 220px', maxWidth: 320 }}>
+                    <input
+                        type="search"
+                        value={keyword}
+                        onChange={e => { setKeyword(e.target.value); setVisibleCount(60) }}
+                        placeholder="🔎 キーワード検索（例：グルメ・絶景・家族）"
+                        style={{
+                            width: '100%',
+                            padding: '9px 36px 9px 14px', borderRadius: 10,
+                            border: '1.5px solid #e5e7eb', fontSize: 13,
+                            outline: 'none', background: 'white',
+                            boxSizing: 'border-box',
+                        }}
+                    />
+                    {keyword && (
+                        <button
+                            type="button"
+                            onClick={() => setKeyword('')}
+                            aria-label="検索クリア"
+                            style={{
+                                position: 'absolute', right: 8, top: '50%',
+                                transform: 'translateY(-50%)',
+                                width: 22, height: 22, borderRadius: 99,
+                                background: '#e5e7eb', color: '#475569',
+                                border: 'none', cursor: 'pointer',
+                                fontSize: 13, lineHeight: 1,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            }}
+                        >×</button>
+                    )}
+                </div>
             </div>
 
             {filteredTrips.length === 0 ? (
@@ -335,6 +391,7 @@ export default function MapModelsView({ trips }: Props) {
                     favoritedIds={favorites}
                     onToggleFavorite={toggleFavorite}
                     onCardHover={setHoverKey}
+                    popularDests={popularDests}
                 />
             )}
 
@@ -354,6 +411,20 @@ export default function MapModelsView({ trips }: Props) {
                         }}
                     >もっと見る（あと {filteredTrips.length - visibleCount} 件）</button>
                 </div>
+            )}
+
+            {/* スクロールトップ */}
+            {showScrollTop && (
+                <button
+                    type="button"
+                    aria-label="ページ上部へ"
+                    onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                    className="scroll-top-btn"
+                >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="18 15 12 9 6 15" />
+                    </svg>
+                </button>
             )}
 
             {/* モバイル: フィルタ Drawer */}
@@ -435,6 +506,29 @@ export default function MapModelsView({ trips }: Props) {
                     animation: slide-up 0.22s ease-out;
                     max-height: 84vh; overflow: hidden;
                     display: flex; flex-direction: column;
+                }
+                .scroll-top-btn {
+                    position: fixed;
+                    right: 20px; bottom: 24px;
+                    width: 44px; height: 44px;
+                    border-radius: 50%;
+                    border: none;
+                    background: linear-gradient(135deg, #7c3aed, #ec4899);
+                    color: white;
+                    box-shadow: 0 6px 20px rgba(124,58,237,0.32);
+                    cursor: pointer;
+                    z-index: 50;
+                    display: flex; align-items: center; justify-content: center;
+                    transition: transform 0.18s, box-shadow 0.18s;
+                    animation: pop-in 0.22s ease-out;
+                }
+                .scroll-top-btn:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 10px 26px rgba(124,58,237,0.38);
+                }
+                @keyframes pop-in {
+                    from { opacity: 0; transform: scale(0.7); }
+                    to { opacity: 1; transform: scale(1); }
                 }
                 @keyframes fade-in { from { opacity: 0 } to { opacity: 1 } }
                 @keyframes slide-up { from { transform: translateY(100%) } to { transform: translateY(0) } }

@@ -14,6 +14,8 @@ type Props = {
     favoritedIds: Set<string>
     onToggleFavorite: (id: string) => void
     onCardHover?: (key: string | null) => void
+    /** 人気バッジを付ける destination のキー集合 */
+    popularDests?: Set<string>
 }
 
 const SORT_LABEL: Record<SortKey, string> = {
@@ -25,7 +27,7 @@ const SORT_LABEL: Record<SortKey, string> = {
 
 export default function PlanList({
     trips, sort, onSortChange, view, onViewChange,
-    favoritedIds, onToggleFavorite, onCardHover,
+    favoritedIds, onToggleFavorite, onCardHover, popularDests,
 }: Props) {
     const [open, setOpen] = useState(false)
 
@@ -130,6 +132,7 @@ export default function PlanList({
                             favorited={favoritedIds.has(t.share_id)}
                             onToggleFavorite={onToggleFavorite}
                             onHover={onCardHover}
+                            popular={popularDests?.has(t.destination)}
                         />
                     ))}
                 </div>
@@ -148,6 +151,7 @@ export default function PlanList({
                             favorited={favoritedIds.has(t.share_id)}
                             onToggleFavorite={onToggleFavorite}
                             onHover={onCardHover}
+                            popular={popularDests?.has(t.destination)}
                         />
                     ))}
                 </div>

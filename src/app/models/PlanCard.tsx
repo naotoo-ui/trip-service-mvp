@@ -15,9 +15,10 @@ type Props = {
     favorited: boolean
     onToggleFavorite: (id: string) => void
     onHover?: (key: string | null) => void
+    popular?: boolean
 }
 
-export default function PlanCard({ trip, variant, favorited, onToggleFavorite, onHover }: Props) {
+export default function PlanCard({ trip, variant, favorited, onToggleFavorite, onHover, popular }: Props) {
     const img = getDestinationImage(trip.destination)
     const emoji = getDestinationEmoji(trip.destination)
     const handleHeart = (e: React.MouseEvent) => {
@@ -80,13 +81,27 @@ export default function PlanCard({ trip, variant, favorited, onToggleFavorite, o
                     >{favorited ? '♥' : '♡'}</button>
                     <div style={{
                         position: 'absolute', bottom: 8, left: 8,
-                        background: 'rgba(15,23,42,0.78)',
-                        color: 'white',
-                        padding: '3px 8px', borderRadius: 99,
-                        fontSize: 11, fontWeight: 700,
-                        letterSpacing: '0.02em',
-                        backdropFilter: 'blur(6px)',
-                    }}>{trip.duration_days}日間</div>
+                        display: 'flex', gap: 5,
+                    }}>
+                        <span style={{
+                            background: 'rgba(15,23,42,0.78)',
+                            color: 'white',
+                            padding: '3px 8px', borderRadius: 99,
+                            fontSize: 11, fontWeight: 700,
+                            letterSpacing: '0.02em',
+                            backdropFilter: 'blur(6px)',
+                        }}>{trip.duration_days}日間</span>
+                        {popular && (
+                            <span style={{
+                                background: 'linear-gradient(135deg,#f59e0b,#ef4444)',
+                                color: 'white',
+                                padding: '3px 8px', borderRadius: 99,
+                                fontSize: 10, fontWeight: 800,
+                                letterSpacing: '0.04em',
+                                boxShadow: '0 2px 6px rgba(239,68,68,0.32)',
+                            }}>★ 人気</span>
+                        )}
+                    </div>
                 </div>
                 <div style={{ padding: '10px 12px', flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
                     <p style={{
@@ -149,7 +164,22 @@ export default function PlanCard({ trip, variant, favorited, onToggleFavorite, o
                     fontSize: 14, fontWeight: 700, color: '#111827',
                     margin: '0 0 3px',
                     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                }}>{trip.title}</p>
+                    display: 'flex', alignItems: 'center', gap: 6,
+                }}>
+                    {popular && (
+                        <span style={{
+                            background: 'linear-gradient(135deg,#f59e0b,#ef4444)',
+                            color: 'white',
+                            padding: '1px 7px', borderRadius: 99,
+                            fontSize: 9, fontWeight: 800,
+                            letterSpacing: '0.04em',
+                            flexShrink: 0,
+                        }}>★ 人気</span>
+                    )}
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {trip.title}
+                    </span>
+                </p>
                 <p style={{
                     fontSize: 12, color: '#6b7280', margin: 0,
                     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
