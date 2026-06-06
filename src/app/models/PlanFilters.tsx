@@ -122,9 +122,9 @@ export default function PlanFilters({ filter, onChange }: Props) {
             background: 'white',
             border: '1px solid #f0f0f0',
             borderRadius: 14,
-            padding: '12px 14px',
-            marginBottom: 14,
-            display: 'flex', flexDirection: 'column', gap: 10,
+            padding: '14px 16px',
+            display: 'flex', flexDirection: 'column', gap: 14,
+            height: '100%',
         }}>
             <FilterGroup label="テーマ">
                 {THEME_OPTIONS.map(o => (
@@ -170,13 +170,12 @@ export default function PlanFilters({ filter, onChange }: Props) {
 
 function FilterGroup({ label, children }: { label: string; children: React.ReactNode }) {
     return (
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <span style={{
                 fontSize: 11, fontWeight: 700, color: '#94a3b8',
                 letterSpacing: '0.06em', textTransform: 'uppercase',
-                minWidth: 60, paddingTop: 5,
             }}>{label}</span>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', flex: 1 }}>{children}</div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{children}</div>
         </div>
     )
 }

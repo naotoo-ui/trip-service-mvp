@@ -32,13 +32,13 @@ const PROJECTION_CONFIG: Record<'domestic' | 'overseas', { center: [number, numb
     overseas: { center: [10, 25] },
 }
 
-// クラスタリング基準（unzoomed px ベース）
-const CLUSTER_BASE_THRESHOLD = 70
+// クラスタリング基準（unzoomed px ベース）。値が小さいほど細かい区分。
+const CLUSTER_BASE_THRESHOLD = 45
 
 export default function MapView({ kind, markers, selectedKeys, onSelectKeys }: Props) {
     const containerRef = useRef<HTMLDivElement | null>(null)
     const [containerW, setContainerW] = useState(800)
-    const containerH = kind === 'domestic' ? 520 : 440
+    const containerH = kind === 'domestic' ? 580 : 480
 
     const [geos, setGeos] = useState<Feature<Geometry>[] | null>(null)
     const [hoverKey, setHoverKey] = useState<string | null>(null)
@@ -89,8 +89,8 @@ export default function MapView({ kind, markers, selectedKeys, onSelectKeys }: P
         const cfg = PROJECTION_CONFIG[kind]
         // 国内: ゆとりを持たせて全島が収まる scale
         const baseScale = kind === 'domestic'
-            ? Math.min(containerW * 1.05, 980)
-            : Math.min(containerW * 0.30, 180)
+            ? Math.min(containerW * 1.35, 1100)
+            : Math.min(containerW * 0.38, 220)
         return geoMercator()
             .center(cfg.center)
             .scale(baseScale)

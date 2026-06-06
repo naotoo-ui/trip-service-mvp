@@ -23,7 +23,7 @@ export default function MapModelsView({ trips }: Props) {
     const [visibleCount, setVisibleCount] = useState(50)
     const [filter, setFilter] = useState<FilterState>(EMPTY_FILTER)
 
-    const { domesticMarkers, overseasMarkers, tripsByKey } = useMemo(() => {
+    const { tripsByKey, destMetaByKey } = useMemo(() => {
         const groups = new Map<string, { name: string; coord: [number, number]; isOverseas: boolean; trips: TripBrief[] }>()
         for (const t of trips) {
             if (!t.destination) continue
@@ -34,17 +34,36 @@ export default function MapModelsView({ trips }: Props) {
             if (g) g.trips.push(t)
             else groups.set(key, { name: t.destination, coord: r.coord, isOverseas: r.isOverseas, trips: [t] })
         }
-
-        const domesticMarkers: { key: string; name: string; coord: [number, number]; count: number }[] = []
-        const overseasMarkers: { key: string; name: string; coord: [number, number]; count: number }[] = []
         const tripsByKey = new Map<string, TripBrief[]>()
+        const destMetaByKey = new Map<string, { name: string; coord: [number, number]; isOverseas: boolean }>()
         for (const [key, g] of groups.entries()) {
             tripsByKey.set(key, g.trips)
-            const m = { key, name: g.name, coord: g.coord, count: g.trips.length }
-            if (g.isOverseas) overseasMarkers.push(m); else domesticMarkers.push(m)
+            destMetaByKey.set(key, { name: g.name, coord: g.coord, isOverseas: g.isOverseas })
         }
-        return { domesticMarkers, overseasMarkers, tripsByKey }
+        return { tripsByKey, destMetaByKey }
     }, [trips])
+
+    // チップフィルタ（テーマ・日数・出発地）はマップにも一覧にも反映する。
+    // selectedKeys と keyword は一覧側のみに影響。
+    const hasChipFilter = filter.themes.size + filter.durations.size + filter.origins.size > 0
+    const { domesticMarkers, overseasMarkers } = useMemo(() => {
+        const domesticMarkers: { key: string; name: string; coord: [number, number]; count: number }[] = []
+        const overseasMarkers: { key: string; name: string; coord: [number, number]; count: number }[] = []
+        for (const [key, list] of tripsByKey.entries()) {
+            const meta = destMetaByKey.get(key)
+            if (!meta) continue
+            const matched = hasChipFilter
+                ? list.filter(t => tripMatchesFilter({
+                    title: t.title, wishes: t.wishes,
+                    duration_days: t.duration_days, filter,
+                }))
+                : list
+            if (matched.length === 0) continue
+            const m = { key, name: meta.name, coord: meta.coord, count: matched.length }
+            if (meta.isOverseas) overseasMarkers.push(m); else domesticMarkers.push(m)
+        }
+        return { domesticMarkers, overseasMarkers }
+    }, [tripsByKey, destMetaByKey, filter, hasChipFilter])
 
     const currentMarkers = tab === 'domestic' ? domesticMarkers : overseasMarkers
 
@@ -60,8 +79,7 @@ export default function MapModelsView({ trips }: Props) {
             pool = trips.filter(t => keySet.has(t.destination))
         }
         // チップフィルタ適用
-        const hasFilter = filter.themes.size + filter.durations.size + filter.origins.size > 0
-        if (hasFilter) {
+        if (hasChipFilter) {
             pool = pool.filter(t => tripMatchesFilter({
                 title: t.title, wishes: t.wishes,
                 duration_days: t.duration_days, filter,
@@ -76,7 +94,7 @@ export default function MapModelsView({ trips }: Props) {
             )
         }
         return pool
-    }, [selectedKeys, tripsByKey, currentMarkers, trips, keyword, filter])
+    }, [selectedKeys, tripsByKey, currentMarkers, trips, keyword, filter, hasChipFilter])
 
     const visibleTrips = filteredTrips.slice(0, visibleCount)
 
@@ -107,7 +125,7 @@ export default function MapModelsView({ trips }: Props) {
     const selectedArr = Array.from(selectedKeys)
 
     return (
-        <div style={{ maxWidth: 1100, margin: '0 auto', padding: '24px 16px 80px' }}>
+        <div style={{ maxWidth: 1280, margin: '0 auto', padding: '24px 16px 80px' }}>
             <div style={{
                 background: 'linear-gradient(135deg, #7c3aed 0%, #ec4899 100%)',
                 borderRadius: 20, padding: '32px 28px', color: 'white',
@@ -146,16 +164,19 @@ export default function MapModelsView({ trips }: Props) {
                 </TabButton>
             </div>
 
-            <MapView
-                kind={tab}
-                markers={currentMarkers}
-                selectedKeys={selectedKeys}
-                onSelectKeys={handleSelectKeys}
-            />
-
-            {/* チップフィルタ */}
-            <div style={{ marginTop: 16 }}>
-                <PlanFilters filter={filter} onChange={f => { setFilter(f); setVisibleCount(50) }} />
+            {/* 地図（左）＋フィルタ（右）の2カラム。狭幅では縦積み */}
+            <div className="map-row">
+                <div style={{ minWidth: 0, flex: 1 }}>
+                    <MapView
+                        kind={tab}
+                        markers={currentMarkers}
+                        selectedKeys={selectedKeys}
+                        onSelectKeys={handleSelectKeys}
+                    />
+                </div>
+                <aside className="filter-side">
+                    <PlanFilters filter={filter} onChange={f => { setFilter(f); setVisibleCount(50) }} />
+                </aside>
             </div>
 
             <div id="plans-section" style={{
@@ -323,6 +344,19 @@ export default function MapModelsView({ trips }: Props) {
             <style jsx>{`
                 .model-row:hover {
                     background: #fff7ed;
+                }
+                .map-row {
+                    display: flex;
+                    gap: 14px;
+                    align-items: stretch;
+                }
+                .filter-side {
+                    width: 260px;
+                    flex-shrink: 0;
+                }
+                @media (max-width: 900px) {
+                    .map-row { flex-direction: column; }
+                    .filter-side { width: 100%; }
                 }
             `}</style>
         </div>
