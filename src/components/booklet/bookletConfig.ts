@@ -15,7 +15,8 @@ export type PrimitiveBlock =
         fontWeight?: number         // 既定 400
         color?: string              // 既定 テーマの text 色
         imageUrl?: string           // base64 or URL（差し込み画像）
-        showBorder?: boolean        // 既定 true（青の点線枠）
+        showBorder?: boolean        // 旧仕様（背景色未指定時の点線枠 ON/OFF）。今は未使用＝undefined。
+        backgroundColor?: string    // 背景色 hex。未指定で「なし（枠・背景なし）」
         // テキスト装飾トグル（既定 false）
         bold?: boolean              // true で fontWeight を最低 700 として扱う
         italic?: boolean            // font-style: italic

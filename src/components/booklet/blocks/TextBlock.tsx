@@ -20,6 +20,17 @@ function plainTextToHtml(text: string): string {
         .join('<br>')
 }
 
+// hex (#RRGGBB) → rgba(r, g, b, a)
+function hexToRgba(hex: string, alpha: number): string {
+    const cleaned = hex.replace('#', '')
+    if (cleaned.length !== 6) return hex
+    const r = parseInt(cleaned.slice(0, 2), 16)
+    const g = parseInt(cleaned.slice(2, 4), 16)
+    const b = parseInt(cleaned.slice(4, 6), 16)
+    if ([r, g, b].some(v => Number.isNaN(v))) return hex
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
+
 // rgb(r, g, b) → #RRGGBB（その他の入力はそのまま返す）
 function rgbStringToHex(rgb: string): string {
     const m = /^rgba?\(([0-9.]+),\s*([0-9.]+),\s*([0-9.]+)/.exec(rgb)
@@ -67,6 +78,7 @@ type Props = {
     strikethrough?: boolean
     lineHeight?: number          // 倍率（1.0 = デフォルト）
     letterSpacingEm?: number     // em（0 = デフォルト）
+    backgroundColor?: string     // 背景色 hex。未指定で枠・背景なし
     onTitleChange?: (title: string) => void
     onContentChange?: (content: string) => void
     onAlignChange?: (align: TextAlign) => void
@@ -81,6 +93,7 @@ type Props = {
     onStrikethroughChange?: (strike: boolean) => void
     onLineHeightChange?: (lh: number) => void
     onLetterSpacingChange?: (em: number) => void
+    onBackgroundColorChange?: (color: string | undefined) => void
 }
 
 const LINE_HEIGHT_BASE = 1.7  // 「倍率 1.0」のときの実 CSS line-height
@@ -100,11 +113,11 @@ const FONT_WEIGHT_OPTIONS = [
 export default function TextBlock({
     title, content, theme, editable, minHeight,
     align, fontSize, fontWeight, color, imageUrl, showBorder,
-    bold, italic, underline, strikethrough, lineHeight, letterSpacingEm,
+    bold, italic, underline, strikethrough, lineHeight, letterSpacingEm, backgroundColor,
     onTitleChange, onContentChange,
     onAlignChange, onFontSizeChange, onFontWeightChange, onColorChange, onImageChange, onShowBorderChange,
     onBoldChange, onItalicChange, onUnderlineChange, onStrikethroughChange,
-    onLineHeightChange, onLetterSpacingChange,
+    onLineHeightChange, onLetterSpacingChange, onBackgroundColorChange,
 }: Props) {
     const [titleDraft, setTitleDraft] = useState(title)
     const lastTitleRef = useRef(title)
@@ -358,7 +371,8 @@ export default function TextBlock({
     const effectiveFontSize = fontSize ?? 14
     const effectiveFontWeight = fontWeight ?? 400
     const effectiveColor = color ?? theme.text
-    const effectiveShowBorder = showBorder ?? true
+    // showBorder は旧仕様で UI から外したが、Props 互換のためここで参照だけ残す
+    void showBorder; void onShowBorderChange
     const effectiveBold = bold ?? false
     const effectiveItalic = italic ?? false
     const effectiveUnderline = underline ?? false
@@ -381,11 +395,20 @@ export default function TextBlock({
     const textDecorationLine = decorations.length > 0 ? decorations.join(' ') : 'none'
 
     const isJustify = effectiveAlign === 'justify'
+    // 背景色が設定されていれば枠と背景を表示。未設定なら枠も背景もなし。
+    // （旧 showBorder は新ロジックでは無視）
+    const hasBackground = !!backgroundColor
+    const borderStyle = hasBackground
+        ? `1.5px solid ${backgroundColor}`
+        : '1.5px solid transparent'
+    const bgStyle = hasBackground
+        ? hexToRgba(backgroundColor!, 0.18)
+        : 'transparent'
     const contentBoxStyle: React.CSSProperties = {
         width: '100%', minHeight: minHeight ?? 120, padding: 12,
-        border: effectiveShowBorder ? `1.5px dashed ${theme.timelineBar}` : '1.5px solid transparent',
+        border: borderStyle,
         borderRadius: 10,
-        background: theme.pageBg,
+        background: bgStyle,
         fontSize: effectiveFontSize, color: effectiveColor,
         fontWeight: computedFontWeight,
         fontStyle: effectiveItalic ? 'italic' : 'normal',
@@ -533,14 +556,11 @@ export default function TextBlock({
                         </button>
                     )}
 
-                    {/* 枠線表示切替 */}
-                    <ToolButton
-                        active={effectiveShowBorder}
-                        onClick={() => onShowBorderChange?.(!effectiveShowBorder)}
-                        title="点線枠の表示/非表示"
-                    >
-                        {effectiveShowBorder ? '⊟ 枠あり' : '☐ 枠なし'}
-                    </ToolButton>
+                    {/* 背景色（選択で枠＋背景表示・なしで枠も背景もなし） */}
+                    <BackgroundColorControl
+                        value={backgroundColor}
+                        onChange={c => onBackgroundColorChange?.(c)}
+                    />
                 </div>
             )}
 
@@ -1457,6 +1477,169 @@ function SpacingIcon() {
             <path d="M4.5 8 L11.5 8" stroke="currentColor" strokeWidth="1" />
             <path d="M5.5 6.5 L4 8 L5.5 9.5" stroke="currentColor" strokeWidth="1" fill="none" strokeLinecap="round" strokeLinejoin="round" />
             <path d="M10.5 6.5 L12 8 L10.5 9.5" stroke="currentColor" strokeWidth="1" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+    )
+}
+
+// ──────────── 背景色コントロール ────────────
+
+const BG_COLOR_PRESETS: string[] = [
+    '#fef3c7', '#fee2e2', '#dbeafe', '#dcfce7', '#fce7f3',
+    '#fed7aa', '#e0e7ff', '#cffafe', '#f3e8ff', '#fae8ff',
+    '#fef9c3', '#fecaca', '#bfdbfe', '#bbf7d0', '#fbcfe8',
+    '#fdba74', '#a5b4fc', '#67e8f9', '#d8b4fe', '#f5d0fe',
+]
+
+function BackgroundColorControl({ value, onChange }: {
+    value: string | undefined
+    onChange: (color: string | undefined) => void
+}) {
+    const [open, setOpen] = useState(false)
+    const buttonRef = useRef<HTMLButtonElement | null>(null)
+    const popoverRef = useRef<HTMLDivElement | null>(null)
+    const [pos, setPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 })
+
+    useEffect(() => {
+        if (!open || !buttonRef.current) return
+        function recalc() {
+            if (!buttonRef.current) return
+            const rect = buttonRef.current.getBoundingClientRect()
+            const popoverWidth = 230
+            const popoverHeightApprox = 220
+            const margin = 8
+            let left = rect.left
+            if (left + popoverWidth > window.innerWidth - margin) {
+                left = window.innerWidth - popoverWidth - margin
+            }
+            if (left < margin) left = margin
+            let top = rect.bottom + 6
+            if (top + popoverHeightApprox > window.innerHeight - margin) {
+                top = Math.max(margin, rect.top - popoverHeightApprox - 6)
+            }
+            setPos({ top, left })
+        }
+        recalc()
+        window.addEventListener('resize', recalc)
+        window.addEventListener('scroll', recalc, true)
+        return () => {
+            window.removeEventListener('resize', recalc)
+            window.removeEventListener('scroll', recalc, true)
+        }
+    }, [open])
+
+    useEffect(() => {
+        if (!open) return
+        function onDocClick(e: MouseEvent) {
+            const t = e.target as Node
+            if (buttonRef.current?.contains(t)) return
+            if (popoverRef.current?.contains(t)) return
+            setOpen(false)
+        }
+        document.addEventListener('mousedown', onDocClick)
+        return () => document.removeEventListener('mousedown', onDocClick)
+    }, [open])
+
+    return (
+        <>
+            <button
+                ref={buttonRef}
+                type="button"
+                onClick={() => setOpen(o => !o)}
+                title="背景色"
+                style={{
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    width: 32, height: 28, padding: 0,
+                    border: '1px solid #d1d5db', borderRadius: 6,
+                    background: open ? '#eff6ff' : 'white',
+                    color: '#374151',
+                    cursor: 'pointer',
+                }}
+            >
+                <BgPaintIcon color={value} />
+            </button>
+
+            {open && typeof document !== 'undefined' && createPortal(
+                <div
+                    ref={popoverRef}
+                    style={{
+                        position: 'fixed', top: pos.top, left: pos.left,
+                        background: 'white', border: '1px solid #d1d5db', borderRadius: 10,
+                        boxShadow: '0 8px 20px rgba(0,0,0,0.12)',
+                        padding: 12, zIndex: 9999,
+                        width: 230,
+                        display: 'flex', flexDirection: 'column', gap: 10,
+                    }}
+                >
+                    <div style={{
+                        fontSize: 11, fontWeight: 700, color: '#6b7280',
+                        letterSpacing: '0.04em', textTransform: 'uppercase',
+                    }}>背景色</div>
+
+                    {/* なし */}
+                    <button
+                        type="button"
+                        onClick={() => { onChange(undefined); setOpen(false) }}
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: 8,
+                            padding: '6px 10px',
+                            border: !value ? '2px solid #2563eb' : '1px solid #d1d5db',
+                            borderRadius: 6,
+                            background: 'white', color: '#111827',
+                            fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                            fontFamily: 'inherit',
+                        }}
+                    >
+                        <span style={{
+                            display: 'inline-block', width: 18, height: 18,
+                            border: '1px solid #d1d5db', borderRadius: 4,
+                            background: 'linear-gradient(135deg, transparent 0 45%, #dc2626 45% 55%, transparent 55% 100%), white',
+                        }} />
+                        なし（枠・背景なし）
+                    </button>
+
+                    {/* プリセット */}
+                    <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(5, 1fr)', gap: 5,
+                    }}>
+                        {BG_COLOR_PRESETS.map(c => {
+                            const isSelected = c.toUpperCase() === (value ?? '').toUpperCase()
+                            return (
+                                <button
+                                    key={c}
+                                    type="button"
+                                    onClick={() => { onChange(c); setOpen(false) }}
+                                    aria-label={`背景色 ${c}`}
+                                    style={{
+                                        width: '100%', aspectRatio: '1',
+                                        background: c, borderRadius: 5,
+                                        border: isSelected ? '2px solid #2563eb' : '1px solid #d1d5db',
+                                        cursor: 'pointer', padding: 0,
+                                    }}
+                                />
+                            )
+                        })}
+                    </div>
+                </div>,
+                document.body,
+            )}
+        </>
+    )
+}
+
+// 背景色ボタン用アイコン（枠＋現在の色で塗りつぶし、なし時は赤斜線）
+function BgPaintIcon({ color }: { color: string | undefined }) {
+    const isNone = !color
+    return (
+        <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
+            <rect
+                x="2" y="3" width="12" height="10" rx="1.5"
+                fill={color ?? '#ffffff'}
+                stroke="currentColor" strokeWidth="1.3"
+            />
+            {isNone && (
+                <line x1="3" y1="12" x2="13" y2="4" stroke="#dc2626" strokeWidth="1.3" />
+            )}
         </svg>
     )
 }
