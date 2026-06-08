@@ -380,6 +380,7 @@ export default function TextBlock({
     if (effectiveStrikethrough) decorations.push('line-through')
     const textDecorationLine = decorations.length > 0 ? decorations.join(' ') : 'none'
 
+    const isJustify = effectiveAlign === 'justify'
     const contentBoxStyle: React.CSSProperties = {
         width: '100%', minHeight: minHeight ?? 120, padding: 12,
         border: effectiveShowBorder ? `1.5px dashed ${theme.timelineBar}` : '1.5px solid transparent',
@@ -390,6 +391,10 @@ export default function TextBlock({
         fontStyle: effectiveItalic ? 'italic' : 'normal',
         textDecorationLine,
         textAlign: effectiveAlign,
+        // 日本語など空白の無い言語でも文字単位で両端揃えが効くようにする＋
+        // 1行しかないケースや最終行でも視覚的に均等割付されるよう text-align-last も justify に
+        textAlignLast: isJustify ? 'justify' : 'auto',
+        textJustify: 'inter-character',
         fontFamily: 'inherit', lineHeight: effectiveLineHeight,
         letterSpacing: effectiveLetterSpacingEm ? `${effectiveLetterSpacingEm}em` : 'normal',
         boxSizing: 'border-box',
