@@ -88,15 +88,17 @@ export default function PackingBlock({ title, content, columns, theme, editable,
         itemsRef.current = next
     }
 
+    // 保存用：joinItems が空項目を除外して \n\n で結合する。
+    // ローカル state（editItems / itemsRef）は触らない。空の新規項目は
+    // 「Enter で作った直後の入力待ちチェックボックス」なので、blur で
+    //  消えないよう保持する必要がある（消すと Enter で次のボックスが
+    //  出ない問題になる）。
     function commitItems() {
-        const cleaned = itemsRef.current.filter(i => i.length > 0)
-        const joined = joinItems(cleaned)
+        const joined = joinItems(itemsRef.current)
         if (joined !== lastContentRef.current) {
             lastContentRef.current = joined
             onContentChange?.(joined)
         }
-        setEditItems(cleaned)
-        itemsRef.current = cleaned
     }
 
     function addItem() {
