@@ -29,8 +29,15 @@ export type PrimitiveBlock =
         letterSpacingEm?: number    // 既定 0
     }
     | { id: string; kind: 'packing'; title: string; content: string; columns: 1 | 2 | 3; minHeight?: number }
+    | { id: string; kind: 'emergency'; title: string; rows: EmergencyRow[]; minHeight?: number }
     | { id: string; kind: 'divider'; style?: 'solid' | 'dashed' | 'dotted' }
     | { id: string; kind: 'spacer'; height: number }
+
+export type EmergencyRow = {
+    name: string   // 連絡先
+    phone: string  // 電話
+    memo: string   // メモ
+}
 
 export type PrimitiveBlockKind = PrimitiveBlock['kind']
 
@@ -87,7 +94,12 @@ export const BLOCK_TEMPLATES: BlockTemplate[] = [
     },
     {
         label: '緊急連絡先', icon: '🚨',
-        factory: () => ({ id: generateBlockId(), kind: 'text', title: '緊急連絡先', content: '' }),
+        factory: () => ({
+            id: generateBlockId(),
+            kind: 'emergency',
+            title: '緊急連絡先',
+            rows: [{ name: '', phone: '', memo: '' }],
+        }),
     },
     {
         label: 'メモ', icon: '📝',
@@ -226,7 +238,7 @@ function migrateFlatBlocksToItems(blocks: any[]): BookletItem[] {
             items.push({ id: b.id ?? generateBlockId(), kind: 'back-cover' })
         } else if (b.kind === 'day') {
             items.push({ id: b.id ?? generateBlockId(), kind: 'day', dayIdx: b.dayIdx, blocksAbove: [], blocksBelow: [] })
-        } else if (b.kind === 'text' || b.kind === 'packing' || b.kind === 'divider' || b.kind === 'spacer') {
+        } else if (b.kind === 'text' || b.kind === 'packing' || b.kind === 'emergency' || b.kind === 'divider' || b.kind === 'spacer') {
             items.push({
                 id: generateBlockId(), kind: 'composite',
                 blocks: [{ ...b, id: b.id ?? generateBlockId() } as PrimitiveBlock],

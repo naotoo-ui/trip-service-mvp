@@ -23,6 +23,7 @@ import SortablePage from './blocks/SortablePage'
 import SortableInnerBlock from './blocks/SortableInnerBlock'
 import TextBlock from './blocks/TextBlock'
 import PackingBlock from './blocks/PackingBlock'
+import EmergencyBlock from './blocks/EmergencyBlock'
 import DividerBlock from './blocks/DividerBlock'
 import SpacerBlock from './blocks/SpacerBlock'
 import BlockPalette from './blocks/BlockPalette'
@@ -620,13 +621,14 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
     }
 
     function resizePropsFor(block: PrimitiveBlock): { resizable: boolean; currentHeight?: number; onResize?: (h: number) => void } {
-        if (block.kind === 'text' || block.kind === 'packing') {
+        if (block.kind === 'text' || block.kind === 'packing' || block.kind === 'emergency') {
             return {
                 resizable: true,
                 currentHeight: block.minHeight,
                 onResize: (h: number) => updatePrimitive(block.id, b => {
                     if (b.kind === 'text') return { ...b, minHeight: h }
                     if (b.kind === 'packing') return { ...b, minHeight: h }
+                    if (b.kind === 'emergency') return { ...b, minHeight: h }
                     return b
                 }),
             }
@@ -693,6 +695,18 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
                         onTitleChange={editable ? (title => updatePrimitive(block.id, b => b.kind === 'packing' ? { ...b, title } : b)) : undefined}
                         onContentChange={editable ? (content => updatePrimitive(block.id, b => b.kind === 'packing' ? { ...b, content } : b)) : undefined}
                         onColumnsChange={editable ? (columns => updatePrimitive(block.id, b => b.kind === 'packing' ? { ...b, columns } : b)) : undefined}
+                    />
+                )
+            case 'emergency':
+                return (
+                    <EmergencyBlock
+                        title={block.title}
+                        rows={block.rows}
+                        theme={theme}
+                        editable={editable}
+                        minHeight={block.minHeight}
+                        onTitleChange={editable ? (title => updatePrimitive(block.id, b => b.kind === 'emergency' ? { ...b, title } : b)) : undefined}
+                        onRowsChange={editable ? (rows => updatePrimitive(block.id, b => b.kind === 'emergency' ? { ...b, rows } : b)) : undefined}
                     />
                 )
             case 'divider':
