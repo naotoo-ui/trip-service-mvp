@@ -33,8 +33,13 @@ export default function EmergencyBlock({
     const widthsRef = useRef<EmergencyColWidths>(widths)
     const tableRef = useRef<HTMLTableElement>(null)
 
-    const inputRefs = useRef<Map<string, HTMLInputElement>>(new Map())
+    const inputRefs = useRef<Map<string, HTMLInputElement | HTMLTextAreaElement>>(new Map())
     const pendingFocusRef = useRef<{ idx: number; field: CellField } | null>(null)
+
+    function autoResize(el: HTMLTextAreaElement) {
+        el.style.height = 'auto'
+        el.style.height = `${Math.max(el.scrollHeight, 22)}px`
+    }
 
     useEffect(() => {
         if (title !== lastTitleRef.current) { setTitleDraft(title); lastTitleRef.current = title }
@@ -58,8 +63,11 @@ export default function EmergencyBlock({
         }
     }, [colWidths])
 
-    // Enter 押下で挿入した新規行/次セルに focus
+    // 行数変化に応じて textarea の高さ再計算 + 保留中フォーカスを適用
     useEffect(() => {
+        inputRefs.current.forEach(el => {
+            if (el instanceof HTMLTextAreaElement) autoResize(el)
+        })
         if (pendingFocusRef.current) {
             const { idx, field } = pendingFocusRef.current
             const el = inputRefs.current.get(`${idx}-${field}`)
@@ -116,10 +124,16 @@ export default function EmergencyBlock({
         onRowsChange?.(next)
     }
 
-    function handleCellKeyDown(e: React.KeyboardEvent<HTMLInputElement>, idx: number, field: CellField) {
+    function handleCellKeyDown(
+        e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>,
+        idx: number,
+        field: CellField,
+    ) {
         if (e.key !== 'Enter') return
         // 日本語 IME の確定 Enter は無視
         if (e.nativeEvent.isComposing) return
+        // 連絡先・メモ は Shift+Enter でセル内改行（textarea 既定動作に委譲）
+        if ((field === 'name' || field === 'memo') && e.shiftKey) return
         e.preventDefault()
 
         if (field === 'name') {
@@ -182,7 +196,15 @@ export default function EmergencyBlock({
         fontFamily: 'inherit', outline: 'none',
         boxSizing: 'border-box',
     }
+    const cellTextareaStyle: React.CSSProperties = {
+        ...cellInputStyle,
+        resize: 'none',
+        overflow: 'hidden',
+        lineHeight: 1.5,
+        minHeight: 22,
+    }
     const cellFocusStyle = `1px solid ${theme.accent}`
+    const colBorder = `1px solid ${theme.timelineBar}`
 
     return (
         <div className="booklet-emergency booklet-inline-block" style={{ position: 'relative', zIndex: 2, minHeight: minHeight ?? undefined }}>
@@ -232,11 +254,11 @@ export default function EmergencyBlock({
                         background: theme.pageBg,
                         borderBottom: `1.5px solid ${theme.timelineBar}`,
                     }}>
-                        <th style={headerCellStyle(theme)}>
+                        <th style={{ ...headerCellStyle(theme), borderRight: colBorder }}>
                             連絡先
                             {editable && <ResizeHandle onPointerDown={e => startResize('name-phone', e)} />}
                         </th>
-                        <th style={headerCellStyle(theme)}>
+                        <th style={{ ...headerCellStyle(theme), borderRight: colBorder }}>
                             電話
                             {editable && <ResizeHandle onPointerDown={e => startResize('phone-memo', e)} />}
                         </th>
@@ -257,29 +279,32 @@ export default function EmergencyBlock({
                     )}
                     {editRows.map((row, idx) => (
                         <tr key={idx} style={{ borderBottom: `1px solid ${theme.timelineBar}` }}>
-                            <td style={cellTdStyle}>
+                            <td style={{ ...cellTdStyle, borderRight: colBorder }}>
                                 {editable ? (
-                                    <input
+                                    <textarea
                                         ref={el => {
                                             const key = `${idx}-name`
-                                            if (el) inputRefs.current.set(key, el)
+                                            if (el) { inputRefs.current.set(key, el); autoResize(el) }
                                             else inputRefs.current.delete(key)
                                         }}
-                                        type="text"
+                                        rows={1}
                                         value={row.name}
-                                        onChange={e => updateCell(idx, 'name', e.target.value)}
+                                        onChange={e => { updateCell(idx, 'name', e.target.value); autoResize(e.currentTarget) }}
                                         onBlur={commitRows}
                                         onKeyDown={e => handleCellKeyDown(e, idx, 'name')}
-                                        placeholder="例: ◯◯ホテル"
-                                        style={cellInputStyle}
+                                        placeholder="例: ◯◯ホテル（Shift+Enter で改行）"
+                                        style={cellTextareaStyle}
                                         onFocus={e => { e.currentTarget.style.border = cellFocusStyle }}
                                         onBlurCapture={e => { e.currentTarget.style.border = '1px solid transparent' }}
                                     />
                                 ) : (
-                                    <span style={{ padding: '5px 8px', display: 'block' }}>{row.name || ' '}</span>
+                                    <span style={{
+                                        padding: '5px 8px', display: 'block',
+                                        whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                                    }}>{row.name || ' '}</span>
                                 )}
                             </td>
-                            <td style={cellTdStyle}>
+                            <td style={{ ...cellTdStyle, borderRight: colBorder }}>
                                 {editable ? (
                                     <input
                                         ref={el => {
@@ -307,24 +332,27 @@ export default function EmergencyBlock({
                             </td>
                             <td style={cellTdStyle}>
                                 {editable ? (
-                                    <input
+                                    <textarea
                                         ref={el => {
                                             const key = `${idx}-memo`
-                                            if (el) inputRefs.current.set(key, el)
+                                            if (el) { inputRefs.current.set(key, el); autoResize(el) }
                                             else inputRefs.current.delete(key)
                                         }}
-                                        type="text"
+                                        rows={1}
                                         value={row.memo}
-                                        onChange={e => updateCell(idx, 'memo', e.target.value)}
+                                        onChange={e => { updateCell(idx, 'memo', e.target.value); autoResize(e.currentTarget) }}
                                         onBlur={commitRows}
                                         onKeyDown={e => handleCellKeyDown(e, idx, 'memo')}
-                                        placeholder="例: 24時間対応"
-                                        style={cellInputStyle}
+                                        placeholder="例: 24時間対応（Shift+Enter で改行）"
+                                        style={cellTextareaStyle}
                                         onFocus={e => { e.currentTarget.style.border = cellFocusStyle }}
                                         onBlurCapture={e => { e.currentTarget.style.border = '1px solid transparent' }}
                                     />
                                 ) : (
-                                    <span style={{ padding: '5px 8px', display: 'block' }}>{row.memo || ' '}</span>
+                                    <span style={{
+                                        padding: '5px 8px', display: 'block',
+                                        whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                                    }}>{row.memo || ' '}</span>
                                 )}
                             </td>
                             {editable && (
