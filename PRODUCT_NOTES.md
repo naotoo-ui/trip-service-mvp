@@ -817,12 +817,27 @@ docs/
 // プリミティブブロック：ページの中身として配置されるサブブロック
 type PrimitiveBlock =
     | {
-        id: string; kind: 'text'; title: string; content: string; minHeight?: number
-        // 自由ページ拡張: 寄せ・サイズ・色・画像・枠線
-        align?: 'left'|'center'|'right'; fontSize?: number; fontWeight?: number
-        color?: string; imageUrl?: string; showBorder?: boolean
-        // テキスト装飾トグル（既定 false。bold は fontWeight を最低 700 に引き上げる）
+        id: string; kind: 'text'; title: string
+        // contentEditable で編集される本文。インライン HTML を含む（<span style>/<br>/<ul>/<ol>/<li> 等）
+        content: string
+        minHeight?: number
+        // 寄せ（ブロック全体に適用。'justify' は両端揃え）
+        align?: 'left'|'center'|'right'|'justify'
+        // 既定スタイル（contentEditable の根 div に適用される＝未指定インライン文字の見え方）
+        fontSize?: number; fontWeight?: number; color?: string
+        // 画像差し込み（base64 or URL）と旧枠線フラグ（後者は新ロジックでは無視・型互換のため残置）
+        imageUrl?: string; showBorder?: boolean
+        // 旧ブロックレベルのテキスト装飾（既定 false）。bold は fontWeight を最低 700 に引き上げる。
+        // ※新仕様では Bold/Italic/Underline/Strikethrough は contentEditable の execCommand で
+        //   選択範囲ごとに適用するため、これらのフィールドはレガシー扱い。
         bold?: boolean; italic?: boolean; underline?: boolean; strikethrough?: boolean
+        // 間隔（ブロック全体）
+        // lineHeight は「デフォルト 1.7 に対する倍率」。1.0 = デフォルト
+        lineHeight?: number
+        // letterSpacing は em。0 = デフォルト
+        letterSpacingEm?: number
+        // 背景色 hex。設定すると同色の枠＋同色 0.18 alpha の背景。未指定で「なし（枠・背景なし）」
+        backgroundColor?: string
     }
     | { id: string; kind: 'packing'; title: string; content: string; columns: 1|2|3; minHeight?: number }
     | { id: string; kind: 'divider'; style?: 'solid'|'dashed'|'dotted' }
@@ -856,7 +871,11 @@ type BookletConfig = {
 `reconcileDayItems` は旅程日数の変化に追従（不足分は背表紙の直前に追加、範囲外の dayIdx は除去）。
 
 **ブロック編集（2階層）**:
-- `updatePrimitive(id, updater)`: 全 items を横断して該当 ID の primitive block を更新
+- `updatePrimitive(id, updater)`: 全 items を横断して該当 ID の primitive block を更新。
+  **functional setState (`setConfig(prev => ...)`) で実装**。同一イベント内で連続呼び出しても
+  必ず直前の更新後 state を起点に派生するため race しない（例：`resetSpacing` が content の
+  inline style 剥がし → letterSpacing リセット → lineHeight リセットを3連続呼び出しても
+  全部反映される）
 - `deletePrimitive(id)`: primitive block を削除。composite が空になったらページごと消滅
 - `deleteItem(itemId)`: ページ単位の削除（composite のみ削除可能。cover/back-cover/day は保持）
 - D&D並び替え: 2階層 SortableContext
@@ -966,9 +985,78 @@ type BookletConfig = {
 
 `text` ブロックは旧オプショナルページ（編集メンバー・集合時間・緊急連絡先・メモ・金額メモ・自由ページ）の置き換え。タイトルもユーザーが自由に編集可能。
 
+### TextBlock リッチエディタ仕様
+
+**コンセプト**: `<textarea>` ではなく **contentEditable + execCommand** ベースのリッチエディタ。本文（`content`）は HTML 文字列として保存される（インライン `<span style="...">` / `<br>` / `<ul>`/`<ol>`/`<li>` 等を含む）。
+
+**旧プレーンテキスト互換** (`plainTextToHtml`):
+- 既存ブロックの `content` がプレーンテキスト（`<` を含まない）なら、`\n` を `<br>` にエスケープして innerHTML に流し込む
+- 一度でも編集すれば innerHTML がそのまま HTML として保存され以降は HTML 扱い
+
+**ツールバー構成（左から）**:
+1. **AlignCycleButton**: 1ボタンで `左 → 中央 → 右 → 両端揃え → 左` を循環。ブロック全体の `text-align`
+2. **FontSizeControl**: `A/A` アイコン → ポップオーバーでスライダー + 数値 ± ボタン（8〜64px）。**選択範囲のみ**に `<span style="font-size:Xpx">` で wrap
+3. **ColorPickerControl**: `A` の下に現在色のライン → ポップオーバーで HSV ピッカー＋色相スライダー＋プリセット20色＋hex 入力。**選択範囲のみ** `execCommand('foreColor', ...)` with `styleWithCSS=true`
+4. **B / I / U / S（StyleToggleButton）**: それぞれ `execCommand('bold' / 'italic' / 'underline' / 'strikeThrough')`。**選択範囲のみ**
+5. **ListCycleButton**: 1ボタンで `なし → 箇条書き(・) → 番号付き(1.) → なし` を循環。`execCommand('insertUnorderedList' / 'insertOrderedList')`
+6. **SpacingControl**: アイコンのみのボタン → ポップオーバーで2スライダー
+   - 文字間隔 (`letterSpacingEm`): 0〜0.5em、**ブロック全体**に `letter-spacing: Xem`
+   - 行間隔 (`lineHeight`): 1.0〜2.5 の**倍率**、CSS では `lineHeight × 1.7`（デフォルト 1.7）
+   - 末尾に「⟲ デフォルトに戻す」ボタン
+7. **画像アップロード/削除**: SVG アイコン（写真フレーム＋山＋太陽、削除時は赤斜線追加）。base64 で `imageUrl` に保存
+8. **BackgroundColorControl**: 枠＋現在色の SVG → ポップオーバーで「なし」＋20色プリセット
+
+**選択追跡** (`updateSelState` + `selectionchange` event + `onKeyUp` + `onMouseUp`):
+- B/I/U/S 状態: `queryCommandState('bold' / 'italic' / 'underline' / 'strikeThrough')`
+- リスト種別: `queryCommandState('insertUnorderedList' / 'insertOrderedList')` を見て `none|bullet|numbered`
+- color/fontSize: 選択位置の `getComputedStyle(node).color`（→hex 変換）, `.fontSize`
+- letterSpacing/lineHeight: `getComputedStyle` から px を取得し fontSize で割って em / multiplier に変換
+- これらをツールバーボタンの active 表示・スライダーの初期値に反映
+
+**寄せ（justify）の視認性向上**:
+- `text-justify: inter-character` を常時付与（日本語の文字単位均等割付）
+- `effectiveAlign === 'justify'` のときは `text-align-last: justify` も付与（最終行・単一行でも視覚的に両端まで広がる）
+
+**リスト周りの挙動**:
+- リスト内 `Enter`: ブラウザ標準で新しい `<li>`（マーカー継承）
+- **空 `<li>` で `Enter`**: ブラウザ既定は「リスト終了」だが、`handleEditorKeyDown` で intercept して新しい空 `<li>` を兄弟挿入 + フォーカス移動（マーカーが消えない）
+- `Shift+Enter`: そのまま `<br>`（同じ `<li>` 内で改行）
+- CSS `.booklet-text-content ul/ol/li` で `text-align: left` 強制（ブロックの寄せに引きずられない）
+- `list-style-type: '・ '` / `decimal`、`list-style-position: outside`
+
+**「デフォルトに戻す」の挙動**:
+- `editorRef.current.querySelectorAll('[style*="letter-spacing"], [style*="line-height"]')` を巡回して、`letter-spacing` と `line-height` の inline style プロパティだけを `removeProperty` で剥がす
+- `style` 属性が空になった要素は属性ごと削除
+- `commitContent()` で HTML を保存
+- `onLetterSpacingChange(0)` と `onLineHeightChange(1.0)` でブロック値もリセット
+- updatePrimitive の functional setState 化により、この3連続呼び出しが race せず全部反映される
+
+**背景色（`backgroundColor`）の効き方**:
+- 設定あり → `border: 1.5px solid {color}` + `background: hexToRgba(color, 0.18)`（同色の薄い背景）
+- 設定なし → `border: 1.5px solid transparent` + `background: transparent`（枠も背景もなし）
+- 旧 `showBorder` フィールドは新ロジックでは無視（型互換のため残置）
+
+**`white-space` の使い分け**:
+- 編集モード（contentEditable）は default (`normal`)。Enter で `<br>`/`<div>`/新 `<li>` が生成される
+- 閲覧モード（`dangerouslySetInnerHTML`）は `pre-wrap`。旧プレーンテキスト互換で `\n` も表示
+
+**閲覧モードのレンダリング**:
+- `dangerouslySetInnerHTML` で HTML をそのまま表示（owner のみが編集する想定）
+- 将来「不特定多数公開」を実装する際は **HTML サニタイズ（DOMPurify 等）が必須**
+  → メモ系ブロックの **block 単位 `private` フラグ**と同時着手予定
+
 **持ち物リスト（packing）の挙動**:
 - チェックボックスリスト（常時）・1/2/3列切替（ヘッダーの列数ボタン）
-- 編集モード: 各行を `<input type="text">` で編集・× で削除・「＋ アイテムを追加」ボタン
+- 編集モード: 各項目は `<textarea rows={1}>`（自動リサイズ）。× で削除・「＋ アイテムを追加」ボタン
+- **キーバインド**:
+  - `Enter`: 新しい空のチェックボックス項目を直下に追加して自動フォーカス
+  - `Shift/Alt/Ctrl/Cmd + Enter`: 項目内で改行（textarea default で複数行アイテムにできる）
+  - 空項目で `Backspace`: 項目を削除して前項目末尾にフォーカス
+- **ストレージ**: 項目区切りは `\n\n`（旧 `\n` 区切りデータは `parseItems` が
+  自動判別して互換読み込み・次の保存で新フォーマットに移行）。項目内 `\n` は維持されるため複数行アイテム可能
+- **commitItems**: `joinItems(itemsRef.current)`（空項目を除外して `\n\n` で結合）で `onContentChange` するだけ。
+  ローカル state は触らない（触ると Enter 直後の空項目が blur で消えて「Enter で次のチェックボックスが出ない」問題になる）
+- 閲覧モードの `<span>` は `white-space: pre-wrap` で項目内の改行を保持して表示
 - 印刷時の自動分割は CSS の `break-inside: avoid` に委譲（手動 `ITEMS_PER_COL` 分割は廃止）
 
 ### スポットごとのメモ・URL機能（BookletDayPage）
@@ -1072,6 +1160,15 @@ try { data = JSON.parse(text) } catch {
 - **しおりブロック方式**: `config.blocks: BookletBlock[]` をユーザーがD&Dで並び替え・追加・削除（@dnd-kit）。印刷時は `break-inside: avoid` で自動レイアウト・自動改ページ
 - **しおり旧データ自動マイグレーション**: `optionalPages`/`dayMemos` を持つ旧 localStorage を `migrateLegacyConfig` が blocks 配列に変換（次回保存時に新形式で上書き）
 - **BookletConfig マイグレーション**: 旧 `screen/print` 構造を `loadBookletConfig` で自動変換（`parsed.screen` を source とする）
+- **しおり TextBlock リッチエディタ**: `<textarea>` ではなく contentEditable + execCommand。`content` は HTML として保存（インライン `<span style>`/`<br>`/`<ul>/<ol>/<li>` 等）。旧プレーンテキストは `plainTextToHtml` で `\n` → `<br>` 互換変換
+- **しおり TextBlock 選択追跡**: `selectionchange` event + `onKeyUp` + `onMouseUp` で `updateSelState` を発火。`queryCommandState` と `getComputedStyle` から B/I/U/S/list/color/fontSize/letterSpacing/lineHeight を取得してツールバーに反映
+- **しおり TextBlock 寄せ justify**: `text-justify: inter-character` を常時付与、`align === 'justify'` なら `text-align-last: justify` も追加して短い行でも視覚的に効くように
+- **しおり TextBlock リスト Enter 維持**: 空 `<li>` で Enter してもブラウザのリスト終了挙動を `handleEditorKeyDown` で intercept し、新しい空 `<li>` を兄弟挿入してフォーカス（マーカー消失防止）
+- **しおり TextBlock 行間隔倍率**: `lineHeight` フィールドはデフォルトに対する**倍率**（1.0 = デフォルト）。CSS 計算式 `effectiveLineHeight = lineHeight × 1.7`。span ベースの inline 値だと外側が打ち消せず戻せないため block-level 化
+- **しおり TextBlock 文字間隔**: `letterSpacingEm` も block-level（行ごとに均一にするため）。「選択範囲だけ」ではないが「選択した行すべて」が意図通り均等になる
+- **しおり TextBlock 背景色**: `backgroundColor` 設定で `border: solid {color}` + `background: hexToRgba(color, 0.18)`。未指定で枠・背景なし。旧 `showBorder` は無視
+- **updatePrimitive 競合対策**: `setConfig(prev => ...)` の functional setState 形式で実装。同イベント内で連続呼び出し（例：`resetSpacing` の 3 連続更新）でも race しない
+- **しおり PackingBlock リッチ入力**: 各項目 `<textarea rows={1}>` 自動リサイズ。`Enter` で次のチェックボックス追加＋フォーカス、`Shift+Enter` で項目内改行、空項目で `Backspace` で削除＋前項目末尾フォーカス。ストレージ区切りは `\n\n`（旧 `\n` は自動互換）。`commitItems` はローカル state を触らず join 結果を保存するだけにすることで「Enter 直後の空項目が旧項目 blur で消える」race を回避
 
 
 ---
