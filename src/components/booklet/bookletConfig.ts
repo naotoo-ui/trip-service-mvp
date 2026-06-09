@@ -29,7 +29,7 @@ export type PrimitiveBlock =
         letterSpacingEm?: number    // 既定 0
     }
     | { id: string; kind: 'packing'; title: string; content: string; columns: 1 | 2 | 3; minHeight?: number }
-    | { id: string; kind: 'emergency'; title: string; rows: EmergencyRow[]; minHeight?: number }
+    | { id: string; kind: 'emergency'; title: string; rows: EmergencyRow[]; colWidths?: EmergencyColWidths; minHeight?: number }
     | { id: string; kind: 'divider'; style?: 'solid' | 'dashed' | 'dotted' }
     | { id: string; kind: 'spacer'; height: number }
 
@@ -37,6 +37,13 @@ export type EmergencyRow = {
     name: string   // 連絡先
     phone: string  // 電話
     memo: string   // メモ
+}
+
+// 連絡先/電話/メモ 3 列の幅（パーセント、合計 = 100 を想定）
+export type EmergencyColWidths = {
+    name: number
+    phone: number
+    memo: number
 }
 
 export type PrimitiveBlockKind = PrimitiveBlock['kind']

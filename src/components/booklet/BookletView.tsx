@@ -702,11 +702,13 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
                     <EmergencyBlock
                         title={block.title}
                         rows={block.rows}
+                        colWidths={block.colWidths}
                         theme={theme}
                         editable={editable}
                         minHeight={block.minHeight}
                         onTitleChange={editable ? (title => updatePrimitive(block.id, b => b.kind === 'emergency' ? { ...b, title } : b)) : undefined}
                         onRowsChange={editable ? (rows => updatePrimitive(block.id, b => b.kind === 'emergency' ? { ...b, rows } : b)) : undefined}
+                        onColWidthsChange={editable ? (colWidths => updatePrimitive(block.id, b => b.kind === 'emergency' ? { ...b, colWidths } : b)) : undefined}
                     />
                 )
             case 'divider':
