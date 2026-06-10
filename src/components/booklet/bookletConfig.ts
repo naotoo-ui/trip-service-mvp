@@ -92,10 +92,6 @@ export const BLOCK_TEMPLATES: BlockTemplate[] = [
         factory: () => ({ id: generateBlockId(), kind: 'packing', title: '持ち物リスト', content: '', columns: 1 }),
     },
     {
-        label: '編集メンバー', icon: '👥',
-        factory: () => ({ id: generateBlockId(), kind: 'text', title: '編集メンバー', content: '' }),
-    },
-    {
         label: '集合時間・場所', icon: '📍',
         factory: () => ({ id: generateBlockId(), kind: 'text', title: '集合時間・場所', content: '' }),
     },
