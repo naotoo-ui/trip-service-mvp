@@ -9,6 +9,9 @@ type Props = {
     colWidths?: BudgetColWidths
     sort?: BudgetSort
     members: string[]              // しおりの編集メンバー
+    foreignMode?: boolean          // 外貨モード ON で 外貨/レート 列を追加
+    rateMode?: 'auto' | 'manual'   // 自動 / 手動
+    globalRate?: string            // 自動モード時の共通レート
     theme: Theme
     editable: boolean
     minHeight?: number
@@ -21,6 +24,9 @@ type Props = {
 type CellField = keyof BudgetRow
 
 const DEFAULT_COL_WIDTHS: BudgetColWidths = { date: 22, member: 22, amount: 20, memo: 36 }
+// 外貨モード時、外貨/レート列は固定幅（その分だけ他列を比例縮小）
+const FOREIGN_COL_WIDTH = 12  // %
+const RATE_COL_WIDTH = 12     // %
 
 // 金額文字列から数値を抽出（'￥5,000' → 5000, '' → 0, 'abc' → NaN→ソート時は末尾扱い）
 function parseAmount(s: string): number {
@@ -58,7 +64,9 @@ function applySort(rows: BudgetRow[], sort: BudgetSort | undefined): { row: Budg
 }
 
 export default function BudgetBlock({
-    title, rows, colWidths, sort, members, theme, editable, minHeight,
+    title, rows, colWidths, sort, members,
+    foreignMode = false, rateMode = 'manual', globalRate,
+    theme, editable, minHeight,
     onTitleChange, onRowsChange, onColWidthsChange, onSortChange,
 }: Props) {
     const [titleDraft, setTitleDraft] = useState(title)
@@ -166,19 +174,29 @@ export default function BudgetBlock({
         onRowsChange?.(next)
     }
 
+    // Enter 押下時の次フォーカス先（'addRow' = 新規行を末尾に追加）
+    function nextField(field: CellField): CellField | 'addRow' {
+        const fields: CellField[] = foreignMode
+            ? (rateMode === 'manual'
+                ? ['date', 'member', 'foreignAmount', 'rate', 'amount', 'memo']
+                : ['date', 'member', 'foreignAmount', 'amount', 'memo']) // 自動なら rate はスキップ
+            : ['date', 'member', 'amount', 'memo']
+        const idx = fields.indexOf(field)
+        if (idx < 0 || idx === fields.length - 1) return 'addRow'
+        return fields[idx + 1]
+    }
+
     function handleCellKeyDown(
         e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
         origIdx: number, field: CellField,
     ) {
         if (e.key !== 'Enter') return
         if ('isComposing' in e.nativeEvent && (e.nativeEvent as KeyboardEvent).isComposing) return
-        // メモは Shift+Enter でセル内改行
-        if (field === 'memo' && e.shiftKey) return
+        if (field === 'memo' && e.shiftKey) return  // メモは Shift+Enter でセル内改行
         e.preventDefault()
-        if (field === 'date') inputRefs.current.get(`${origIdx}-member`)?.focus()
-        else if (field === 'member') inputRefs.current.get(`${origIdx}-amount`)?.focus()
-        else if (field === 'amount') inputRefs.current.get(`${origIdx}-memo`)?.focus()
-        else addRowAndFocus(rowsRef.current.length)
+        const target = nextField(field)
+        if (target === 'addRow') addRowAndFocus(rowsRef.current.length)
+        else inputRefs.current.get(`${origIdx}-${target}`)?.focus()
     }
 
     function toggleSort(key: BudgetSort['key']) {
@@ -251,6 +269,18 @@ export default function BudgetBlock({
     const cellFocusStyle = `1px solid ${theme.accent}`
     const colBorder = `1px solid ${theme.timelineBar}`
 
+    // 外貨モード時、固定 24% を 外貨/レート に割当てて他列は比例縮小
+    const scale = foreignMode ? (100 - FOREIGN_COL_WIDTH - RATE_COL_WIDTH) / 100 : 1
+    const visW = {
+        date: widths.date * scale,
+        member: widths.member * scale,
+        foreignAmount: foreignMode ? FOREIGN_COL_WIDTH : 0,
+        rate: foreignMode ? RATE_COL_WIDTH : 0,
+        amount: widths.amount * scale,
+        memo: widths.memo * scale,
+    }
+    const totalDataCols = (foreignMode ? 6 : 4)
+
     return (
         <div className="booklet-budget booklet-inline-block" style={{ position: 'relative', zIndex: 2, minHeight: minHeight ?? undefined }}>
             <header style={{
@@ -300,10 +330,12 @@ export default function BudgetBlock({
                 }}
             >
                 <colgroup>
-                    <col style={{ width: `${widths.date}%` }} />
-                    <col style={{ width: `${widths.member}%` }} />
-                    <col style={{ width: `${widths.amount}%` }} />
-                    <col style={{ width: `${widths.memo}%` }} />
+                    <col style={{ width: `${visW.date}%` }} />
+                    <col style={{ width: `${visW.member}%` }} />
+                    {foreignMode && <col style={{ width: `${visW.foreignAmount}%` }} />}
+                    {foreignMode && <col style={{ width: `${visW.rate}%` }} />}
+                    <col style={{ width: `${visW.amount}%` }} />
+                    <col style={{ width: `${visW.memo}%` }} />
                     {editable && <col style={{ width: 28 }} />}
                 </colgroup>
                 <thead>
@@ -315,6 +347,14 @@ export default function BudgetBlock({
                             resizer={editable ? <ResizeHandle onPointerDown={e => startResize('date-member', e)} /> : null} />
                         <SortableTh label="メンバー" field="member" sort={sort} onToggle={toggleSort} theme={theme} borderRight={colBorder}
                             resizer={editable ? <ResizeHandle onPointerDown={e => startResize('member-amount', e)} /> : null} />
+                        {foreignMode && (
+                            <th style={{ ...headerCellStyle(theme), borderRight: colBorder, textAlign: 'right' }}>外貨</th>
+                        )}
+                        {foreignMode && (
+                            <th style={{ ...headerCellStyle(theme), borderRight: colBorder, textAlign: 'right' }}>
+                                レート{rateMode === 'auto' && <span style={{ marginLeft: 4, opacity: 0.6, fontWeight: 400 }}>(共通)</span>}
+                            </th>
+                        )}
                         <SortableTh label="金額"    field="amount" sort={sort} onToggle={toggleSort} theme={theme} borderRight={colBorder}
                             resizer={editable ? <ResizeHandle onPointerDown={e => startResize('amount-memo', e)} /> : null} />
                         <th style={headerCellStyle(theme)}>メモ</th>
@@ -324,7 +364,7 @@ export default function BudgetBlock({
                 <tbody>
                     {sortedRows.length === 0 && (
                         <tr>
-                            <td colSpan={editable ? 5 : 4} style={{
+                            <td colSpan={editable ? totalDataCols + 1 : totalDataCols} style={{
                                 padding: '10px 8px', color: theme.subText,
                                 fontSize: 12, textAlign: 'center',
                             }}>
@@ -394,6 +434,64 @@ export default function BudgetBlock({
                                     <span style={{ padding: '5px 8px', display: 'block' }}>{row.member || ' '}</span>
                                 )}
                             </td>
+                            {foreignMode && (
+                                <td style={{ ...cellTdStyle, borderRight: colBorder }}>
+                                    {editable ? (
+                                        <input
+                                            ref={el => {
+                                                const key = `${origIdx}-foreignAmount`
+                                                if (el) inputRefs.current.set(key, el)
+                                                else inputRefs.current.delete(key)
+                                            }}
+                                            type="text"
+                                            inputMode="decimal"
+                                            value={row.foreignAmount ?? ''}
+                                            onChange={e => updateCell(origIdx, 'foreignAmount', e.target.value)}
+                                            onBlur={commitRows}
+                                            onKeyDown={e => handleCellKeyDown(e, origIdx, 'foreignAmount')}
+                                            placeholder="例: 100"
+                                            style={{ ...cellInputStyle, fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}
+                                            onFocus={e => { e.currentTarget.style.border = cellFocusStyle }}
+                                            onBlurCapture={e => { e.currentTarget.style.border = '1px solid transparent' }}
+                                        />
+                                    ) : (
+                                        <span style={{
+                                            padding: '5px 8px', display: 'block',
+                                            fontVariantNumeric: 'tabular-nums', textAlign: 'right',
+                                        }}>{row.foreignAmount || ' '}</span>
+                                    )}
+                                </td>
+                            )}
+                            {foreignMode && (
+                                <td style={{ ...cellTdStyle, borderRight: colBorder }}>
+                                    {editable && rateMode === 'manual' ? (
+                                        <input
+                                            ref={el => {
+                                                const key = `${origIdx}-rate`
+                                                if (el) inputRefs.current.set(key, el)
+                                                else inputRefs.current.delete(key)
+                                            }}
+                                            type="text"
+                                            inputMode="decimal"
+                                            value={row.rate ?? ''}
+                                            onChange={e => updateCell(origIdx, 'rate', e.target.value)}
+                                            onBlur={commitRows}
+                                            onKeyDown={e => handleCellKeyDown(e, origIdx, 'rate')}
+                                            placeholder="例: 150"
+                                            style={{ ...cellInputStyle, fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}
+                                            onFocus={e => { e.currentTarget.style.border = cellFocusStyle }}
+                                            onBlurCapture={e => { e.currentTarget.style.border = '1px solid transparent' }}
+                                        />
+                                    ) : (
+                                        // 自動モード: 共通レートを読取専用で表示
+                                        <span style={{
+                                            padding: '5px 8px', display: 'block',
+                                            fontVariantNumeric: 'tabular-nums', textAlign: 'right',
+                                            color: theme.subText,
+                                        }}>{globalRate || ' '}</span>
+                                    )}
+                                </td>
+                            )}
                             <td style={{ ...cellTdStyle, borderRight: colBorder }}>
                                 {editable ? (
                                     <input

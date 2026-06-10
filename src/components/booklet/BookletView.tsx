@@ -723,6 +723,9 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
                         colWidths={block.colWidths}
                         sort={block.sort}
                         members={config!.members ?? []}
+                        foreignMode={!!config!.foreignCurrencyMode}
+                        rateMode={config!.foreignRateMode ?? 'manual'}
+                        globalRate={config!.foreignGlobalRate}
                         theme={theme}
                         editable={editable}
                         minHeight={block.minHeight}

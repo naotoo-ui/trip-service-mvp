@@ -133,6 +133,8 @@ export default function BookletSettings({ open, onClose, config, onUpdate }: Pro
                                 onChange={members => onUpdate({ ...config, members })}
                             />
 
+                            <ForeignCurrencySettings config={config} onUpdate={onUpdate} />
+
                             <div style={{
                                 padding: '14px',
                                 background: '#f8fafc',
@@ -345,5 +347,120 @@ function MembersManager({ members, onChange }: { members: string[]; onChange: (n
                 ＋ メンバーを追加
             </button>
         </div>
+    )
+}
+
+// ──────────── 外貨モード設定 ────────────
+
+function ForeignCurrencySettings({ config, onUpdate }: { config: BookletConfig; onUpdate: (next: BookletConfig) => void }) {
+    const enabled = !!config.foreignCurrencyMode
+    const rateMode = config.foreignRateMode ?? 'manual'
+    const [rateDraft, setRateDraft] = useState<string>(config.foreignGlobalRate ?? '')
+    const lastSavedRateRef = useRef<string>(config.foreignGlobalRate ?? '')
+
+    useEffect(() => {
+        const incoming = config.foreignGlobalRate ?? ''
+        if (incoming !== lastSavedRateRef.current) {
+            lastSavedRateRef.current = incoming
+            setRateDraft(incoming)
+        }
+    }, [config.foreignGlobalRate])
+
+    function commitRate() {
+        if (rateDraft !== lastSavedRateRef.current) {
+            lastSavedRateRef.current = rateDraft
+            onUpdate({ ...config, foreignGlobalRate: rateDraft })
+        }
+    }
+
+    return (
+        <div style={{
+            padding: '14px',
+            background: '#f8fafc',
+            borderRadius: 12,
+            border: '1.5px solid #e2e8f0',
+        }}>
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
+                <input
+                    type="checkbox"
+                    checked={enabled}
+                    onChange={e => onUpdate({ ...config, foreignCurrencyMode: e.target.checked })}
+                    style={{ width: 16, height: 16, marginTop: 2, accentColor: '#2563eb', flexShrink: 0 }}
+                />
+                <div>
+                    <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#0f172a' }}>
+                        外貨モード
+                    </p>
+                    <p style={{ margin: '2px 0 0', fontSize: 11, color: '#64748b' }}>
+                        金額メモの金額列の前に外貨/レート列を追加します
+                    </p>
+                </div>
+            </label>
+
+            {enabled && (
+                <div style={{ marginTop: 12, paddingLeft: 26, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <RateModeOption
+                        label="レートを自動設定"
+                        description="全ての行に共通のレートを適用"
+                        checked={rateMode === 'auto'}
+                        onSelect={() => onUpdate({ ...config, foreignRateMode: 'auto' })}
+                    />
+                    {rateMode === 'auto' && (
+                        <div style={{
+                            marginLeft: 26, marginTop: -2, marginBottom: 4,
+                            display: 'flex', alignItems: 'center', gap: 8,
+                        }}>
+                            <label style={{ fontSize: 12, color: '#475569' }}>共通レート</label>
+                            <input
+                                type="text"
+                                inputMode="decimal"
+                                value={rateDraft}
+                                onChange={e => setRateDraft(e.target.value)}
+                                onBlur={commitRate}
+                                onKeyDown={e => {
+                                    if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+                                        e.preventDefault()
+                                        ;(e.currentTarget as HTMLInputElement).blur()
+                                    }
+                                }}
+                                placeholder="例: 150"
+                                style={{
+                                    width: 90, padding: '4px 8px',
+                                    fontSize: 13, color: '#0f172a',
+                                    border: '1.5px solid #e2e8f0', borderRadius: 6,
+                                    background: 'white', outline: 'none',
+                                    fontVariantNumeric: 'tabular-nums', textAlign: 'right',
+                                }}
+                            />
+                        </div>
+                    )}
+                    <RateModeOption
+                        label="レートを手動設定"
+                        description="行ごとにレートを入力"
+                        checked={rateMode === 'manual'}
+                        onSelect={() => onUpdate({ ...config, foreignRateMode: 'manual' })}
+                    />
+                </div>
+            )}
+        </div>
+    )
+}
+
+function RateModeOption({ label, description, checked, onSelect }: {
+    label: string; description: string; checked: boolean; onSelect: () => void
+}) {
+    return (
+        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
+            <input
+                type="radio"
+                checked={checked}
+                onChange={onSelect}
+                style={{ width: 14, height: 14, marginTop: 3, accentColor: '#2563eb', flexShrink: 0 }}
+            />
+            <div>
+                <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: '#0f172a' }}>{label}</p>
+                <p style={{ margin: '1px 0 0', fontSize: 11, color: '#64748b' }}>{description}</p>
+            </div>
+        </label>
     )
 }

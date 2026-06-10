@@ -61,6 +61,9 @@ export type BudgetRow = {
     member: string  // しおりの members から選択（空 = 未指定）
     amount: string  // 金額。表記揺れ許容（例: '5000', '5,000', '￥5,000'）。ソート時は数値抽出
     memo: string
+    // 外貨モード時のみ意味を持つ
+    foreignAmount?: string  // 外貨額
+    rate?: string           // レート（手動モード時のみ意味あり。自動モードでは config.foreignGlobalRate を表示）
 }
 
 // 日付/メンバー/金額/メモ 4 列の幅（パーセント、合計 = 100 を想定）
@@ -97,6 +100,10 @@ export type BookletConfig = {
     fontStyle?: FontStyle
     // しおり共通の編集メンバー名。budget ブロックの member ドロップダウン等で参照する。
     members?: string[]
+    // 外貨モード（金額メモに外貨/レート列を追加する）
+    foreignCurrencyMode?: boolean
+    foreignRateMode?: 'auto' | 'manual'  // auto = 共通レート、manual = 行ごとに入力
+    foreignGlobalRate?: string           // 'auto' モード時に全行へ適用する共通レート
 }
 
 // ──────────── プリセット ────────────
@@ -338,22 +345,29 @@ export function loadBookletConfig(shareId: string, daysCount: number): BookletCo
         const members = Array.isArray(parsed.members)
             ? (parsed.members as unknown[]).filter((m): m is string => typeof m === 'string')
             : undefined
+        const foreignCurrencyMode = parsed.foreignCurrencyMode === true ? true : undefined
+        const rawForeignRateMode = parsed.foreignRateMode as string | undefined
+        const foreignRateMode: 'auto' | 'manual' | undefined =
+            rawForeignRateMode === 'auto' || rawForeignRateMode === 'manual' ? rawForeignRateMode : undefined
+        const foreignGlobalRate = typeof parsed.foreignGlobalRate === 'string' ? parsed.foreignGlobalRate : undefined
+
+        const baseExtras = { fontStyle, members, foreignCurrencyMode, foreignRateMode, foreignGlobalRate }
 
         // 最新フォーマット（items 配列あり）
         if (Array.isArray(parsed.items)) {
             const items = reconcileDayItems(parsed.items as BookletItem[], daysCount)
-            return { items, showPageNumbers, showUrlQrCode, themeName, fontStyle, members }
+            return { items, showPageNumbers, showUrlQrCode, themeName, ...baseExtras }
         }
 
         // 前バージョン（blocks フラット配列）→ items に変換
         if (Array.isArray(parsed.blocks)) {
             const items = reconcileDayItems(migrateFlatBlocksToItems(parsed.blocks), daysCount)
-            return { items, showPageNumbers, showUrlQrCode, themeName, fontStyle, members }
+            return { items, showPageNumbers, showUrlQrCode, themeName, ...baseExtras }
         }
 
         // 旧フォーマット（optionalPages + dayMemos）→ items に変換
         const items = migrateLegacyToItems(parsed, daysCount)
-        return { items, showPageNumbers, showUrlQrCode, themeName, fontStyle, members }
+        return { items, showPageNumbers, showUrlQrCode, themeName, ...baseExtras }
     } catch {
         return buildDefaultConfig(daysCount)
     }
