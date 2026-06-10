@@ -7,10 +7,10 @@ import { getFontFamily } from './bookletFont'
 type FontOption = { value: FontStyle | undefined; label: string; description: string }
 
 const FONT_OPTIONS: FontOption[] = [
-    { value: undefined,   label: 'テーマ標準', description: '選択中のテーマが指定したフォント' },
-    { value: 'classic',   label: '通常',       description: 'システム標準のサンセリフ' },
-    { value: 'rounded',   label: 'まる',       description: '小杉丸ゴシック系のやさしい印象' },
-    { value: 'serif',     label: '明朝',       description: 'しっぽり明朝系の上品な印象' },
+    { value: undefined,   label: 'テーマ標準',       description: '選択中のテーマが指定したフォント' },
+    { value: 'classic',   label: 'Hiragino Sans',    description: 'システム標準のサンセリフ体' },
+    { value: 'rounded',   label: 'Kosugi Maru',      description: '丸みのあるやさしい印象' },
+    { value: 'serif',     label: 'Shippori Mincho',  description: '上品で読みやすい明朝体' },
 ]
 
 type Props = {
