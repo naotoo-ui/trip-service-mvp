@@ -1,5 +1,5 @@
 'use client'
-import { useEffect } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { type BookletConfig } from './bookletConfig'
 import type { FontStyle } from './bookletThemes'
 import { getFontFamily } from './bookletFont'
@@ -128,6 +128,11 @@ export default function BookletSettings({ open, onClose, config, onUpdate }: Pro
                                 </div>
                             </label>
 
+                            <MembersManager
+                                members={config.members ?? []}
+                                onChange={members => onUpdate({ ...config, members })}
+                            />
+
                             <div style={{
                                 padding: '14px',
                                 background: '#f8fafc',
@@ -207,6 +212,138 @@ export default function BookletSettings({ open, onClose, config, onUpdate }: Pro
 
                 </div>
             </div>
+        </div>
+    )
+}
+
+// ──────────── 編集メンバー管理 ────────────
+
+function MembersManager({ members, onChange }: { members: string[]; onChange: (next: string[]) => void }) {
+    // 編集中ドラフト（onChange は blur / Enter / 追加・削除 のタイミングでまとめて反映）
+    const [drafts, setDrafts] = useState<string[]>(members)
+    const lastSavedRef = useRef<string>(JSON.stringify(members))
+    const pendingFocusRef = useRef<number | null>(null)
+    const inputRefs = useRef<Map<number, HTMLInputElement>>(new Map())
+
+    useEffect(() => {
+        const incoming = JSON.stringify(members)
+        if (incoming !== lastSavedRef.current) {
+            lastSavedRef.current = incoming
+            setDrafts(members)
+        }
+    }, [members])
+
+    useEffect(() => {
+        if (pendingFocusRef.current !== null) {
+            const el = inputRefs.current.get(pendingFocusRef.current)
+            if (el) el.focus()
+            pendingFocusRef.current = null
+        }
+    }, [drafts])
+
+    function commit(next: string[]) {
+        const cleaned = next.map(s => s.trim()).filter(s => s.length > 0)
+        const serialized = JSON.stringify(cleaned)
+        if (serialized !== lastSavedRef.current) {
+            lastSavedRef.current = serialized
+            onChange(cleaned)
+        }
+    }
+
+    function updateAt(idx: number, value: string) {
+        setDrafts(prev => prev.map((m, i) => i === idx ? value : m))
+    }
+
+    function deleteAt(idx: number) {
+        const next = drafts.filter((_, i) => i !== idx)
+        setDrafts(next)
+        commit(next)
+    }
+
+    function addMember() {
+        const next = [...drafts, '']
+        setDrafts(next)
+        pendingFocusRef.current = next.length - 1
+    }
+
+    return (
+        <div style={{
+            padding: '14px',
+            background: '#f8fafc',
+            borderRadius: 12,
+            border: '1.5px solid #e2e8f0',
+        }}>
+            <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#0f172a' }}>
+                編集メンバー
+            </p>
+            <p style={{ margin: '2px 0 10px', fontSize: 11, color: '#64748b' }}>
+                金額メモのメンバー列で選択できる名前を登録します
+            </p>
+
+            {drafts.length === 0 && (
+                <p style={{ margin: '0 0 10px', fontSize: 12, color: '#94a3b8' }}>
+                    まだメンバーが登録されていません
+                </p>
+            )}
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {drafts.map((name, idx) => (
+                    <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <input
+                            ref={el => {
+                                if (el) inputRefs.current.set(idx, el)
+                                else inputRefs.current.delete(idx)
+                            }}
+                            type="text"
+                            value={name}
+                            onChange={e => updateAt(idx, e.target.value)}
+                            onBlur={() => commit(drafts)}
+                            onKeyDown={e => {
+                                if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+                                    e.preventDefault()
+                                    ;(e.currentTarget as HTMLInputElement).blur()
+                                }
+                            }}
+                            placeholder="例: 田中太郎"
+                            style={{
+                                flex: 1, padding: '6px 10px',
+                                fontSize: 13, color: '#0f172a',
+                                border: '1.5px solid #e2e8f0', borderRadius: 8,
+                                background: 'white', outline: 'none',
+                                fontFamily: 'inherit',
+                            }}
+                        />
+                        <button
+                            type="button"
+                            onClick={() => deleteAt(idx)}
+                            aria-label="メンバーを削除"
+                            title="メンバーを削除"
+                            style={{
+                                width: 28, height: 28, borderRadius: 8,
+                                border: 'none', background: 'rgba(15,23,42,0.06)',
+                                cursor: 'pointer', color: '#64748b',
+                                fontSize: 14, lineHeight: 1,
+                                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                flexShrink: 0,
+                            }}
+                        >×</button>
+                    </div>
+                ))}
+            </div>
+
+            <button
+                type="button"
+                onClick={addMember}
+                style={{
+                    marginTop: 10,
+                    padding: '6px 14px', borderRadius: 8,
+                    border: '1.5px dashed #2563eb',
+                    background: 'transparent', color: '#2563eb',
+                    fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                }}
+            >
+                ＋ メンバーを追加
+            </button>
         </div>
     )
 }

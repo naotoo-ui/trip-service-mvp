@@ -33,6 +33,13 @@ export type PrimitiveBlock =
     }
     | { id: string; kind: 'packing'; title: string; content: string; columns: 1 | 2 | 3; minHeight?: number }
     | { id: string; kind: 'emergency'; title: string; rows: EmergencyRow[]; colWidths?: EmergencyColWidths; minHeight?: number }
+    | {
+        id: string; kind: 'budget'; title: string;
+        rows: BudgetRow[];
+        colWidths?: BudgetColWidths;
+        sort?: BudgetSort;
+        minHeight?: number;
+    }
     | { id: string; kind: 'divider'; style?: 'solid' | 'dashed' | 'dotted' }
     | { id: string; kind: 'spacer'; height: number }
 
@@ -47,6 +54,26 @@ export type EmergencyColWidths = {
     name: number
     phone: number
     memo: number
+}
+
+export type BudgetRow = {
+    date: string    // YYYY-MM-DD or '' (input type=date 用)
+    member: string  // しおりの members から選択（空 = 未指定）
+    amount: string  // 金額。表記揺れ許容（例: '5000', '5,000', '￥5,000'）。ソート時は数値抽出
+    memo: string
+}
+
+// 日付/メンバー/金額/メモ 4 列の幅（パーセント、合計 = 100 を想定）
+export type BudgetColWidths = {
+    date: number
+    member: number
+    amount: number
+    memo: number
+}
+
+export type BudgetSort = {
+    key: 'date' | 'member' | 'amount'
+    dir: 'asc' | 'desc'
 }
 
 export type PrimitiveBlockKind = PrimitiveBlock['kind']
@@ -68,6 +95,8 @@ export type BookletConfig = {
     themeName: string
     // 未指定（undefined）の場合はテーマが指定したフォントを使う
     fontStyle?: FontStyle
+    // しおり共通の編集メンバー名。budget ブロックの member ドロップダウン等で参照する。
+    members?: string[]
 }
 
 // ──────────── プリセット ────────────
@@ -115,7 +144,12 @@ export const BLOCK_TEMPLATES: BlockTemplate[] = [
     },
     {
         label: '金額メモ', icon: '💰',
-        factory: () => ({ id: generateBlockId(), kind: 'text', title: '金額メモ', content: '', hideToolbar: true }),
+        factory: () => ({
+            id: generateBlockId(),
+            kind: 'budget',
+            title: '金額メモ',
+            rows: [{ date: '', member: '', amount: '', memo: '' }],
+        }),
     },
     {
         label: '自由ページ', icon: '✏️',
@@ -246,7 +280,7 @@ function migrateFlatBlocksToItems(blocks: any[]): BookletItem[] {
             items.push({ id: b.id ?? generateBlockId(), kind: 'back-cover' })
         } else if (b.kind === 'day') {
             items.push({ id: b.id ?? generateBlockId(), kind: 'day', dayIdx: b.dayIdx, blocksAbove: [], blocksBelow: [] })
-        } else if (b.kind === 'text' || b.kind === 'packing' || b.kind === 'emergency' || b.kind === 'divider' || b.kind === 'spacer') {
+        } else if (b.kind === 'text' || b.kind === 'packing' || b.kind === 'emergency' || b.kind === 'budget' || b.kind === 'divider' || b.kind === 'spacer') {
             items.push({
                 id: generateBlockId(), kind: 'composite',
                 blocks: [{ ...b, id: b.id ?? generateBlockId() } as PrimitiveBlock],
@@ -301,22 +335,25 @@ export function loadBookletConfig(shareId: string, daysCount: number): BookletCo
             rawFontStyle === 'rounded' || rawFontStyle === 'serif' || rawFontStyle === 'classic'
                 ? rawFontStyle
                 : undefined
+        const members = Array.isArray(parsed.members)
+            ? (parsed.members as unknown[]).filter((m): m is string => typeof m === 'string')
+            : undefined
 
         // 最新フォーマット（items 配列あり）
         if (Array.isArray(parsed.items)) {
             const items = reconcileDayItems(parsed.items as BookletItem[], daysCount)
-            return { items, showPageNumbers, showUrlQrCode, themeName, fontStyle }
+            return { items, showPageNumbers, showUrlQrCode, themeName, fontStyle, members }
         }
 
         // 前バージョン（blocks フラット配列）→ items に変換
         if (Array.isArray(parsed.blocks)) {
             const items = reconcileDayItems(migrateFlatBlocksToItems(parsed.blocks), daysCount)
-            return { items, showPageNumbers, showUrlQrCode, themeName, fontStyle }
+            return { items, showPageNumbers, showUrlQrCode, themeName, fontStyle, members }
         }
 
         // 旧フォーマット（optionalPages + dayMemos）→ items に変換
         const items = migrateLegacyToItems(parsed, daysCount)
-        return { items, showPageNumbers, showUrlQrCode, themeName, fontStyle }
+        return { items, showPageNumbers, showUrlQrCode, themeName, fontStyle, members }
     } catch {
         return buildDefaultConfig(daysCount)
     }

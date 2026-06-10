@@ -24,6 +24,7 @@ import SortableInnerBlock from './blocks/SortableInnerBlock'
 import TextBlock from './blocks/TextBlock'
 import PackingBlock from './blocks/PackingBlock'
 import EmergencyBlock from './blocks/EmergencyBlock'
+import BudgetBlock from './blocks/BudgetBlock'
 import DividerBlock from './blocks/DividerBlock'
 import SpacerBlock from './blocks/SpacerBlock'
 import BlockPalette from './blocks/BlockPalette'
@@ -622,7 +623,7 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
     }
 
     function resizePropsFor(block: PrimitiveBlock): { resizable: boolean; currentHeight?: number; onResize?: (h: number) => void } {
-        if (block.kind === 'text' || block.kind === 'packing' || block.kind === 'emergency') {
+        if (block.kind === 'text' || block.kind === 'packing' || block.kind === 'emergency' || block.kind === 'budget') {
             return {
                 resizable: true,
                 currentHeight: block.minHeight,
@@ -630,6 +631,7 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
                     if (b.kind === 'text') return { ...b, minHeight: h }
                     if (b.kind === 'packing') return { ...b, minHeight: h }
                     if (b.kind === 'emergency') return { ...b, minHeight: h }
+                    if (b.kind === 'budget') return { ...b, minHeight: h }
                     return b
                 }),
             }
@@ -711,6 +713,23 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
                         onTitleChange={editable ? (title => updatePrimitive(block.id, b => b.kind === 'emergency' ? { ...b, title } : b)) : undefined}
                         onRowsChange={editable ? (rows => updatePrimitive(block.id, b => b.kind === 'emergency' ? { ...b, rows } : b)) : undefined}
                         onColWidthsChange={editable ? (colWidths => updatePrimitive(block.id, b => b.kind === 'emergency' ? { ...b, colWidths } : b)) : undefined}
+                    />
+                )
+            case 'budget':
+                return (
+                    <BudgetBlock
+                        title={block.title}
+                        rows={block.rows}
+                        colWidths={block.colWidths}
+                        sort={block.sort}
+                        members={config!.members ?? []}
+                        theme={theme}
+                        editable={editable}
+                        minHeight={block.minHeight}
+                        onTitleChange={editable ? (title => updatePrimitive(block.id, b => b.kind === 'budget' ? { ...b, title } : b)) : undefined}
+                        onRowsChange={editable ? (rows => updatePrimitive(block.id, b => b.kind === 'budget' ? { ...b, rows } : b)) : undefined}
+                        onColWidthsChange={editable ? (colWidths => updatePrimitive(block.id, b => b.kind === 'budget' ? { ...b, colWidths } : b)) : undefined}
+                        onSortChange={editable ? (sort => updatePrimitive(block.id, b => b.kind === 'budget' ? { ...b, sort } : b)) : undefined}
                     />
                 )
             case 'divider':
