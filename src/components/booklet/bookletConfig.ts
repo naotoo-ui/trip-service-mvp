@@ -1,6 +1,7 @@
 // しおりの構成情報（テーマ以外）を localStorage で trip 単位に保存
 // ページ単位の構造：各ページ（item）が複数の primitive ブロックを保持する。
 // 表紙・背表紙は単独ページ、旅程ページは day ブロック上下に primitive ブロックを並べる。
+import type { FontStyle } from './bookletThemes'
 
 // ──────────── プリミティブブロック（ページ内のサブブロック） ────────────
 
@@ -63,6 +64,8 @@ export type BookletConfig = {
     showPageNumbers: boolean
     showUrlQrCode: boolean
     themeName: string
+    // 未指定（undefined）の場合はテーマが指定したフォントを使う
+    fontStyle?: FontStyle
 }
 
 // ──────────── プリセット ────────────
@@ -291,22 +294,27 @@ export function loadBookletConfig(shareId: string, daysCount: number): BookletCo
         const themeName = (parsed.themeName as string | undefined) ?? 'sakura'
         const showPageNumbers = (parsed.showPageNumbers as boolean | undefined) ?? true
         const showUrlQrCode = (parsed.showUrlQrCode as boolean | undefined) ?? false
+        const rawFontStyle = parsed.fontStyle as string | undefined
+        const fontStyle: FontStyle | undefined =
+            rawFontStyle === 'rounded' || rawFontStyle === 'serif' || rawFontStyle === 'classic'
+                ? rawFontStyle
+                : undefined
 
         // 最新フォーマット（items 配列あり）
         if (Array.isArray(parsed.items)) {
             const items = reconcileDayItems(parsed.items as BookletItem[], daysCount)
-            return { items, showPageNumbers, showUrlQrCode, themeName }
+            return { items, showPageNumbers, showUrlQrCode, themeName, fontStyle }
         }
 
         // 前バージョン（blocks フラット配列）→ items に変換
         if (Array.isArray(parsed.blocks)) {
             const items = reconcileDayItems(migrateFlatBlocksToItems(parsed.blocks), daysCount)
-            return { items, showPageNumbers, showUrlQrCode, themeName }
+            return { items, showPageNumbers, showUrlQrCode, themeName, fontStyle }
         }
 
         // 旧フォーマット（optionalPages + dayMemos）→ items に変換
         const items = migrateLegacyToItems(parsed, daysCount)
-        return { items, showPageNumbers, showUrlQrCode, themeName }
+        return { items, showPageNumbers, showUrlQrCode, themeName, fontStyle }
     } catch {
         return buildDefaultConfig(daysCount)
     }

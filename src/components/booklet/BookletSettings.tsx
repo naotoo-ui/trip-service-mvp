@@ -1,6 +1,17 @@
 'use client'
 import { useEffect } from 'react'
 import { type BookletConfig } from './bookletConfig'
+import type { FontStyle } from './bookletThemes'
+import { getFontFamily } from './bookletFont'
+
+type FontOption = { value: FontStyle | undefined; label: string; description: string }
+
+const FONT_OPTIONS: FontOption[] = [
+    { value: undefined,   label: 'テーマ標準', description: '選択中のテーマが指定したフォント' },
+    { value: 'classic',   label: '通常',       description: 'システム標準のサンセリフ' },
+    { value: 'rounded',   label: 'まる',       description: '小杉丸ゴシック系のやさしい印象' },
+    { value: 'serif',     label: '明朝',       description: 'しっぽり明朝系の上品な印象' },
+]
 
 type Props = {
     open: boolean
@@ -99,22 +110,70 @@ export default function BookletSettings({ open, onClose, config, onUpdate }: Pro
                     {/* ── 全体設定 ── */}
                     <section>
                         <p style={sectionLabel}>全体設定</p>
-                        <label style={checkboxRow}>
-                            <input
-                                type="checkbox"
-                                checked={config.showPageNumbers}
-                                onChange={e => onUpdate({ ...config, showPageNumbers: e.target.checked })}
-                                style={{ width: 16, height: 16, accentColor: '#2563eb', flexShrink: 0 }}
-                            />
-                            <div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                            <label style={checkboxRow}>
+                                <input
+                                    type="checkbox"
+                                    checked={config.showPageNumbers}
+                                    onChange={e => onUpdate({ ...config, showPageNumbers: e.target.checked })}
+                                    style={{ width: 16, height: 16, accentColor: '#2563eb', flexShrink: 0 }}
+                                />
+                                <div>
+                                    <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#0f172a' }}>
+                                        ページ番号を表示する
+                                    </p>
+                                    <p style={{ margin: '2px 0 0', fontSize: 11, color: '#64748b' }}>
+                                        表紙・背表紙を除く各ページに番号を振ります
+                                    </p>
+                                </div>
+                            </label>
+
+                            <div style={{
+                                padding: '14px',
+                                background: '#f8fafc',
+                                borderRadius: 12,
+                                border: '1.5px solid #e2e8f0',
+                            }}>
                                 <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#0f172a' }}>
-                                    ページ番号を表示する
+                                    しおりのフォント
                                 </p>
-                                <p style={{ margin: '2px 0 0', fontSize: 11, color: '#64748b' }}>
-                                    表紙・背表紙を除く各ページに番号を振ります
+                                <p style={{ margin: '2px 0 10px', fontSize: 11, color: '#64748b' }}>
+                                    しおり全体の本文フォントを指定します
                                 </p>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                                    {FONT_OPTIONS.map(opt => {
+                                        const selected = config.fontStyle === opt.value
+                                        const preview = opt.value ? getFontFamily(opt.value) : 'inherit'
+                                        return (
+                                            <button
+                                                key={opt.label}
+                                                type="button"
+                                                onClick={() => onUpdate({ ...config, fontStyle: opt.value })}
+                                                style={{
+                                                    textAlign: 'left',
+                                                    padding: '10px 12px',
+                                                    borderRadius: 10,
+                                                    border: selected ? '2px solid #2563eb' : '1.5px solid #e2e8f0',
+                                                    background: selected ? '#eff6ff' : 'white',
+                                                    cursor: 'pointer',
+                                                    fontFamily: preview,
+                                                }}
+                                            >
+                                                <p style={{
+                                                    margin: 0, fontSize: 14, fontWeight: 700,
+                                                    color: selected ? '#1d4ed8' : '#0f172a',
+                                                }}>
+                                                    {opt.label}
+                                                </p>
+                                                <p style={{ margin: '2px 0 0', fontSize: 11, color: '#64748b' }}>
+                                                    {opt.description}
+                                                </p>
+                                            </button>
+                                        )
+                                    })}
+                                </div>
                             </div>
-                        </label>
+                        </div>
                     </section>
 
                     {/* ── スマホ/PC 表示用設定 ── */}

@@ -602,7 +602,8 @@ export default function BookletView({ trip, editToken }: { trip: Trip; editToken
     }
 
     const themeName = (config.themeName in themes ? config.themeName : 'sakura') as ThemeName
-    const theme = getTheme(themeName)
+    const baseTheme = getTheme(themeName)
+    const theme: Theme = config.fontStyle ? { ...baseTheme, fontStyle: config.fontStyle } : baseTheme
 
     function handleThemeChange(t: ThemeName) {
         updateConfig({ ...config!, themeName: t })
