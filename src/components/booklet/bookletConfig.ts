@@ -28,6 +28,8 @@ export type PrimitiveBlock =
         // letterSpacingEm は em 単位。0 = デフォルト。どちらも 0 / 1 が初期値。
         lineHeight?: number         // 倍率。既定 1.0
         letterSpacingEm?: number    // 既定 0
+        // 編集時のリッチエディタツールバーを非表示にする（金額メモ等のシンプル用途）
+        hideToolbar?: boolean
     }
     | { id: string; kind: 'packing'; title: string; content: string; columns: 1 | 2 | 3; minHeight?: number }
     | { id: string; kind: 'emergency'; title: string; rows: EmergencyRow[]; colWidths?: EmergencyColWidths; minHeight?: number }
@@ -113,7 +115,7 @@ export const BLOCK_TEMPLATES: BlockTemplate[] = [
     },
     {
         label: '金額メモ', icon: '💰',
-        factory: () => ({ id: generateBlockId(), kind: 'text', title: '金額メモ', content: '' }),
+        factory: () => ({ id: generateBlockId(), kind: 'text', title: '金額メモ', content: '', hideToolbar: true }),
     },
     {
         label: '自由ページ', icon: '✏️',

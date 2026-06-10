@@ -79,6 +79,7 @@ type Props = {
     lineHeight?: number          // 倍率（1.0 = デフォルト）
     letterSpacingEm?: number     // em（0 = デフォルト）
     backgroundColor?: string     // 背景色 hex。未指定で枠・背景なし
+    hideToolbar?: boolean        // true で編集時もツールバーを表示しない
     onTitleChange?: (title: string) => void
     onContentChange?: (content: string) => void
     onAlignChange?: (align: TextAlign) => void
@@ -114,6 +115,7 @@ export default function TextBlock({
     title, content, theme, editable, minHeight,
     align, fontSize, fontWeight, color, imageUrl, showBorder,
     bold, italic, underline, strikethrough, lineHeight, letterSpacingEm, backgroundColor,
+    hideToolbar,
     onTitleChange, onContentChange,
     onAlignChange, onFontSizeChange, onFontWeightChange, onColorChange, onImageChange, onShowBorderChange,
     onBoldChange, onItalicChange, onUnderlineChange, onStrikethroughChange,
@@ -453,7 +455,7 @@ export default function TextBlock({
             </header>
 
             {/* 編集ツールバー（編集モードのみ表示・印刷時は非表示） */}
-            {editable && (
+            {editable && !hideToolbar && (
                 <div
                     className="booklet-text-toolbar"
                     style={{
